@@ -6,7 +6,7 @@
 
 - **Home base.** New spaces on this computer open in a workspace folder instead of your home folder, so an agent you start there treats that folder as its project, not your whole home folder. The default is `Projects` in your home folder if it exists. Set `homeBase` in `data/endfield/settings.json` to choose another folder. If that folder is missing, spaces open in your home folder and the sidebar says so. Spaces on other machines still open in that machine's home. The Spaces header shows the base, and the key command `endfield.newSpace` opens a space there. See [Home base](docs/SETUP.md#9-choose-where-new-spaces-open).
 
-- **Usage limits in the HUD footer.** The footer shows your Claude 5-hour and 7-day limits: percent used and time to reset, for example `5H 54% · 1H40M`. From 80% a window turns red with a `▲`. A window that has reset since Claude Code last reported it reads `Reset`, not its old numbers. The numbers come from the [Claude Code statusline](extras/claude-statusline/README.md), so copy the updated `statusline-endfield.sh` to `~/.claude/` again to get them. Without it the section is not shown.
+- **Usage limits in the HUD footer.** The footer shows your Claude 5-hour and weekly limits as a small bar, the percent used and the time to reset, for example `5-HOUR ▰▰▰▰▱▱▱▱ 54% used · resets in 1h 40m`. From 80% a window turns red with a `▲`. A window that has reset since Claude Code last reported it reads `reset`, not its old numbers. In a narrow window the bars go first, then `resets in` shortens to `↻`. The numbers come from the [Claude Code statusline](extras/claude-statusline/README.md), so copy the updated `statusline-endfield.sh` to `~/.claude/` again to get them. Without it the section is not shown.
 
 ### Changed
 

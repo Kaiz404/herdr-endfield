@@ -7,18 +7,21 @@
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { spaces, shared, nextCommand, checking } from "herdr";
-import { palette, root, midTrunc, hatch, micro, pad2, odometer, glyph, Entrance, MOTION, newSpace } from "./kit.js";
+import { palette, root, midTrunc, hatch, micro, pad2, odometer, glyph, gauge, GAUGE, FONT, Entrance, MOTION, newSpace } from "./kit.js";
 import { roster } from "./roster.js";
 import { goTo } from "./report.js";
 import { fmtTokens } from "./fleet.js";
-import { usage, USAGE_TICK_MS } from "./usage.js";
+import { usage, fit, tail, usageWidth, TIERS, BETWEEN, USAGE_TICK_MS } from "./usage.js";
 
 const NEEDS_W = 176;
+const GAUGE_W = GAUGE.segments * GAUGE.w + (GAUGE.segments - 1) * GAUGE.gap;
 
 export default class Status {
   init(_props, cx) {
     this.entrance = new Entrance(3);
     this.entrance.start(cx);
+    // The limits slot's width, as it last laid out: it picks how much of each window fits.
+    this.slotW = Infinity;
     // keys.json "<key>": "endfield.newSpace" lands here: the one copy every endfield window shows.
     if (checking()) return;
     // A data timer: the time to reset counts down in minutes while limits show.
@@ -38,7 +41,8 @@ export default class Status {
     const focus = shared("endfield.focus") ?? null;
     const pct = focus?.ctx ? Math.min(100, focus.ctx.pct) : 0;
     // The account's limits, the newest any statusline sidecar carries (the squad list publishes them).
-    const limits = usage(shared("endfield.limits"), Date.now());
+    const limits = usage(shared("endfield.limits"), Date.now(), GAUGE.segments);
+    const tier = limits ? fit(limits, this.slotW, { gaugeW: GAUGE_W }) : null;
     const crumb = (text) => div().min_w(0).truncate().text_color(C.barText).child(text);
     const rule = () => div().w(1).h(20).flex_none().bg(C.barRule);
     // A count of 0 draws its glyph still: idle is still, so the HUD never repaints for nothing.
@@ -46,12 +50,14 @@ export default class Status {
       .child(glyph({ ...C, flow: C.flowInv }, s, { size: 11, still: count(s) === 0 }))
       .child(odometer(`odo-${s}`, count(s), count(s) ? C.barText : C.barSlash, 13))
       .child(micro(word, C.barMuted));
-    // Urgent is a glyph plus red, as the context bar turns red; a reset window says so, never old numbers.
-    const quota = (w) => h_flex().flex_none().gap(5).items_center()
+    // Urgent is a glyph plus red, as the context gauge turns red; a reset window says so, never old numbers.
+    const note = (text, color) => div().font_family(FONT.mono).text_size(10).line_height(1).text_color(color).child(text);
+    const quota = (w, i) => h_flex().flex_none().gap(5).items_center()
       .when(w.hot, (el) => el.child(div().text_size(9).text_color(C.red).child("▲")))
       .child(micro(w.label, C.barMuted))
-      .child(w.reset ? micro("Reset", C.barText) : div().text_size(13).font_semibold().line_height(1).text_color(w.hot ? C.red : C.barText).child(`${w.pct}%`))
-      .when(Boolean(w.left), (el) => el.child(micro(`· ${w.left}`, C.barMuted)));
+      .when(tier.bars && Boolean(w.gauge), (el) => el.child(gauge({ ...C, text: C.barText, error: C.red, hairStrong: C.barRule }, w.gauge, { id: `hud-quota-${i}` })))
+      .when(!w.reset, (el) => el.child(div().text_size(13).font_semibold().line_height(1).text_color(w.hot ? C.red : C.barText).child(`${w.pct}%`)))
+      .child(note(tail(w, tier), w.reset ? C.barText : C.barMuted));
     return root(C, this.entrance.apply(h_flex().relative().size_full().bg(C.bar)
       .child(hatch(C.barHatch))
       .child(h_flex().relative().size_full().pl(16).gap(16).items_center()
@@ -66,8 +72,11 @@ export default class Status {
         .child(rule())
         .child(tally("working", "Generating"))
         .child(tally("done", "Claimed"))
-        .when(Boolean(limits), (el) => el.child(rule()).child(h_flex().flex_none().gap(14).items_center().children(limits.map(quota))))
-        .child(div().flex_1())
+        .when(Boolean(limits), (el) => el.child(rule()))
+        // Takes the free width, so its size is what the limits may use; narrower drops the bars, then "resets in".
+        .child(h_flex().id("hud-limits").flex_1().min_w(limits ? usageWidth(limits, TIERS[TIERS.length - 1], { gaugeW: GAUGE_W }) : 0).overflow_hidden().gap(BETWEEN).items_center()
+          .on_size_change((size, cx) => { if (Math.abs(size.width - this.slotW) > 1) { this.slotW = size.width; cx.notify(); } })
+          .children(limits ? limits.map(quota) : []))
         .child(v_flex().w(170).flex_none().gap(5)
           .child(h_flex().justify_between().items_end()
             .child(micro("Ctx · focused", C.barMuted))
