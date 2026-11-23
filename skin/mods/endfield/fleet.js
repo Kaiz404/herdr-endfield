@@ -2,13 +2,13 @@
 // them in node). roster.js feeds buildRoster() Herdr's live lists; kit.js re-exports the table.
 
 // Every role reads a status through this table: its word, how its glyph draws, its bar colour,
-// its entrance effect and its rank (how urgent).
+// its entrance effect, its rank (how urgent) and whether its Squads row folds to one line.
 export const STATUS = {
   blocked: { word: "Needs input", kind: "pill", bar: "signal", edge: "hazard", rank: 4 },
   error: { word: "Error", kind: "text", glyph: "×", hue: "error", bar: "red", rank: 4 },
-  done: { word: "Claimed", kind: "disc", glyph: "✓", bar: "lime", fresh: true, enter: ["flash", "pop"], rank: 3 },
+  done: { word: "Finished", kind: "disc", glyph: "✓", bar: "lime", fresh: true, enter: ["flash", "pop"], rank: 3 },
   working: { word: "Generating", kind: "march", hue: "flow", bar: "flowInv", rank: 2 },
-  idle: { word: "Idle", kind: "mono", glyph: "zZ", bar: "hairStrong", quiet: true, rank: 1 },
+  idle: { word: "Idle", kind: "mono", glyph: "zZ", bar: "hairStrong", quiet: true, oneLine: true, rank: 1 },
 };
 export const statusOf = (s) => STATUS[s] ?? null;
 export const rank = (s) => STATUS[s]?.rank ?? 0;
@@ -147,4 +147,63 @@ export function transcriptPlan(panes, tab, shown, path) {
   const open = transcriptsIn(panes, tab);
   if (open.length === 1 && shown === path) return { focus: open[0].pane };
   return { close: open.map((p) => p.pane) };
+}
+
+// A Squads row's height class: an idle agent folds to one line, any other keeps two. agents.js
+// sizes each class in its H table, so the selection marker can add the heights up.
+export const rowShape = (status, depth) => (STATUS[status]?.oneLine ? "idle" : depth ? "child" : "lead");
+
+export const DASH = "—";
+
+/** 151000 -> "151K", 1200000 -> "1.2M", 1000000 -> "1M". */
+export function fmtTokens(n) {
+  if (n == null) return DASH;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, "")}M`;
+  if (n >= 1e3) return `${Math.round(n / 1e3)}K`;
+  return String(n);
+}
+
+/** 42s -> "42s", 27 min -> "27m", 67 min -> "1h07", 12 h -> "12h", 3 days -> "3d". */
+export function elapsed(ms) {
+  const m = Math.floor(ms / 60000), h = Math.floor(m / 60);
+  if (m < 1) return `${Math.floor(ms / 1000)}s`;
+  if (m < 60) return `${m}m`;
+  if (h < 10) return `${h}h${String(m % 60).padStart(2, "0")}`;
+  return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
+}
+
+// The window is 1M for a "[1m]" model, else 200K; a context already past 200K must be in the larger one.
+export function contextWindow(id, used) {
+  return /\[1m\]/i.test(id ?? "") || used > 200000 ? 1000000 : 200000;
+}
+
+// From this share of the window on, a context gauge runs red.
+export const CTX_HOT = 0.75;
+
+const EFFORT = { low: "low", medium: "med", high: "high", xhigh: "xhigh", max: "max" };
+
+/**
+ * What a Squads row says about a run. model (or, with no session, the program) and effort sit
+ * beside the callsign. time: how long the run has gone, to now while it works, else to its last
+ * write. ticking: the time reads seconds and changes each second. gauge: how full its context is,
+ * in `segments` blocks. What isn't known is null.
+ * run: {startedAt, lastAt, live, model, modelId, effort, used, total, program}, every field optional
+ * -> {model, effort, time, ticking, gauge: {lit, hot, tip} | null}
+ */
+export function rowMeta(run, now, segments) {
+  const end = run.live ? now : run.lastAt;
+  const ms = run.startedAt && end ? Math.max(0, end - run.startedAt) : null;
+  const total = run.total ?? contextWindow(run.modelId, run.used);
+  const share = run.used ? run.used / total : null;
+  return {
+    model: run.model ?? run.program ?? null,
+    effort: EFFORT[run.effort] ?? run.effort ?? null,
+    time: ms == null ? null : elapsed(ms),
+    ticking: Boolean(run.live) && ms != null && ms < 60000,
+    gauge: share == null ? null : {
+      lit: Math.round(Math.min(1, share) * segments),
+      hot: share >= CTX_HOT,
+      tip: `${fmtTokens(run.used)} / ${fmtTokens(total)} · ${Math.round(share * 100)}%`,
+    },
+  };
 }

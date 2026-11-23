@@ -10,8 +10,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { run, shared, layout } from "herdr";
 import { palette, root, statusMark, chip, micro, wide, pad2, barcode, growDisc, find, Entrance, FONT } from "./kit.js";
 import { roster } from "./roster.js";
-import { DENSE_AT } from "./fleet.js";
-import { fmtTokens } from "./sessions.js";
+import { DENSE_AT, fmtTokens } from "./fleet.js";
 
 export const REPORT = { stack: "work-stack", work: "main", report: "report" };
 export const toggleReport = (open) => run("layout.select", { stack: REPORT.stack, child: open ? REPORT.report : REPORT.work });
@@ -25,7 +24,7 @@ export function goTo(m) {
 
 const WINDOW_MS = 10 * 60000;
 const BARS = 16;
-// Status order: Needs input, then Claimed, Generating, Idle.
+// Status order: Needs input, then Finished, Generating, Idle.
 const ORDER = { blocked: 0, error: 0, done: 1, working: 2, idle: 3 };
 const COLS = [
   { k: "name", label: "Agent", grow: 2.3, key: (r) => r.m.ident.callsign },
@@ -118,7 +117,7 @@ export class Report {
     const vendors = new Set(R.flat.map((m) => m.program?.key)).size;
     const stats = [
       ["Squads", pad2(R.squads.length), C.hairStrong], ["Agents", pad2(R.flat.length), C.hairStrong], ["Generating", pad2(count("working")), C.flow],
-      ["Needs input", pad2(count("blocked")), C.signal], ["Claimed", pad2(count("done")), C.lime], ["Tokens · 10 min", tokens ? fmtTokens(tokens) : "—", C.hairStrong],
+      ["Needs input", pad2(count("blocked")), C.signal], ["Finished", pad2(count("done")), C.lime], ["Tokens · 10 min", tokens ? fmtTokens(tokens) : "—", C.hairStrong],
     ];
     const inner = Math.max(400, this.width - 40 - 12 * (COLS.length - 1));
     const total = COLS.reduce((n, c) => n + c.grow, 0);
