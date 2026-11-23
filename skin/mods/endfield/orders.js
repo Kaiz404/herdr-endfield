@@ -1,9 +1,38 @@
-// orders: what Dispatch runs and what happened, with no Herdr in it (tests/orders.test.mjs runs it in
-// node). The dialog (dispatch.js) only draws these and passes the person's choices in.
+// orders: what Dispatch and the transcript pane's follow-up box run and what happened, with no Herdr
+// in it (tests/orders.test.mjs and tests/relay.test.mjs run it in node). The dialog (dispatch.js) and
+// the pane (endfield-transcript) only draw these and pass the person's choices in. A mod can't import
+// outside its folder, so endfield-transcript holds a byte-identical copy; tests/relay.test.mjs fails when they differ.
 
 /** hc send: the typed text always follows `--`, so text starting with "-" is never read as an option. */
 export function sendArgs({ target, delivery, task }) {
   return ["send", target, ...(delivery === "idle" ? ["--if", "idle"] : []), ...(delivery === "wait" ? ["--wait"] : []), "--", task];
+}
+
+const oneLine = (s) => `${s ?? ""}`.replace(/\s*[\r\n]+\s*/g, " ").trim();
+
+/** What a Claude Code parent is asked to type into SendMessage for its sub-agent `id`. */
+export function relayMessage({ id, title, text }) {
+  return `Use SendMessage to send your sub-agent ${id} (${oneLine(title)}) this follow-up, word for word: ${oneLine(text)}`;
+}
+
+const PARENT_PROBLEM = {
+  working: "Its parent is working. Send once it is idle; this pane never forces.",
+  blocked: "Its parent needs input. Answer it first.",
+};
+
+/**
+ * A follow-up for a Claude Code sub-agent (the transcript pane). It has no terminal, so its parent is
+ * asked to pass the text on with SendMessage, and only while the parent waits at its prompt. Idle goes
+ * with --if idle. Done (Claude Code after a turn; --if idle refuses it, and hc has no --if done) goes
+ * plain, and hc still refuses a blocked parent. Returns {args, problem}: exactly one is null.
+ */
+export function relayOrder({ parent, status, id, title, text }) {
+  const problem = !parent ? "This pane doesn't know the sub-agent's parent. Close it and open it again from Squads."
+    : status !== "idle" && status !== "done" ? PARENT_PROBLEM[status] ?? "Its parent isn't running."
+    : !oneLine(text) ? "Type a follow-up."
+    : null;
+  if (problem) return { args: null, problem };
+  return { args: sendArgs({ target: parent, delivery: status === "idle" ? "idle" : "now", task: relayMessage({ id, title, text }) }), problem: null };
 }
 
 /** hc run: a new terminal in a space, its program's argv after `--`, the task as its last argument. */
