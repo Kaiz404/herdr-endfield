@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildRoster, BY, PINNED, subNumbers, subagentView } from "../skin/mods/endfield/fleet.js";
+import { buildRoster, BY, PINNED, subNumbers, subagentView, rowMeta, rowShape } from "../skin/mods/endfield/fleet.js";
 
 // Every claude agent is PERLICA unless spares are free; a repeat takes a spare, then a number.
 const identity = (spares = []) => ({
@@ -88,6 +88,56 @@ test("with none working only the toggle is offered; with none finished there is 
   assert.deepEqual(subagentView([sub("a1", "done", 1), sub("a2", "idle", 2)], false), { shown: [], earlier: 2 });
   const busy = subagentView([sub("a1", "working", 1)], false);
   assert.deepEqual([busy.shown.map((k) => k.id), busy.earlier], [["a1"], 0]);
+});
+
+const MIN = 60000;
+
+test("a generating run: model and effort beside the callsign, elapsed to now, and an 8-block gauge with its numbers", () => {
+  const meta = rowMeta({ startedAt: 1, lastAt: 3 * MIN, live: true, model: "Opus 5.5", effort: "medium", used: 157000, total: 1000000, program: "Claude Code" }, 1 + 67 * MIN, 8);
+  assert.deepEqual(meta, { model: "Opus 5.5", effort: "med", time: "1h07", ticking: false, gauge: { lit: 1, hot: false, tip: "157K / 1M · 16%" } });
+});
+
+test("elapsed reads seconds, minutes, hours with minutes, then whole hours and days", () => {
+  const at = (ms) => rowMeta({ startedAt: 1, lastAt: 1 + ms }, 0, 8).time;
+  assert.deepEqual([0, 42500, 59999, MIN, 27 * MIN, 60 * MIN, 67 * MIN, 599 * MIN, 12 * 60 * MIN, 3 * 24 * 60 * MIN].map(at),
+    ["0s", "42s", "59s", "1m", "27m", "1h00", "1h07", "9h59", "12h", "3d"]);
+});
+
+test("only a generating run under a minute ticks each second", () => {
+  const tick = (live, ms) => rowMeta({ startedAt: 1, lastAt: 1 + ms, live }, 1 + ms, 8).ticking;
+  assert.deepEqual([tick(true, 42000), tick(true, MIN), tick(false, 42000)], [true, false, false],
+    "a finished run's seconds never change, and past a minute the slower refresh keeps up");
+  assert.equal(rowMeta({ live: true }, 5, 8).ticking, false, "no start time: no clock to tick");
+});
+
+test("a finished run's elapsed stops at its last write, not now", () => {
+  assert.equal(rowMeta({ startedAt: 1, lastAt: 1 + 65 * MIN, live: false }, 500 * MIN, 8).time, "1h05");
+});
+
+test("past 75% of the window the gauge runs hot; a context over the window fills every block", () => {
+  const g = (used, total) => rowMeta({ used, total }, 0, 8).gauge;
+  assert.deepEqual([g(149000, 200000).hot, g(150000, 200000).hot], [false, true]);
+  assert.equal(g(250000, 200000).lit, 8);
+  assert.equal(g(100000, 200000).lit, 4);
+});
+
+test("with no total the window is inferred: 1M for a [1m] model or a context past 200K, else 200K", () => {
+  assert.equal(rowMeta({ used: 50000 }, 0, 8).gauge.tip, "50K / 200K · 25%");
+  assert.equal(rowMeta({ used: 50000, modelId: "claude-opus-5-5[1m]" }, 0, 8).gauge.tip, "50K / 1M · 5%");
+  assert.equal(rowMeta({ used: 300000 }, 0, 8).gauge.tip, "300K / 1M · 30%");
+});
+
+test("what isn't known is null or left out, and an agent with no session shows its program", () => {
+  assert.deepEqual(rowMeta({ program: "Codex" }, 0, 8), { model: "Codex", effort: null, time: null, ticking: false, gauge: null });
+  assert.equal(rowMeta({ model: "Opus 5.5", used: 0 }, 0, 8).gauge, null, "no assistant turn yet: no gauge");
+  assert.deepEqual(["low", "medium", "high", "xhigh", "max", "ultra"].map((effort) => rowMeta({ model: "M", effort }, 0, 8).effort),
+    ["low", "med", "high", "xhigh", "max", "ultra"]);
+});
+
+test("only idle rows fold to one line; working, blocked, done and error keep their two-line height", () => {
+  assert.deepEqual([rowShape("idle", 0), rowShape("idle", 2)], ["idle", "idle"]);
+  assert.deepEqual(["working", "blocked", "done", "error"].map((s) => [rowShape(s, 0), rowShape(s, 1)]),
+    [["lead", "child"], ["lead", "child"], ["lead", "child"], ["lead", "child"]]);
 });
 
 test("a sub-agent whose transcript has no timestamp yet sorts by its last write", () => {

@@ -2,7 +2,7 @@
 // props {title, body, level, icon, action, timeout, overlay} and no role; main.js routes it here.
 // An agent that needs input gets the skill caption instead (cutin.js, an overlay window: Herdr's
 // toast slot is too small for it), unless its pane has focus: you are looking at it, so its pane
-// header pulses and no toast is made. A Claimed agent gets the Claimed slip. Anything else is the
+// header pulses and no toast is made. A finished agent gets the Finished slip. Anything else is the
 // plain slab, ported from the shipped `toast`: click runs the action and closes, the host owns the
 // timeout, and a machine-login body gets a Copy button.
 
@@ -62,8 +62,8 @@ export class Toast {
       if (!a.focused) { cue("needs"); openCutIn(a.address, { title: p.title ?? null, body: p.body ?? null }); }
       closeOverlay(p.overlay);
     } else if (a?.status === "done") {
-      this.kind = "claimed";
-      cue("claimed");
+      this.kind = "finished";
+      cue("finished");
     } else if (!a || a.status === "blocked") {
       this.kind = "plain";
     }
@@ -91,7 +91,7 @@ export class Toast {
       this.waiting = true;
       cx.timer.after(MOTION.toast.enter.duration, (cx) => { this.decide(p); this.kind ??= "plain"; cx.notify(); });
     }
-    if (this.kind !== "plain" && this.kind !== "claimed") return div();
+    if (this.kind !== "plain" && this.kind !== "finished") return div();
     const C = palette();
     const shown = this.phase === "shown";
     const slab = (edge, body) => root(C, h_flex()
@@ -113,7 +113,7 @@ export class Toast {
       .when(Boolean(p.timeout) && this.width > 0, (el) => el.child(div().id("toast-count").absolute().left(0).bottom(0).h(2).bg(edge)
         .w(shown ? 0 : this.width).transition("width", { ...MOTION.toast.countdown, duration: Math.max(0, Number(p.timeout)) })))
       .child(body));
-    if (this.kind === "claimed") return slab(C.lime, this.claimedBody(C, p));
+    if (this.kind === "finished") return slab(C.lime, this.finishedBody(C, p));
     const level = LEVEL[p.level] ?? LEVEL.info;
     const edge = C[level.edge];
     const login = /^([a-z0-9][a-z0-9_.-]{0,31}) needs login; run hc machine login \1$/.exec(p.body ?? "");
@@ -145,8 +145,8 @@ export class Toast {
         .size(16).rounded_full().bg(primary ? C.ink : C.selBg).flex().items_center().justify_center().text_size(7).text_color(primary ? C.signal : C.selText).child("▶"));
   }
 
-  /** Claimed: the operator's chip flashes once, a lime "Claimed ✓" pops, the task, View, where, and × to dismiss. */
-  claimedBody(C, p) {
+  /** Finished: the operator's chip flashes once, a lime "Finished ✓" pops, the task, View, where, and × to dismiss. */
+  finishedBody(C, p) {
     const a = this.from.agent;
     const m = roster().all.get(a.address);
     const shown = this.phase === "shown";
@@ -155,8 +155,8 @@ export class Toast {
       .child(v_flex().flex_1().min_w(0).gap(7)
         .child(h_flex().gap(8).items_center()
           .child(wide(m?.ident.callsign ?? a.program?.name ?? "", C.text, 11).flex_none())
-          .child(div().id("toast-claimed").h(16).px(7).flex_none().flex().items_center().rounded_full().bg(C.lime).text_size(10).font_semibold().text_color(C.ink)
-            .opacity(shown ? 1 : 0).transition("opacity", MOTION.done.check).child("Claimed ✓"))
+          .child(div().id("toast-finished").h(16).px(7).flex_none().flex().items_center().rounded_full().bg(C.lime).text_size(10).font_semibold().text_color(C.ink)
+            .opacity(shown ? 1 : 0).transition("opacity", MOTION.done.check).child("Finished ✓"))
           .child(div().flex_1())
           .child(div().id("toast-x").size(18).flex_none().flex().items_center().justify_center().rounded_full().text_size(11).text_color(C.muted)
             .hover((s) => s.bg(C.sunken).text_color(C.text)).tooltip("Dismiss")

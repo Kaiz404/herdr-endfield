@@ -2,6 +2,7 @@
 # Claude Code statusline, Endfield style. ANSI 16 colours only, so the terminal theme decides the hues.
 # Also writes a per-session sidecar for Herdr's Endfield skin:
 #   ~/.config/herdr-app/data/endfield/sessions/<session_id>.json
+# rate_limits (the account's 5-hour and 7-day usage) rides along for the HUD footer.
 # One gawk process does the parsing (no jq, no git): forks are what make Git Bash slow.
 
 exec 2>/dev/null
@@ -36,6 +37,7 @@ function num(s, key,    v) {
 function unesc(s) { gsub(/\\\\/, "\\", s); gsub(/\\"/, "\"", s); return s }
 function jstr(s) { return s == "" ? "null" : "\"" s "\"" }
 function jnum(v) { return v == "" ? "null" : v }
+function jwin(o) { return o == "" ? "null" : "{\"used_percentage\":" jnum(num(o, "used_percentage")) ",\"resets_at\":" jnum(num(o, "resets_at")) "}" }
 function firstline(path,    l) { l = ""; if ((getline l < path) > 0) {}; close(path); sub(/[\r\n].*/, "", l); return l }
 function branch(cwd,    d, h, g, p) {
   d = cwd; gsub(/\\/, "/", d); sub(/\/+$/, "", d)
@@ -108,6 +110,7 @@ BEGIN { RS = "\001"; E = "\033["; R = E "0m"; B = E "1m"; D = E "90m"; Y = E "33
     printf "{\"session_id\":\"%s\",\"terminal\":%s,\"cwd\":%s,\"transcript_path\":%s,", sid, jstr(term), jstr(cwd_raw), jstr(str(j, "transcript_path")) > tmp
     printf "\"model\":{\"id\":%s,\"display_name\":%s},", jstr(model_id), jstr(str(m, "display_name")) > tmp
     printf "\"context\":{\"used\":%s,\"total\":%s,\"pct\":%s},", jnum(used), jnum(total), jnum(pct) > tmp
+    printf "\"rate_limits\":%s,", (rl == "" ? "null" : "{\"five_hour\":" jwin(obj(rl, "five_hour")) ",\"seven_day\":" jwin(obj(rl, "seven_day")) "}") > tmp
     printf "\"cost_usd\":%s,\"updated_at\":\"%s\"}\n", jnum(cost), strftime("%Y-%m-%dT%H:%M:%SZ", systime(), 1) > tmp
     close(tmp)
   }

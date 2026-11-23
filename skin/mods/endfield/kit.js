@@ -53,6 +53,7 @@ const PALETTE = {
     selBg: "#191919",
     selText: "#F2F2F2",
     selMuted: "#A9A9A3",
+    selDim: "#6E6E6E",
     pillBg: "#191919",
     pillText: "#F2F2F2",
     focusEdge: "#191919",
@@ -82,6 +83,7 @@ const PALETTE = {
     selBg: "#EDEDED",
     selText: "#191919",
     selMuted: "#555555",
+    selDim: "#8C8C8C",
     pillBg: "#EDEDED",
     pillText: "#191919",
     focusEdge: "#EDEDED",
@@ -263,7 +265,7 @@ export async function newSpace(machine = spaces().find((s) => s.active)?.machine
 
 const SOUND = {
   needs: { file: "mods/endfield/sounds/needs-input.mp3", alert: true },
-  claimed: { file: "mods/endfield/sounds/claimed.mp3", alert: true },
+  finished: { file: "mods/endfield/sounds/claimed.mp3", alert: true },
   tick: { file: "mods/endfield/sounds/tick.mp3", alert: false },
 };
 
@@ -307,6 +309,19 @@ export function path(text, fg, slash, { size = 13, weight = 500 } = {}) {
 
 export const icon = (name, size = 14) => svg(`${ASSETS}/${name}.svg`).size(size).flex_none();
 
+// A Squads row's context gauge: `segments` blocks of w x h, `gap` apart.
+export const GAUGE = { segments: 8, w: 5, h: 6, gap: 2 };
+// The HUD footer's usage limits: each window two rows (`top` and `bottom` px tall, `rowGap` apart)
+// in two columns `colGap` apart, the percent at `pct` px; windows `between` either side of a hairline.
+export const QUOTA = { top: 13, bottom: 10, rowGap: 5, colGap: 10, pct: 13, between: 12 };
+
+/** g: fleet.js rowMeta's gauge {lit, hot, tip}; `inv` on the selected row's plate. */
+export function gauge(C, g, { inv = false, id }) {
+  const lit = inv ? C.selText : g.hot ? C.error : C.text;
+  return h_flex().id(id).gap(GAUGE.gap).flex_none().tooltip(g.tip)
+    .children(Array.from({ length: GAUGE.segments }, (_, k) => div().w(GAUGE.w).h(GAUGE.h).bg(k < g.lit ? lit : inv ? C.selMuted : C.hairStrong)));
+}
+
 const RECT = () => PathBuilder.fill().move_to("0%", "0%").line_to("100%", "0%").line_to("100%", "100%").line_to("0%", "100%").close().build();
 
 /** Tone-on-tone 45° grain filling a relative parent: material, not pattern. */
@@ -323,7 +338,7 @@ function programGlyph(program, size, color) {
  * An agent as a game party chip: a round portrait in a ring (white; yellow when it needs input), a
  * 1px halo in the operator's accent (the selection's ink when selected), and the class badge bottom
  * right. Without art the circle holds the program's own tile, so a missing pack never moves a row.
- * flash: the Claimed beat, a yellow disc drawn at .9 that fades (lit is its first frame).
+ * flash: the Finished beat, a yellow disc drawn at .9 that fades (lit is its first frame).
  */
 export function chip(C, ident, status, { size = 36, on = false, id = null, flash = null, ground = null } = {}) {
   const ring = status === "blocked" ? C.signal : "#FFFFFF";
@@ -392,14 +407,6 @@ export function basename(p) {
   if (!p) return "";
   if (p === home()) return "~";
   return p.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || p;
-}
-
-export function duration(ms) {
-  const m = Math.floor(ms / 60000);
-  if (m < 1) return "<1m";
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
 }
 
 /** The key bound to an action, as the person types it ("Ctrl+Shift+P"), or null. */
@@ -475,7 +482,7 @@ export class Entrance {
 
 /**
  * One-shot effects on status transitions: keeps each key's previous status and, when one enters a
- * state whose table entry has `enter`, runs those once. A Claimed agent's chip flashes yellow (drawn
+ * state whose table entry has `enter`, runs those once. A finished agent's chip flashes yellow (drawn
  * at .9, then fades) while its check grows from 0.
  */
 export class StatusFx {

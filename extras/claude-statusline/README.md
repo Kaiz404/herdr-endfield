@@ -9,8 +9,9 @@ A Claude Code statusline in the skin's style. It also feeds the skin exact sessi
 ## What it changes
 
 - Claude Code shows this line under its prompt: folder, branch, model, effort, a 10-step context gauge (red from 75%), input tokens, and your 5-hour and 7-day limits when Claude Code reports them.
-- On every update it writes one small JSON file per session to `~/.config/herdr-app/data/endfield/sessions/<session id>.json`. The file holds the session id, the Herdr terminal (`HC_TERMINAL_ID`), the folder, the transcript path, the model, context use and cost.
+- On every update it writes one small JSON file per session to `~/.config/herdr-app/data/endfield/sessions/<session id>.json`. The file holds the session id, the Herdr terminal (`HC_TERMINAL_ID`), the folder, the transcript path, the model, context use, cost and your 5-hour and 7-day usage limits (`rate_limits`).
 - With these files, the skin matches each agent row to its exact session. Without them it guesses from the newest transcript in the folder and marks the card `≈`.
+- The HUD footer shows the usage limits from the newest file that has them.
 
 It reads nothing else and sends nothing anywhere.
 
@@ -35,6 +36,10 @@ It reads nothing else and sends nothing anywhere.
 3. Start a new Claude Code session.
 
 The script writes to `~/.config/herdr-app`. If you use `HERDR_APP_HOME`, change `dir=` at the top of the script to match.
+
+## Update
+
+The skin's installer does not touch `~/.claude/`. When this script changes, copy it again (step 1 of Install). The HUD footer's usage limits need a copy from after the Unreleased change in [CHANGELOG.md](../../CHANGELOG.md); an older copy writes no `rate_limits`, and the footer leaves the section out. Each running session picks up the new script on its next statusline update.
 
 ## Undo
 
