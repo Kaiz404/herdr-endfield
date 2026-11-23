@@ -1,6 +1,8 @@
 // fleet: the status table and the roster rules, with no Herdr in them (tests/fleet.test.mjs runs
 // them in node). roster.js feeds buildRoster() Herdr's live lists; kit.js re-exports the table.
 
+import { lifeKey } from "./archive.js";
+
 // Every role reads a status through this table: its word, how its glyph draws, its bar colour,
 // its entrance effect, its rank (how urgent) and whether its Squads row folds to one line.
 export const STATUS = {
@@ -41,11 +43,15 @@ export const PINNED = "pinned";
  * Pinned agents (and their trees) come first, in a squad of their own ahead of every space's, so
  * the list and agent.next start with them. `sort` orders siblings; children stay under their parent.
  * identity: { resolve(program, terminal, {parent}), as(slug, program), spares() } (IDENTITY in kit.js).
+ * archived: lifeKeys (archive.js) of agents the person archived; they stay out even while their
+ * terminal lingers (a shell left behind once the program ended).
  */
-export function buildRoster({ listed, terms, spaces, identity, sort = BY.priority }) {
+export function buildRoster({ listed, terms, spaces, identity, sort = BY.priority, archived = [] }) {
   const termOf = new Map(terms.map((t) => [t.address, t]));
+  const gone = new Set(archived);
   const all = new Map();
   for (const a of listed) {
+    if (gone.has(lifeKey(a.address, termOf.get(a.address)?.created_ms))) continue;
     all.set(a.address, {
       address: a.address, agent: a, program: a.program, status: a.status, title: a.title,
       space: a.space, spaceName: a.space_name, tab: a.tab, tabIndex: a.tab_index, pane: a.pane,

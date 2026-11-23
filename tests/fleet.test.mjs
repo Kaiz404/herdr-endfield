@@ -144,3 +144,11 @@ test("a sub-agent whose transcript has no timestamp yet sorts by its last write"
   const view = subagentView([sub("old", "done", 10), sub("new", "done", null, 20)], true);
   assert.deepEqual(view.shown.map((k) => k.id), ["new", "old"]);
 });
+
+test("an archived agent stays out of the squads, a new terminal at its address doesn't", () => {
+  const terms = [term("t1", 100), term("t2", 200)];
+  const R = buildRoster({ listed: [agent("t1", "s1", "idle"), agent("t2", "s1", "idle")], terms, spaces, identity: identity(), archived: ["t1@100"] });
+  assert.deepEqual(R.flat.map((m) => m.address), ["t2"]);
+  const reborn = buildRoster({ listed: [agent("t1", "s1", "idle")], terms: [term("t1", 900)], spaces, identity: identity(), archived: ["t1@100"] });
+  assert.deepEqual(reborn.flat.map((m) => m.address), ["t1"]);
+});
