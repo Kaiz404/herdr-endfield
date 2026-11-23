@@ -12,19 +12,20 @@
 //
 // Session = {sessionId, terminal, cwd, transcriptPath, approx, model:{id, display, short} | null,
 //   ctx:{used, total, pct} | null, tokens:{total, delta} | null, tools, turns, effort, mode,
-//   lastAction:{tool, arg} | null, lastAt, startedAt, question, subagents: Sub[]}
-// Sub = {id, path, title, model, effort, ctx, tools, status: working | done | idle, lastAt, startedAt, lastAction},
-//   in no order (fleet.js subagentView orders them)
+//   lastAction:{tool, arg} | null, lastAt, startedAt, question, live: boolean | null, tasks: Task[],
+//   waiting (its turn ended with background work or a sub-agent still in flight), subagents: Sub[]}
+// Sub = {id, path, title, model, effort, ctx, tools, status: working | waiting | done | idle (fleet.js runStatus),
+//   lastAt, startedAt, lastAction, tasks: Task[]}, in no order (fleet.js subagentView orders them)
+// Task = background work a transcript started: {id, kind: shell | agent | monitor, description, startedAt,
+//   endedAt, state: running | completed | failed | killed | stopped | ended-with-session}
 
 import * as fs from "fs/promises";
 import { exec, appHome, watchFolder, checking } from "herdr";
-import { DASH, contextWindow } from "./fleet.js";
+import { DASH, contextWindow, runStatus, inFlight } from "./fleet.js";
 
 const DATA = () => `${appHome()}/data/endfield`;
 const SIDECARS = () => `${DATA()}/sessions`;
 const PROBE = () => `${appHome()}/mods/endfield/tools/probe.mjs`;
-// A sub-agent counts as working while its transcript was written this recently.
-const LIVE_MS = 20000;
 const POLL_MS = 3000;
 const BLIND_EVERY = 5;
 
@@ -59,11 +60,14 @@ function shape(t, raw, parentStatus) {
     effort: s.effort ?? null,
     ctx: s.used ? contextOf(s.model, s.used) : null,
     tools: s.tools ?? 0,
-    status: now - s.mtime < LIVE_MS && (s.pending || !s.final) ? "working" : parentStatus === "idle" ? "idle" : "done",
+    status: runStatus({ ...s, live: raw.live, now }, parentStatus),
     lastAt: s.mtime,
     startedAt: s.firstAt ?? null,
     lastAction: s.last,
+    tasks: s.tasks ?? [],
   }));
+  // A sub-agent in flight holds its session up as a running task does, whatever the session was last told of it.
+  const held = [...(raw?.tasks ?? []), ...subs.filter((k) => inFlight(k.status)).map(() => ({ state: "running" }))];
   return {
     sessionId: sidecar?.session_id ?? raw?.sessionId ?? null,
     terminal: t.terminal,
@@ -81,6 +85,9 @@ function shape(t, raw, parentStatus) {
     lastAt: raw?.lastAt ?? null,
     startedAt: raw?.firstAt ?? null,
     question: raw?.pending ? raw.pending.question ?? `Allow ${raw.pending.tool}${raw.pending.arg ? ` · ${raw.pending.arg}` : ""}?` : null,
+    live: raw?.live ?? null,
+    tasks: raw?.tasks ?? [],
+    waiting: Boolean(raw) && runStatus({ ...raw, tasks: held, now }, parentStatus) === "waiting",
     subagents: subs,
   };
 }

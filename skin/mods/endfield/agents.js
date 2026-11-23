@@ -12,7 +12,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE } from "./kit.js";
 import { roster } from "./roster.js";
-import { BY, DENSE_AT, statusOf, subNumbers, subagentView, TRANSCRIPT, transcriptsIn, transcriptPlan, rowShape, rowMeta } from "./fleet.js";
+import { BY, DENSE_AT, statusOf, inFlight, subNumbers, subagentView, TRANSCRIPT, transcriptsIn, transcriptPlan, rowShape, rowMeta } from "./fleet.js";
 import { toggleReport, goTo } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
@@ -446,7 +446,7 @@ export class Agents {
           // The one its tab's transcript pane shows wears the selected plate; the yellow marker only while that pane is focused.
           const viewed = Boolean(docked) && this.viewing[m.tab] === k.path;
           push({ key: `sa-${k.id}`, m: { address: `sa-${k.id}`, status: k.status, ident: { ...ident, callsign: `${ident.name.toUpperCase()}${n > 1 ? `·${n}` : ""}` } }, depth: m.depth + 1,
-            ...sized(k.status, m.depth + 1), top: inner, on: viewed, here: viewed && docked.focused, title: k.title, native: true, meta: rowMeta(runOf(k, k.status === "working"), now, GAUGE.segments),
+            ...sized(k.status, m.depth + 1), top: inner, on: viewed, here: viewed && docked.focused, title: k.title, native: true, meta: rowMeta(runOf(k, inFlight(k.status)), now, GAUGE.segments),
             up: r, click: () => this.openTranscript(m, k) });
         }
         if (subs.earlier) {
