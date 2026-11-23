@@ -10,8 +10,8 @@ The image is a schematic of the layout, not a screenshot.
 
 ## What you get
 
-- **Squads.** The sidebar groups your agents by project. Each agent shows its operator, a callsign such as `PERLICA`, its task, a status word (Generating, Needs input, Claimed or Idle), its model, its elapsed time and a context gauge. Sub-agents hang under the agent that started them.
-- **A banner when an agent needs you.** It shows the agent's question, with **Answer** and **Later**. A finished agent gets a short **Claimed** slip.
+- **Squads.** The sidebar groups your agents by project. Each agent shows its operator, a callsign such as `PERLICA`, its task, a status word (Generating, Needs input, Finished, Idle or Error), its model, its elapsed time and a context gauge. Sub-agents hang under the agent that started them.
+- **A banner when an agent needs you.** It shows the agent's question, with **Answer** and **Later**. A finished agent gets a short **Finished** slip.
 - **A session panel** when you hover an agent: model, context, tokens, turns, its last action and any question it is waiting on.
 - **Report**, one screen with every squad, sortable by status, rate, context and turn.
 - **Dispatch**, to send a task to a running agent or start a new one, after it shows you the exact command. **Comms** shows what you sent and what agents told each other.

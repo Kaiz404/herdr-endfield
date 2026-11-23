@@ -1,5 +1,5 @@
 // status: the HUD footer, an ink bar along the bottom. Numbers are the headline: agents active on
-// an odometer, then where you are, Generating and Claimed counts, the focused agent's context, its
+// an odometer, then where you are, Generating and Finished counts, the focused agent's context, its
 // model, branch and machine, the account's Claude usage limits (5-hour and 7-day: percent used and
 // time to reset), and a yellow "Needs input" block that opens when anyone needs you
 // (click: go to the first one).
@@ -82,7 +82,7 @@ export default class Status {
           .when(Boolean(tab), (el) => el.child(div().flex_none().text_color(C.barSlash).child("/")).child(crumb(tab.named ? tab.name : `Tab ${pad2(tab.index)}`))))
         .child(rule())
         .child(tally("working", "Generating"))
-        .child(tally("done", "Claimed"))
+        .child(tally("done", "Finished"))
         .when(Boolean(limits), (el) => el.child(rule()))
         // Takes the free width, so its size is what the limits may use; narrower drops the bars, then "used".
         .child(h_flex().id("hud-limits").flex_1().min_w(limits ? usageWidth(limits, TIERS[TIERS.length - 1], QUOTA_M) : 0).overflow_hidden().gap(QUOTA.between).items_center()

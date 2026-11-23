@@ -36,7 +36,7 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   the folder; on another machine it passes none, so that machine's home applies.
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
   `card.js` (the session panel), `dispatch.js` (the Dispatch dialog), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),
-  `toast.js` (notifications; it decides between the cut-in, the Claimed slip and
+  `toast.js` (notifications; it decides between the cut-in, the Finished slip and
   the plain slab), `cutin.js` (the needs-input skill caption), `comms.js` (the
   message log Dispatch writes and the Comms pane), `report.js` (the oversight screen: a block in the
   layout's `work-stack`, beside `main`, so it covers the work area at any size;
@@ -231,8 +231,9 @@ shaped as the native policy it feeds, so a surface writes
 
 Only native motion: `.transition` on opacity, width, height, left and top,
 `.loop`, and `.frames`. No colour ever transitions. One-shot `cx.timer.after`
-calls end a transient state (the boot, a Claimed flash, the card's open delay).
-The repeating timers are for data only: the agents list's 30s age labels, the
+calls end a transient state (the boot, a Finished flash, the card's open delay).
+The repeating timers are for data only: the agents list's 30s age labels (and a
+one-second redraw while a generating row is under a minute old, so its seconds count), the
 spaces list's git and machine checks, Comms' 15s screen scan (one at a time, six
 reads at once, 5s each), and the 3s session poll. That poll runs only when a
 watched folder changed (`watchFolder` on the sidecars and on the target agents'

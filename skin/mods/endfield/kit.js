@@ -53,6 +53,7 @@ const PALETTE = {
     selBg: "#191919",
     selText: "#F2F2F2",
     selMuted: "#A9A9A3",
+    selDim: "#6E6E6E",
     pillBg: "#191919",
     pillText: "#F2F2F2",
     focusEdge: "#191919",
@@ -82,6 +83,7 @@ const PALETTE = {
     selBg: "#EDEDED",
     selText: "#191919",
     selMuted: "#555555",
+    selDim: "#8C8C8C",
     pillBg: "#EDEDED",
     pillText: "#191919",
     focusEdge: "#EDEDED",
@@ -263,7 +265,7 @@ export async function newSpace(machine = spaces().find((s) => s.active)?.machine
 
 const SOUND = {
   needs: { file: "mods/endfield/sounds/needs-input.mp3", alert: true },
-  claimed: { file: "mods/endfield/sounds/claimed.mp3", alert: true },
+  finished: { file: "mods/endfield/sounds/claimed.mp3", alert: true },
   tick: { file: "mods/endfield/sounds/tick.mp3", alert: false },
 };
 
@@ -336,7 +338,7 @@ function programGlyph(program, size, color) {
  * An agent as a game party chip: a round portrait in a ring (white; yellow when it needs input), a
  * 1px halo in the operator's accent (the selection's ink when selected), and the class badge bottom
  * right. Without art the circle holds the program's own tile, so a missing pack never moves a row.
- * flash: the Claimed beat, a yellow disc drawn at .9 that fades (lit is its first frame).
+ * flash: the Finished beat, a yellow disc drawn at .9 that fades (lit is its first frame).
  */
 export function chip(C, ident, status, { size = 36, on = false, id = null, flash = null, ground = null } = {}) {
   const ring = status === "blocked" ? C.signal : "#FFFFFF";
@@ -434,7 +436,7 @@ export const MOTION = {
   row: { wipe: ease(200), nudge: ease(200) },
   card: { reveal: ease(200, "ease-out", 250), slide: ease(300), open: { delay: 250 }, close: { delay: 160 }, segment: { delay: 18 } },
   pane: { bar: ease(300), brackets: ease(300), fade: ease(200), actions: { delay: 40 }, pulse: { from: 0, to: 0.42, period: 1400, easing: "ease-in-out" } },
-  status: { march: { period: 300 }, scan: { period: 1600, easing: "linear" } },
+  status: { march: { period: 300 } },
   done: { flash: ease(300), check: ease(200), clear: { delay: 300 } },
   toast: { enter: ease(300), fade: ease(200), countdown: { duration: 6000, easing: "linear" } },
   // The skill caption (trailer pattern 5): block grows, holds, retracts to its edge, revealing text.
@@ -480,7 +482,7 @@ export class Entrance {
 
 /**
  * One-shot effects on status transitions: keeps each key's previous status and, when one enters a
- * state whose table entry has `enter`, runs those once. A Claimed agent's chip flashes yellow (drawn
+ * state whose table entry has `enter`, runs those once. A finished agent's chip flashes yellow (drawn
  * at .9, then fades) while its check grows from 0.
  */
 export class StatusFx {

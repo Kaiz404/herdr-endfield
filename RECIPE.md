@@ -42,21 +42,24 @@ rendered at 4x. It is a schematic, not a screenshot.
     a 1px halo in the operator's accent, a class badge bottom right: `C`
     Claude Code, `X` Codex, `Cu` Cursor, `O` OpenCode, `G` Gemini); the
     callsign in wide caps 10px (`PERLICA`; a repeat takes a spare operator,
-    then `PERLICA·2`) with a mono meta line beside it: the model and effort
-    level, as `OPUS 5.5 · MED` (effort reads LOW, MED, HIGH, XHIGH or MAX;
-    an agent with no Claude Code session shows its program; no terminal
-    address, no tool count); the task (13px medium); at the right
-    "Generating ▶▶", a yellow "Needs input" pill or "✓ Claimed", over a
-    clock icon and how long the run has gone (to now while generating, else
-    to its last write: `<1M`, `27M`, `1H07`, `12H`, `3D`), over an 8-block
-    context gauge (5x6px blocks 2px apart; lit share = used / window, red
-    from 75%; its tooltip reads `157K / 1M · 16%`; an unknown window is 1M
-    for a `[1m]` model or a context past 200K, else 200K). Sub-agent rows
-    show the same. What isn't known is left out. Compact rows keep only the
+    then `PERLICA·2`), then in mono the model and, 6px on in a dimmer grey,
+    the effort level: `OPUS 5.5  MED` (effort reads LOW, MED, HIGH, XHIGH or
+    MAX; an agent with no Claude Code session shows its program; no
+    terminal address, no tool count); at the right of that line a clock icon
+    and how long the run has gone (to now while generating, else to its
+    last write: `42s`, `27m`, `1h07`, `12h`, `3d`), then "▶▶ Generating", a
+    yellow "Needs input" pill or "✓ Finished". The second line is the task
+    (13px medium) with, at its right, an 8-block context gauge (5x6px blocks
+    2px apart; lit share = used / window, red from 75%; its tooltip reads
+    `157K / 1M · 16%`; an unknown window is 1M for a `[1m]` model or a
+    context past 200K, else 200K). The status and elapsed never shrink; the
+    model and effort give way first, then the callsign truncates. While a
+    generating row under a minute is on screen the list redraws each second
+    so its seconds count; otherwise every 30 seconds. Sub-agent rows show
+    the same. What isn't known is left out. Compact rows keep only the
     status glyph at the right. An idle
     row folds to one 34px line (26px compact): a 22px chip (18px compact),
-    the callsign, the task at 11.5px and "zZ Idle". Blocked rows carry 4px hazard stripes on the left edge; a
-    generating row's floor has a 28px blue segment scanning across (1600ms).
+    the callsign, the task at 11.5px and "zZ Idle". Blocked rows carry 4px hazard stripes on the left edge.
     Children (terminals started with `hc run`, and Claude Code's own
     sub-agents read from its transcript) hang under their parent with a 1px
     right angle from the parent chip's foot, whatever their vendor. Claude
@@ -105,9 +108,9 @@ rendered at 4x. It is a schematic, not a screenshot.
   oversight screen; the squad sidebar stays live beside it. A white panel with
   four corner brackets: `// Report` under `Oversight · every squad · last 10
   min` and a barcode; readouts with coloured left edges (Squads, Agents,
-  Generating, Needs input, Claimed, Tokens · 10 min); `Group · Squad` (or
+  Generating, Needs input, Finished, Tokens · 10 min); `Group · Squad` (or
   None); sortable headings (Agent, Rate, Reserves, Turn, Status; the active
-  one inverts to ink with ▼/▲; Status is the default: Needs input, Claimed,
+  one inverts to ink with ▼/▲; Status is the default: Needs input, Finished,
   Generating, Idle); squad headers like the sidebar's with `▶▶ n ✓ n` and a
   yellow `! n need input`, folding on click; rows with the chip and callsign,
   the terminal and its link (`◀ T3 · Claude Code ▶ Cursor`, or `3 children`),
@@ -137,7 +140,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   chip; hc notes are a grey square.
 - **HUD footer, 44px**: ink with a faint 45° grain. The number of active
   agents on a 22px odometer, `// space / tab`, then `▶▶ 14 GENERATING` and
-  `✓ 01 CLAIMED` on odometers; the account's Claude usage limits in the
+  `✓ 01 FINISHED` on odometers; the account's Claude usage limits in the
   free width, each window a block of two rows on one left edge, `5-HOUR
   54% USED` over `▰▰▰▰▱▱▱▱ RESETS 1H 40M`, the percent column shared by both
   rows, the blocks 12px either side of a hairline, no dots or pipes (label
@@ -154,8 +157,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   anyone needs input; click goes to the first.
 - **Toasts**: a white slab with a 3px edge and a round glyph in the level's
   colour, title, body, `// space` top right, a yellow "Open ▶" pill and a 2px
-  countdown. An agent that finished gets the Claimed slip: its chip flashes
-  yellow once (.9 to 0, 300ms), the callsign, a lime "Claimed ✓" pill, the
+  countdown. An agent that finished gets the Finished slip: its chip flashes
+  yellow once (.9 to 0, 300ms), the callsign, a lime "Finished ✓" pill, the
   task and a "View ▶" pill.
 - **Needs input, elsewhere: the cut-in.** A 440x214 ink slab at the bottom
   right, an overlay window (Herdr's toast slot is too small): a field of dots,
@@ -173,8 +176,8 @@ rendered at 4x. It is a schematic, not a screenshot.
 
 ## How it behaves
 
-- **Working:** `▶▶` steps through (300ms a beat) in flow blue, and a 1px blue
-  segment rides the agent row's floor (3200ms, there and back).
+- **Working:** `▶▶` steps through (300ms a beat) in flow blue. It is the only motion on a
+  generating row.
 - **Blocked:** a yellow "Needs input" pill and a hazard tick, both still:
   blocked waits.
 - **Done:** the lime disc grows from 0 (200ms); it turns idle when looked at.
@@ -201,11 +204,14 @@ rendered at 4x. It is a schematic, not a screenshot.
   `agent.focus`, Peek `terminal.peek`, Pin `terminal.pin`.
 - **Claude Code sub-agent row:** working while its transcript was written in
   the last 20s and its last step is a tool call or not a final answer; else
-  done, or idle once its parent is idle. Click (at most once a second) opens
-  its transcript read-only in a pane right of the parent: the prompt on a
+  done, or idle once its parent is idle. Click opens its transcript
+  read-only in a pane right of the parent: the prompt on a
   yellow edge, the assistant's words as markdown, each tool call as
   `● Tool · arg` with its result folded to its first line. It follows the
-  file and keeps the newest entry in view.
+  file and keeps the newest entry in view. A tab has one transcript pane:
+  clicking another sub-agent replaces it, clicking the one shown focuses it.
+  The shown sub-agent's row wears the selected plate, and the yellow marker
+  while its pane has focus.
 - **Tabs:** click selects (the yellow block slides over left and width,
   300ms), double-click renames, drag reorders, right-click opens the tab menu,
   the wheel switches tabs. Hover grows a 24px, 2px underline from the left.
@@ -298,7 +304,6 @@ rendered at 4x. It is a schematic, not a screenshot.
 - Selection blocks need fixed row heights (spaces 38, machine header 28,
   login guidance 48, notes 30; agents 56, children 50, idle rows 34,
   sub-agent toggle 26, squad header 28; compact 34, 34, 26, 22, 26).
-- `.loop` goes there and back, so the working conveyor travels back and forth.
 - Flicker is a `.loop("opacity")` that a one-shot timer removes after three
   pulses. No repeating timer drives motion; the repeating timers are for data
   only (30s age labels, git and machine checks, a 3s session poll that runs

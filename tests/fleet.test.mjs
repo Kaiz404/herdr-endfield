@@ -94,13 +94,20 @@ const MIN = 60000;
 
 test("a generating run: model and effort beside the callsign, elapsed to now, and an 8-block gauge with its numbers", () => {
   const meta = rowMeta({ startedAt: 1, lastAt: 3 * MIN, live: true, model: "Opus 5.5", effort: "medium", used: 157000, total: 1000000, program: "Claude Code" }, 1 + 67 * MIN, 8);
-  assert.deepEqual(meta, { head: "Opus 5.5 · med", time: "1h07", gauge: { lit: 1, hot: false, tip: "157K / 1M · 16%" } });
+  assert.deepEqual(meta, { model: "Opus 5.5", effort: "med", time: "1h07", ticking: false, gauge: { lit: 1, hot: false, tip: "157K / 1M · 16%" } });
 });
 
-test("elapsed reads <1m, minutes, hours with minutes, then whole hours and days", () => {
+test("elapsed reads seconds, minutes, hours with minutes, then whole hours and days", () => {
   const at = (ms) => rowMeta({ startedAt: 1, lastAt: 1 + ms }, 0, 8).time;
-  assert.deepEqual([20000, 27 * MIN, 60 * MIN, 67 * MIN, 599 * MIN, 12 * 60 * MIN, 3 * 24 * 60 * MIN].map(at),
-    ["<1m", "27m", "1h00", "1h07", "9h59", "12h", "3d"]);
+  assert.deepEqual([0, 42500, 59999, MIN, 27 * MIN, 60 * MIN, 67 * MIN, 599 * MIN, 12 * 60 * MIN, 3 * 24 * 60 * MIN].map(at),
+    ["0s", "42s", "59s", "1m", "27m", "1h00", "1h07", "9h59", "12h", "3d"]);
+});
+
+test("only a generating run under a minute ticks each second", () => {
+  const tick = (live, ms) => rowMeta({ startedAt: 1, lastAt: 1 + ms, live }, 1 + ms, 8).ticking;
+  assert.deepEqual([tick(true, 42000), tick(true, MIN), tick(false, 42000)], [true, false, false],
+    "a finished run's seconds never change, and past a minute the slower refresh keeps up");
+  assert.equal(rowMeta({ live: true }, 5, 8).ticking, false, "no start time: no clock to tick");
 });
 
 test("a finished run's elapsed stops at its last write, not now", () => {
@@ -121,10 +128,10 @@ test("with no total the window is inferred: 1M for a [1m] model or a context pas
 });
 
 test("what isn't known is null or left out, and an agent with no session shows its program", () => {
-  assert.deepEqual(rowMeta({ program: "Codex" }, 0, 8), { head: "Codex", time: null, gauge: null });
+  assert.deepEqual(rowMeta({ program: "Codex" }, 0, 8), { model: "Codex", effort: null, time: null, ticking: false, gauge: null });
   assert.equal(rowMeta({ model: "Opus 5.5", used: 0 }, 0, 8).gauge, null, "no assistant turn yet: no gauge");
-  assert.deepEqual(["low", "high", "xhigh", "max", "ultra"].map((effort) => rowMeta({ model: "M", effort }, 0, 8).head),
-    ["M · low", "M · high", "M · xhigh", "M · max", "M · ultra"]);
+  assert.deepEqual(["low", "medium", "high", "xhigh", "max", "ultra"].map((effort) => rowMeta({ model: "M", effort }, 0, 8).effort),
+    ["low", "med", "high", "xhigh", "max", "ultra"]);
 });
 
 test("only idle rows fold to one line; working, blocked, done and error keep their two-line height", () => {
