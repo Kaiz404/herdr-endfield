@@ -180,7 +180,7 @@ export class Agents {
     const plan = transcriptPlan(panes(), tab, this.viewing[tab], k.path);
     if (plan.focus) return run("pane.focus", { pane: plan.focus });
     for (const pane of plan.close) run("pane.close", { pane });
-    run("pane.split", { direction: "right", pane: parent.pane, mod: TRANSCRIPT, props: { path: k.path, title: k.title } });
+    run("pane.split", { direction: "right", pane: parent.pane, mod: TRANSCRIPT, props: { path: k.path, title: k.title, id: k.id, parent: parent.address, via: parent.ident.callsign } });
     const all = panes();
     this.viewing = Object.fromEntries(Object.entries({ ...this.viewing, [tab]: k.path }).filter(([t]) => t === tab || transcriptsIn(all, t).length));
     localStorage.setItem("transcripts", JSON.stringify(this.viewing));
