@@ -106,8 +106,10 @@ const PERSONAL = [
   ["email address", /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b/],
   ["session id (UUID)", /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i],
   ["Herdr space/tab/pane id", /\b(?:sp|tb|p)[0-9a-f]{32}\b/],
-  ["official CDN URL (bring your own art, never download it)", /hg-cdn\.com/i],
 ];
+// The official asset CDN may be named in one place: the catalogue fetch-operators.mjs downloads from on the person's machine.
+const CDN = /hg-cdn\.com/i;
+const CATALOGUE = "art-pack/operators.json";
 const IMAGES_ALLOWED = new Set(["preview.png"]);
 const personal = repoFiles.flatMap((f) => {
   const found = [];
@@ -117,10 +119,19 @@ const personal = repoFiles.flatMap((f) => {
   if (BINARY.test(f.rel)) return found;
   text(f).split("\n").forEach((line, i) => {
     for (const [what, re] of PERSONAL) if (re.test(line)) found.push(`${f.rel}:${i + 1}: ${what}: ${line.match(re)[0]}`);
+    if (CDN.test(line) && f.rel !== CATALOGUE) found.push(`${f.rel}:${i + 1}: official CDN URL outside ${CATALOGUE}: ${line.match(CDN)[0]}`);
   });
   return found;
 });
 check(`no personal data, transcripts or official art in ${repoFiles.length} files`, ...personal);
+
+const catalogue = JSON.parse(readFileSync(join(ROOT, CATALOGUE), "utf8"));
+const urls = JSON.stringify(catalogue).match(/https?:\/\/[^"\s]+/g) ?? [];
+const offsite = urls.filter((u) => !u.startsWith(catalogue.cdn) && !u.startsWith("https://endfield.gryphline.com/"));
+const unpinned = Object.entries(catalogue.operators).filter(([, o]) => !o.source?.url?.startsWith(catalogue.cdn) || !/^[0-9a-f]{64}$/.test(o.source?.sha256 ?? ""));
+check(`${CATALOGUE}: ${urls.length} URLs, all official; every source pinned by sha256`,
+  ...offsite.map((u) => `${CATALOGUE}: ${u} is not on the official site or its CDN (no wikis or mirrors)`),
+  ...unpinned.map(([slug]) => `${CATALOGUE}: ${slug} needs source.url on ${catalogue.cdn} and a 64-hex source.sha256`));
 
 // ---- live: the installed skin in a running Herdr
 
