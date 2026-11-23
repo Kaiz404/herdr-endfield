@@ -64,7 +64,7 @@ The rest of this guide explains each step and adds the optional pieces.
 
 ## 1. Install the layout
 
-**What it changes.** `install.mjs` copies the `skin/` folder into your Herdr home. That is the `endfield` layout, its light and night themes, the `endfield` and `endfield-transcript` mods, and two settings files in `data/endfield/`. It writes only paths whose names start with `endfield`. If an Endfield file is already there and the installer did not write it, the installer first copies it to `.endfield-install/backup/`.
+**What it changes.** `install.mjs` copies the `skin/` folder into your Herdr home. That is the `endfield` layout, its light and night themes, the `endfield` mod, and two settings files in `data/endfield/`. It writes only paths whose names start with `endfield`. If an Endfield file is already there and the installer did not write it, the installer first copies it to `.endfield-install/backup/`.
 
 1. Clone the repo and run the installer:
 
@@ -91,7 +91,7 @@ node scripts/demo-fleet.mjs up --agents 16
 node scripts/demo-fleet.mjs down
 ```
 
-**Update.** Run `git pull`, then `node scripts/install.mjs` again. The installer never overwrites `data/endfield/operators.json` or `data/endfield/settings.json` once they exist.
+**Update.** Run `git pull`, then `node scripts/install.mjs` again. The installer never overwrites `data/endfield/operators.json` or `data/endfield/settings.json` once they exist. It deletes the Endfield folders that earlier versions installed and this one no longer has, such as `mods/endfield-transcript`. A transcript pane left open from before the update can show an error. Click a sub-agent in Squads to replace it, or close it.
 
 **Undo.** See [Uninstall everything](#uninstall-everything).
 

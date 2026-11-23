@@ -10,7 +10,17 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
 
 - `main.js` routes a role to its class: `boot`, `brand`, `footer`, `spaces`,
   `agents`, `sortmenu`, `card`, `tabs`, `pane`, `status`, `toast`, `cutin`,
-  `report`, `dispatch`, `comms`.
+  `report`, `dispatch`, `comms`, `transcript`.
+- Two roles open as panes, `comms` and `transcript` (`pane.split` with `mod:
+  "endfield"` and the role in props). `panes()` reports a mod pane's mod but not
+  its props, so `fleet.js` keeps a registry in the shared key `endfield.panes`:
+  `{roles: {pane: role}, opening: {tab: role}}`. `openComms()` and Squads call
+  `opening()` just before their split, which records the role of every endfield
+  pane open now and the role about to open in that tab; the endfield pane that
+  then appears there takes it. `paneRole()` answers for any pane, and an endfield
+  pane the registry never saw is Comms. A pane of the retired
+  `endfield-transcript` mod counts as a transcript, so the next click on a
+  sub-agent replaces it.
 - `kit.js` owns the registries every role reads: `PALETTE` (keyed `paper` /
   `night`, picked by `settings().dark`), `IDENTITY` (who an agent is drawn as)
   and `MOTION` (every timing). It also holds the shared shapes (tiles, brackets,
@@ -57,7 +67,7 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   newest transcript in `~/.claude/projects/<cwd slug>/` (approximate: two sessions
   in one folder can't be told apart; the card marks it `≈`).
 - `tools/probe.mjs` reads transcripts for `sessions.js` and for
-  `mods/endfield-transcript`. It runs under `node` because `readTextFile` stops at
+  `transcript.js`. It runs under `node` because `readTextFile` stops at
   1 MiB and transcripts reach tens of MB. It folds each file once and keeps the
   fold and byte offset in `data/endfield/probe-cache.json`, so a poll reads only
   appended lines. Without `node` on PATH the rows and card show `—`.
@@ -226,10 +236,6 @@ reporting in, say), and the relay is then typed mid-turn. Claude Code is believe
 to queue input typed during a turn and read it when the turn ends. That is not
 tested. After a send the pane says only that the text was typed into the parent,
 not that the parent passed it on.
-
-A mod can't import outside its folder, so `mods/endfield-transcript` holds
-byte-identical copies of `orders.js` and `messages.js`; `tests/relay.test.mjs`
-fails when they differ. Copy the endfield ones over after editing either.
 
 Not verified live: that Claude Code's SendMessage takes the transcript's id and
 reaches a finished sub-agent, how the parent words what it does with the relay,

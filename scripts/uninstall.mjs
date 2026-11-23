@@ -5,7 +5,7 @@
 import { existsSync, readFileSync, rmSync, copyFileSync, readdirSync, rmdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { execFileSync } from "node:child_process";
-import { entries, home, owned, same, herdrWritten, modDirs } from "./skin.mjs";
+import { entries, home, owned, same, herdrWritten, modDirs, RETIRED } from "./skin.mjs";
 
 const HOME = home();
 const STATE = join(HOME, ".endfield-install");
@@ -51,6 +51,7 @@ for (const m of modDirs()) if (created.has(`${m}/mod.json`) && existsSync(join(H
 for (const e of entries())
   for (let rel = dirname(e.rel); owned(`${rel}/`); rel = dirname(rel))
     if (existsSync(join(HOME, rel)) && !readdirSync(join(HOME, rel)).length) rmdirSync(join(HOME, rel));
+for (const rel of RETIRED) if (existsSync(join(HOME, rel))) { rmSync(join(HOME, rel), { recursive: true, force: true }); done.removed.push(rel); }
 rmSync(STATE, { recursive: true, force: true });
 const DATA = join(HOME, "data", "endfield");
 if (existsSync(DATA)) for (const n of readdirSync(DATA)) if (RUNTIME.test(n)) { rmSync(join(DATA, n), { force: true }); done.removed.push(`data/endfield/${n}`); }

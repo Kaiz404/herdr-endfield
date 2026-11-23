@@ -12,7 +12,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE } from "./kit.js";
 import { roster } from "./roster.js";
-import { BY, DENSE_AT, statusOf, subNumbers, subagentView, TRANSCRIPT, transcriptsIn, transcriptPlan, rowShape, rowMeta } from "./fleet.js";
+import { BY, DENSE_AT, statusOf, subNumbers, subagentView, PANE_ROLES, opening, transcriptsIn, transcriptPlan, rowShape, rowMeta } from "./fleet.js";
 import { toggleReport, goTo } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
@@ -215,12 +215,15 @@ export class Agents {
 
   openTranscript(parent, k) {
     const tab = parent.tab;
-    const plan = transcriptPlan(panes(), tab, this.viewing[tab], k.path);
+    const reg = shared(PANE_ROLES);
+    const plan = transcriptPlan(panes(), tab, this.viewing[tab], k.path, reg);
     if (plan.focus) return run("pane.focus", { pane: plan.focus });
     for (const pane of plan.close) run("pane.close", { pane });
-    run("pane.split", { direction: "right", pane: parent.pane, mod: TRANSCRIPT, props: { path: k.path, title: k.title, id: k.id, parent: parent.address, via: parent.ident.callsign } });
+    const next = opening(reg, panes(), tab, "transcript");
+    setShared(PANE_ROLES, next);
+    run("pane.split", { direction: "right", pane: parent.pane, mod: "endfield", props: { role: "transcript", path: k.path, title: k.title, id: k.id, parent: parent.address, via: parent.ident.callsign } });
     const all = panes();
-    this.viewing = Object.fromEntries(Object.entries({ ...this.viewing, [tab]: k.path }).filter(([t]) => t === tab || transcriptsIn(all, t).length));
+    this.viewing = Object.fromEntries(Object.entries({ ...this.viewing, [tab]: k.path }).filter(([t]) => t === tab || transcriptsIn(all, t, next).length));
     localStorage.setItem("transcripts", JSON.stringify(this.viewing));
   }
 
@@ -480,7 +483,7 @@ export class Agents {
         const shownSubs = subs.shown;
         const nums = subNumbers(this.subNums.get(m.address) ?? new Map(), [...shownSubs].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0)).map((k) => k.id));
         if (shownSubs.length) nextNums.set(m.address, nums);
-        const docked = shownSubs.length ? transcriptsIn(panes(), m.tab)[0] : null;
+        const docked = shownSubs.length ? transcriptsIn(panes(), m.tab, shared(PANE_ROLES))[0] : null;
         for (const k of shownSubs) {
           const ident = IDENTITY.resolve(m.program, null, { parent: m.program });
           const n = nums.get(k.id);

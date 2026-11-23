@@ -1,7 +1,6 @@
 // orders: what Dispatch and the transcript pane's follow-up box run and what happened, with no Herdr
 // in it (tests/orders.test.mjs and tests/relay.test.mjs run it in node). The dialog (dispatch.js) and
-// the pane (endfield-transcript) only draw these and pass the person's choices in. A mod can't import
-// outside its folder, so endfield-transcript holds a byte-identical copy; tests/relay.test.mjs fails when they differ.
+// the pane (transcript.js) only draw these and pass the person's choices in.
 
 /** hc send: the typed text always follows `--`, so text starting with "-" is never read as an option. */
 export function sendArgs({ target, delivery, task }) {
