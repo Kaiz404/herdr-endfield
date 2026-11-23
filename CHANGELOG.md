@@ -17,6 +17,10 @@
 - **Idle agents take one line.** An idle agent's row folds to its callsign, task and **Idle**, so the agents that are working get the room. Generating, Needs input, Finished and Error rows keep two lines.
 - **One motion per working agent.** A generating row in Squads no longer has a blue segment sliding along its floor. The status glyph still animates, so a sidebar full of working agents is calmer.
 
+### Fixed
+
+- **The session panel no longer stays open after you move on.** It closes when you click anywhere outside it, such as on Files, Comms or Report, and when you fold the sidebar. Clicking the agent's own row keeps its panel. One case is not fixed: if the pointer leaves the row or the panel and Herdr does not report it, the panel stays until your next click.
+
 ## 0.2.0
 
 The game-UI release. Agents are now drawn as Arknights: Endfield operators in squads, and you can send them work from the skin. Follow [docs/SETUP.md](docs/SETUP.md) to install or update.
