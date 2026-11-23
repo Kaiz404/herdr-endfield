@@ -20,6 +20,10 @@
 - **One motion per working agent.** A generating row in Squads no longer has a blue segment sliding along its floor. The status glyph still animates, so a sidebar full of working agents is calmer.
 - **Dispatch's Only if idle and finished agents.** With **Only if idle**, a target that finished its turn used to read "Idle. Delivered now.", and then hc refused the send. A finished agent waits at its prompt, so it now gets a plain send, and the preview says it finished its turn. While the target is generating or stopped on an error, **Only if idle** now disables **Dispatch** and says why, instead of letting hc refuse. The sub-agent follow-up box uses the same rule.
 
+### Fixed
+
+- **The session panel no longer stays open after you move on.** It closes when you click anywhere outside it, such as on Files, Comms or Report, and when you fold the sidebar. Clicking the agent's own row keeps its panel. One case is not fixed: if the pointer leaves the row or the panel and Herdr does not report it, the panel stays until your next click.
+
 ## 0.2.0
 
 The game-UI release. Agents are now drawn as Arknights: Endfield operators in squads, and you can send them work from the skin. Follow [docs/SETUP.md](docs/SETUP.md) to install or update.

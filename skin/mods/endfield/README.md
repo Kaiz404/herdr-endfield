@@ -22,15 +22,23 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   parent and depth, and squads in tree order: pinned agents first (they also lead
   `agent.next`), then one per space. Priority ranks an agent by the most urgent
   status in its tree.
-- Three modules hold the rules with no Herdr import, so `tests/` runs them under
+- Five modules hold the rules with no Herdr import, so `tests/` runs them under
   `node --test` (CI and `verify.mjs --static` too): `fleet.js` (the `STATUS`
   table, agent status to word, glyph kind, bar colour, entrance effect and rank,
   and the roster), `orders.js` (Dispatch's argv and the transcript pane's
-  follow-up relay, the command line each shows, and what became of a run) and
-  `messages.js` (which Comms screen tags count, how many are kept, the log's size
-  cap), `base.js` (the home base: which folder a new local space opens in) and
-  `usage.js` (the HUD footer's Claude usage limits: which windows show, when one
-  has reset, how time to reset reads).
+  follow-up relay, the command line each shows, and what became of a run), `messages.js` (which Comms screen tags count, how
+  many are kept, the log's size cap), `base.js` (the home base: which folder a
+  new local space opens in), `usage.js` (the HUD footer's Claude usage limits:
+  which windows show, when one has reset, how time to reset reads) and
+  `hovercard.js` (whose session card is up, and when a press takes it away).
+- The session card closes on events, not on where the pointer is. A press
+  outside the card closes it at once (`on_mouse_down_out` in `card.js`, reported
+  through `endfield.card.closed`), unless the press is on the card's own row.
+  Folding the sidebar to the rail and the hovered agent going away close it
+  after the usual delay. A hover-out that Herdr never delivers, with no press
+  after it, still leaves the card up: closing it would need the pointer's
+  position, and reading that against the row's and the card's rectangles has
+  not been checked in a live window.
 - `kit.js` `newSpace()` is the one way a space is made: every New space control in
   `spaces.js` and the `endfield.newSpace` key command (handled by the `status` role,
   which every Endfield window shows once). On this computer it passes the home base as
