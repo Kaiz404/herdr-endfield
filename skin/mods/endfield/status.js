@@ -10,7 +10,7 @@ import { spaces, shared, nextCommand, checking } from "herdr";
 import { palette, root, midTrunc, hatch, micro, pad2, odometer, glyph, Entrance, MOTION, newSpace } from "./kit.js";
 import { roster } from "./roster.js";
 import { goTo } from "./report.js";
-import { fmtTokens } from "./sessions.js";
+import { fmtTokens } from "./fleet.js";
 import { usage, USAGE_TICK_MS } from "./usage.js";
 
 const NEEDS_W = 176;

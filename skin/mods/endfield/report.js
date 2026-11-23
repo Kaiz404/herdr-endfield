@@ -10,8 +10,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { run, shared, layout } from "herdr";
 import { palette, root, statusMark, chip, micro, wide, pad2, barcode, growDisc, find, Entrance, FONT } from "./kit.js";
 import { roster } from "./roster.js";
-import { DENSE_AT } from "./fleet.js";
-import { fmtTokens } from "./sessions.js";
+import { DENSE_AT, fmtTokens } from "./fleet.js";
 
 export const REPORT = { stack: "work-stack", work: "main", report: "report" };
 export const toggleReport = (open) => run("layout.select", { stack: REPORT.stack, child: open ? REPORT.report : REPORT.work });

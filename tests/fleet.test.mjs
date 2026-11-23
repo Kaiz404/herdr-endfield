@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildRoster, BY, PINNED, subNumbers } from "../skin/mods/endfield/fleet.js";
+import { buildRoster, BY, PINNED, subNumbers, subagentView, rowMeta, rowShape } from "../skin/mods/endfield/fleet.js";
 
 // Every claude agent is PERLICA unless spares are free; a repeat takes a spare, then a number.
 const identity = (spares = []) => ({
@@ -64,4 +64,76 @@ test("a session's sub-agents are numbered among those shown, not every one it ev
   const next = subNumbers(first, ["a28", "a30", "a31"]);
   assert.deepEqual(["a28", "a30"].map((id) => next.get(id)), [2, 4], "a sub-agent still shown keeps its number");
   assert.equal(next.get("a31"), 1, "a newcomer takes the lowest number no shown sub-agent holds");
+});
+
+const sub = (id, status, startedAt, lastAt = startedAt) => ({ id, status, startedAt, lastAt });
+
+test("a parent shows its working sub-agents newest first, and offers the rest as earlier", () => {
+  const subs = [sub("a1", "done", 1), sub("a2", "working", 2), sub("a3", "idle", 3), sub("a4", "done", 4),
+    sub("a5", "working", 5), sub("a6", "done", 6), sub("a7", "done", 7), sub("a8", "done", 8)];
+  const folded = subagentView(subs, false);
+  assert.deepEqual(folded.shown.map((k) => k.id), ["a5", "a2"], "eight sub-agents, two working: only those two, newest first");
+  assert.equal(folded.earlier, 6);
+  const open = subagentView(subs, true);
+  assert.deepEqual(open.shown.map((k) => k.id), ["a8", "a7", "a6", "a5", "a4", "a3", "a2", "a1"], "open: every one, newest first, no cap");
+  assert.equal(open.earlier, 6, "the toggle stays so it can fold back");
+});
+
+test("newest means started last, so a busy old sub-agent doesn't jump ahead of a newer one", () => {
+  const view = subagentView([sub("old", "working", 1, 99), sub("new", "working", 2, 3)], false);
+  assert.deepEqual(view.shown.map((k) => k.id), ["new", "old"]);
+});
+
+test("with none working only the toggle is offered; with none finished there is no toggle", () => {
+  assert.deepEqual(subagentView([sub("a1", "done", 1), sub("a2", "idle", 2)], false), { shown: [], earlier: 2 });
+  const busy = subagentView([sub("a1", "working", 1)], false);
+  assert.deepEqual([busy.shown.map((k) => k.id), busy.earlier], [["a1"], 0]);
+});
+
+const MIN = 60000;
+
+test("a generating run: model and effort beside the callsign, elapsed to now, and an 8-block gauge with its numbers", () => {
+  const meta = rowMeta({ startedAt: 1, lastAt: 3 * MIN, live: true, model: "Opus 5.5", effort: "medium", used: 157000, total: 1000000, program: "Claude Code" }, 1 + 67 * MIN, 8);
+  assert.deepEqual(meta, { head: "Opus 5.5 · med", time: "1h07", gauge: { lit: 1, hot: false, tip: "157K / 1M · 16%" } });
+});
+
+test("elapsed reads <1m, minutes, hours with minutes, then whole hours and days", () => {
+  const at = (ms) => rowMeta({ startedAt: 1, lastAt: 1 + ms }, 0, 8).time;
+  assert.deepEqual([20000, 27 * MIN, 60 * MIN, 67 * MIN, 599 * MIN, 12 * 60 * MIN, 3 * 24 * 60 * MIN].map(at),
+    ["<1m", "27m", "1h00", "1h07", "9h59", "12h", "3d"]);
+});
+
+test("a finished run's elapsed stops at its last write, not now", () => {
+  assert.equal(rowMeta({ startedAt: 1, lastAt: 1 + 65 * MIN, live: false }, 500 * MIN, 8).time, "1h05");
+});
+
+test("past 75% of the window the gauge runs hot; a context over the window fills every block", () => {
+  const g = (used, total) => rowMeta({ used, total }, 0, 8).gauge;
+  assert.deepEqual([g(149000, 200000).hot, g(150000, 200000).hot], [false, true]);
+  assert.equal(g(250000, 200000).lit, 8);
+  assert.equal(g(100000, 200000).lit, 4);
+});
+
+test("with no total the window is inferred: 1M for a [1m] model or a context past 200K, else 200K", () => {
+  assert.equal(rowMeta({ used: 50000 }, 0, 8).gauge.tip, "50K / 200K · 25%");
+  assert.equal(rowMeta({ used: 50000, modelId: "claude-opus-5-5[1m]" }, 0, 8).gauge.tip, "50K / 1M · 5%");
+  assert.equal(rowMeta({ used: 300000 }, 0, 8).gauge.tip, "300K / 1M · 30%");
+});
+
+test("what isn't known is null or left out, and an agent with no session shows its program", () => {
+  assert.deepEqual(rowMeta({ program: "Codex" }, 0, 8), { head: "Codex", time: null, gauge: null });
+  assert.equal(rowMeta({ model: "Opus 5.5", used: 0 }, 0, 8).gauge, null, "no assistant turn yet: no gauge");
+  assert.deepEqual(["low", "high", "xhigh", "max", "ultra"].map((effort) => rowMeta({ model: "M", effort }, 0, 8).head),
+    ["M · low", "M · high", "M · xhigh", "M · max", "M · ultra"]);
+});
+
+test("only idle rows fold to one line; working, blocked, done and error keep their two-line height", () => {
+  assert.deepEqual([rowShape("idle", 0), rowShape("idle", 2)], ["idle", "idle"]);
+  assert.deepEqual(["working", "blocked", "done", "error"].map((s) => [rowShape(s, 0), rowShape(s, 1)]),
+    [["lead", "child"], ["lead", "child"], ["lead", "child"], ["lead", "child"]]);
+});
+
+test("a sub-agent whose transcript has no timestamp yet sorts by its last write", () => {
+  const view = subagentView([sub("old", "done", 10), sub("new", "done", null, 20)], true);
+  assert.deepEqual(view.shown.map((k) => k.id), ["new", "old"]);
 });

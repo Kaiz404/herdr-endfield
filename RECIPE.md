@@ -42,14 +42,28 @@ rendered at 4x. It is a schematic, not a screenshot.
     a 1px halo in the operator's accent, a class badge bottom right: `C`
     Claude Code, `X` Codex, `Cu` Cursor, `O` OpenCode, `G` Gemini); the
     callsign in wide caps 10px (`PERLICA`; a repeat takes a spare operator,
-    then `PERLICA·2`) with the model or `◀ T3` beside it; the task (13px
-    medium); at the right "Generating ▶▶", a yellow "Needs input" pill,
-    "✓ Claimed" or "zZ Idle", over the elapsed time and a 5-block context
-    gauge. Blocked rows carry 4px hazard stripes on the left edge; a
+    then `PERLICA·2`) with a mono meta line beside it: the model and effort
+    level, as `OPUS 5.5 · MED` (effort reads LOW, MED, HIGH, XHIGH or MAX;
+    an agent with no Claude Code session shows its program; no terminal
+    address, no tool count); the task (13px medium); at the right
+    "Generating ▶▶", a yellow "Needs input" pill or "✓ Claimed", over a
+    clock icon and how long the run has gone (to now while generating, else
+    to its last write: `<1M`, `27M`, `1H07`, `12H`, `3D`), over an 8-block
+    context gauge (5x6px blocks 2px apart; lit share = used / window, red
+    from 75%; its tooltip reads `157K / 1M · 16%`; an unknown window is 1M
+    for a `[1m]` model or a context past 200K, else 200K). Sub-agent rows
+    show the same. What isn't known is left out. Compact rows keep only the
+    status glyph at the right. An idle
+    row folds to one 34px line (26px compact): a 22px chip (18px compact),
+    the callsign, the task at 11.5px and "zZ Idle". Blocked rows carry 4px hazard stripes on the left edge; a
     generating row's floor has a 28px blue segment scanning across (1600ms).
     Children (terminals started with `hc run`, and Claude Code's own
     sub-agents read from its transcript) hang under their parent with a 1px
-    right angle from the parent chip's foot, whatever their vendor. From 12
+    right angle from the parent chip's foot, whatever their vendor. Claude
+    Code sub-agents show while working, newest started first; below them a
+    26px row (22px compact) reads "▾ +N earlier" and lists the finished ones
+    too, newest first, or "▴ Show less" to fold them back. Each parent keeps
+    its choice until the mod reloads; there is no cap, the list scrolls. From 12
     agents everything goes compact: 34px rows, 24/20px chips, callsign over
     task, a status glyph only (`▶▶`, `!`, `✓`, `zZ`); the spaces block becomes
     numbered squares, six a row; and a pinned "Needs input" box (hazard edge,
@@ -275,7 +289,8 @@ rendered at 4x. It is a schematic, not a screenshot.
 - Mods have no colour transition: hover and selection fills are absolute
   layers whose width transitions, measured from each list's `on_size_change`.
 - Selection blocks need fixed row heights (spaces 38, machine header 28,
-  login guidance 48, notes 30; agents 50, sub-agents 40, group header 28).
+  login guidance 48, notes 30; agents 56, children 50, idle rows 34,
+  sub-agent toggle 26, squad header 28; compact 34, 34, 26, 22, 26).
 - `.loop` goes there and back, so the working conveyor travels back and forth.
 - Flicker is a `.loop("opacity")` that a one-shot timer removes after three
   pulses. No repeating timer drives motion; the repeating timers are for data
