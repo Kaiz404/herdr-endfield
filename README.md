@@ -23,7 +23,7 @@ A layout and theme for the [Herdr](https://herdr.dev) desktop app, styled after 
 ## Install
 
 ```sh
-git clone https://github.com/<owner>/herdr-endfield
+git clone https://github.com/Kaiz404/herdr-endfield
 cd herdr-endfield
 node scripts/install.mjs
 ```
