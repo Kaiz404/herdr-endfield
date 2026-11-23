@@ -16,8 +16,10 @@ function place(s, ps) {
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
 const base = (path) => path.replace(/\/+$/, "").split("/").pop();
 const RAIL = 28;
-// Fixed heights, so the selection block knows where the selected row starts.
-const H = { row: 38, head: 28, note: 30, guidance: 48, cell: 48, cols: 6, top: 38 };
+// Fixed heights, so the selection block knows where the selected row starts. From DENSE_AT agents
+// the same list goes compact (one line a row, the squad number first) and its block shrinks to fit,
+// at most `denseRows` rows tall before it scrolls.
+const H = { row: 38, dense: 26, denseRows: 8, head: 28, note: 30, guidance: 48, top: 38 };
 // Changes made outside Herdr (an editor's save, a commit elsewhere) are looked for this often.
 const FALLBACK = 60000;
 // Places looked at together: all at once, hundreds of spaces exhaust open files or a core's execs.
@@ -306,14 +308,16 @@ export default class Spaces {
         || spaces().some((s) => (s.machine ?? null) === m && !this.shown.has(s.id));
     };
     const loadingRow = (m) => h_flex().id(`machine-loading-${m ?? "local"}`).h(H.note).flex_none().px(collapsed ? 0 : 16).items_center()
-      .when(collapsed, (el) => el.justify_center()).child(micro(collapsed ? "…" : "Loading…", C.dim));
+      .when(collapsed, (el) => el.justify_center()).child(micro(collapsed ? "…" : "Loading…", C.muted));
+    const RH = this.rh;
     if (!remote.length) {
-      if (loading(null) && !rows.length) return [loadingRow(null)];
+      if (loading(null) && !rows.length) { this.listPx = H.note; return [loadingRow(null)]; }
       this.activeAt = rows.findIndex((r) => r.w.active);
-      this.activeTop = this.activeAt * H.row;
+      this.activeTop = this.activeAt * RH;
+      this.listPx = rows.length * RH;
       return rows.map(draw);
     }
-    return [null, ...remote].flatMap((m) => {
+    const out = [null, ...remote].flatMap((m) => {
       const mine = rows.filter((r) => (r.w.machine ?? null) === m);
       const repair = this.reconnecting[m];
       const machine = this.machines.find((k) => k.name === m) ?? repair?.machine;
@@ -355,7 +359,7 @@ export default class Spaces {
             .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(icon("plus", 11))))
           .child(icon(folded ? "chevron-right" : "chevron-down", 10).text_color(C.muted)));
       const empty = h_flex().id(`machine-new-${m ?? "local"}`).h(H.note).flex_none().px(collapsed ? 0 : 16).gap(8).items_center().rounded(3)
-        .text_size(12).text_color(C.dim).hover((s) => s.bg(C.sunken).text_color(C.text))
+        .text_size(12).text_color(C.muted).hover((s) => s.bg(C.sunken).text_color(C.text))
         .on_click(() => run("space.new", { machine: m ?? "" }))
         .when(collapsed, (el) => el.w(RAIL).justify_center().tooltip(`New space on ${m ?? "this computer"}`).child(icon("plus", 11)))
         .when(!collapsed, (el) => el.child(icon("plus", 11)).child("New space there"));
@@ -373,12 +377,14 @@ export default class Spaces {
       const first = folded ? -1 : mine.findIndex((r) => r.w.active);
       if (first >= 0) {
         this.activeAt = before + 1 + guidance.length + first;
-        this.activeTop = beforePx + H.head + guidance.length * H.guidance + first * H.row;
+        this.activeTop = beforePx + H.head + guidance.length * H.guidance + first * RH;
       }
       before += items.length;
-      beforePx += H.head + guidance.length * H.guidance + (folded ? 0 : mine.length ? mine.length * H.row : H.note);
+      beforePx += H.head + guidance.length * H.guidance + (folded ? 0 : mine.length ? mine.length * RH : H.note);
       return items;
     });
+    this.listPx = beforePx;
+    return out;
   }
 
   // The micro-label: tabs, then only what git says that the name doesn't (repo, branch, ahead/behind).
@@ -411,10 +417,12 @@ export default class Spaces {
     const sub = on ? C.selMuted : C.muted;
     const line = on ? C.selMuted : C.hairStrong;
     const tail = this.tail(w, g, tree);
+    const RH = this.rh;
+    const dense = RH === H.dense;
     return h_flex()
       .relative()
       .id(`space-${w.id}`)
-      .h(H.row)
+      .h(RH)
       .flex_none()
       .pl(tree ? 36 : 14)
       .pr(14)
@@ -433,8 +441,8 @@ export default class Spaces {
           .when(fromIndex > i, (l) => l.top(0)),
       ))
       // A worktree hangs off its checkout with one right-angle hairline, production-chain style.
-      .when(Boolean(tree), (el) => el.child(div().absolute().left(22).top(0).w(8).h(19).border_l(1).border_b(1).border_color(line))
-        .when(tree === "mid", (el) => el.child(div().absolute().left(22).top(19).bottom(0).w(1).bg(line))))
+      .when(Boolean(tree), (el) => el.child(div().absolute().left(22).top(0).w(8).h(RH / 2).border_l(1).border_b(1).border_color(line))
+        .when(tree === "mid", (el) => el.child(div().absolute().left(22).top(RH / 2).bottom(0).w(1).bg(line))))
       .on_mouse_down("left", () => { this.pressed = w.id; this.over = w.id; })
       .on_mouse_move((_e, cx) => {
         const source = spaces().find((s) => s.id === this.pressed);
@@ -452,9 +460,15 @@ export default class Spaces {
         cx.notify();
       })
       .on_mouse_down("right", () => this.menu(w))
-      .child(nudge(v_flex(), `sp-label-${w.id}`, this.hover === w.id).flex_1().min_w(0).gap(4)
+      // Compact keeps one line: the squad number the agents list uses, the name, then the tail.
+      .when(dense, (el) => el.child(nudge(h_flex(), `sp-label-${w.id}`, this.hover === w.id).flex_1().min_w(0).gap(8).items_center()
+        .child(div().w(22).h(16).flex_none().flex().items_center().justify_center().rounded(3).border_1().border_color(on ? C.selMuted : C.hairStrong)
+          .font_family(FONT.mono).text_size(9).text_color(fg).child(pad2(i + 1)))
+        .child(div().flex_shrink(1).min_w(0).truncate().text_size(12.5).font_medium().text_color(fg).child(w.name))
+        .when(Boolean(tail), (el) => el.child(micro(tail, sub).flex_shrink(2).min_w(0).truncate()))))
+      .when(!dense, (el) => el.child(nudge(v_flex(), `sp-label-${w.id}`, this.hover === w.id).flex_1().min_w(0).gap(4)
         .child(path(w.name, fg, sub))
-        .when(Boolean(tail), (el) => el.child(micro(tail, sub).truncate())))
+        .when(Boolean(tail), (el) => el.child(micro(tail, sub).truncate()))))
       .child(div().relative().flex_none().child(this.signal(C, w.status, on) ?? div()));
   }
 
@@ -479,34 +493,12 @@ export default class Spaces {
       .when(Boolean(st) && !st.quiet, (el) => el.child(div().absolute().left(0).right(0).bottom(0).h(2).bg(C[st.bar]))));
   }
 
-  /** A fleet's spaces as numbered squares, six to a row; squads in the list below keep the numbers. */
-  grid(C) {
-    const rows = this.ordered();
-    const cells = rows.map(({ w, i }) => {
-      const on = w.active;
-      const st = statusOf(w.status);
-      return v_flex().id(`space-${w.id}`).relative().flex_1().min_w(0).h(44).items_center().justify_center().gap(5).cursor_pointer()
-        .hover((s) => s.bg(C.sunken))
-        .tooltip(`${pad2(i + 1)} ${w.name}${w.machine ? ` · ${w.machine}` : ""} · ${st?.word ?? "Idle"}`)
-        .on_click(() => run("space.select", { id: w.id }))
-        .on_mouse_down("right", () => this.menu(w))
-        .child(div().relative().w(28).h(26).flex().items_center().justify_center().rounded(3).border_1()
-          .border_color(on ? C.selBg : C.hairStrong).bg(on ? C.selBg : C.ground).font_family(FONT.mono).text_size(10).text_color(on ? C.selText : C.text)
-          .child(pad2(i + 1))
-          .when(on, (el) => el.child(div().absolute().left(-1).top(-1).bottom(-1).w(2).bg(C.signal)))
-          .when(Boolean(st?.fresh) && !on, (el) => el.child(freshDot(C, 6).absolute().right(-3).top(-3))))
-        .child(h_flex().h(9).items_center().child(glyph(C, w.status ?? "idle", { size: 9 }) ?? div()));
-    });
-    const lines = [];
-    for (let k = 0; k < cells.length; k += H.cols) lines.push(h_flex().gap(4).children([...cells.slice(k, k + H.cols), ...Array.from({ length: Math.max(0, k + H.cols - cells.length) }, () => div().flex_1())]));
-    return v_flex().px(14).pt(2).pb(6).gap(4).children(lines);
-  }
-
-  // The spaces block shrinks to the grid while the fleet is compact and gets its share back after.
-  fit(dense, count) {
+  // While the fleet is compact the spaces block shrinks to its list (scrolling past H.denseRows rows)
+  // and gets its share back after.
+  fit(dense) {
     const node = find(layout(), "spaces");
     if (!node) return;
-    const want = dense ? { px: H.top + Math.ceil(count / H.cols) * H.cell + 10 } : { weight: 1 };
+    const want = dense ? { px: H.top + Math.min(this.listPx ?? 0, H.denseRows * H.dense + 2 * H.head) + 12 } : { weight: 1 };
     const have = node.size ?? {};
     if (have.px === want.px && (want.px || have.weight === want.weight)) return;
     const key = JSON.stringify(want);
@@ -520,19 +512,9 @@ export default class Spaces {
     const collapsed = narrow();
     const sp = spaces();
     const dense = !collapsed && roster().all.size >= DENSE_AT;
-    this.fit(dense, sp.length);
-    if (dense) {
-      return root(C, this.entrance.apply(v_flex().size_full().min_h(0).bg(C.ground)
-        .child(h_flex().flex_none().h(H.top).pt(6).pl(16).pr(12).gap(8).items_center()
-          .child(div().text_size(13).font_semibold().child("// Spaces"))
-          .child(div().flex_1())
-          .child(micro(pad2(sp.length), C.muted))
-          .child(div().id("space-new").size(22).flex_none().flex().items_center().justify_center().rounded(3)
-            .text_color(C.muted).hover((s) => s.bg(C.sunken).text_color(C.text))
-            .tooltip("New space").on_click(() => run("space.new")).child(icon("plus", 12))))
-        .child(div().id("space-grid").flex_1().min_h(0).overflow_y_scrollbar().child(this.grid(C)))));
-    }
+    this.rh = dense ? H.dense : H.row;
     const list = this.grouped(C, collapsed);
+    this.fit(dense);
     const active = sp.find((p) => p.active)?.id;
     if (active !== this.revealed || this.activeAt !== this.revealedAt) {
       this.revealed = active;
@@ -552,8 +534,8 @@ export default class Spaces {
         .on_size_change((size, cx) => { this.width = size.width; if (this.activeAt >= 0) this.scroll.scroll_to_item(this.activeAt + 1); cx.notify(); })
         .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })
         // Child 0 is the selection block (scroll indexes above are +1 for it); hidden when the selected space is folded away.
-        .child(plate(C, Math.max(0, this.activeTop), H.row).when(collapsed || this.activeTop < 0, (el) => el.opacity(0)))
+        .child(plate(C, Math.max(0, this.activeTop), this.rh).when(collapsed || this.activeTop < 0, (el) => el.opacity(0)))
         .children(list)
-        .child(marker("sp-mark", C, Math.max(0, this.activeTop), H.row).when(collapsed || this.activeTop < 0, (el) => el.opacity(0))))));
+        .child(marker("sp-mark", C, Math.max(0, this.activeTop), this.rh).when(collapsed || this.activeTop < 0, (el) => el.opacity(0))))));
   }
 }
