@@ -7,13 +7,21 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { run, shared } from "herdr";
-import { palette, root, statusMark, chip, micro, wide, pad2, barcode, growDisc, Entrance, FONT } from "./kit.js";
-import { roster, DENSE_AT } from "./roster.js";
+import { run, shared, layout } from "herdr";
+import { palette, root, statusMark, chip, micro, wide, pad2, barcode, growDisc, find, Entrance, FONT } from "./kit.js";
+import { roster } from "./roster.js";
+import { DENSE_AT } from "./fleet.js";
 import { fmtTokens } from "./sessions.js";
 
 export const REPORT = { stack: "work-stack", work: "main", report: "report" };
 export const toggleReport = (open) => run("layout.select", { stack: REPORT.stack, child: open ? REPORT.report : REPORT.work });
+/** The panes back in view if the report covers them: every action that focuses an agent runs this first. */
+export const showWork = () => { if (find(layout(), REPORT.stack)?.active === REPORT.report) toggleReport(false); };
+/** Focuses an agent's pane, or peeks a child that has none, with the panes in view. */
+export function goTo(m) {
+  showWork();
+  run(m.pane ? "pane.focus" : "terminal.peek", m.pane ? { pane: m.pane } : { terminal: m.address });
+}
 
 const WINDOW_MS = 10 * 60000;
 const BARS = 16;
@@ -32,14 +40,22 @@ const LETTER = { claude: "Claude Code", codex: "Codex", cursor: "Cursor", openco
 
 export class Report {
   init(_props, cx) {
-    this.sort = "status";
-    this.dir = 1;
-    this.group = true;
-    this.folded = new Set();
+    // How the person left it (sort, direction, grouping, folded squads) survives a reload.
+    let view = {};
+    try { view = JSON.parse(localStorage.getItem("report.view") ?? "{}") ?? {}; } catch {}
+    this.sort = COLS.some((c) => c.k && c.k === view.sort) ? view.sort : "status";
+    this.dir = view.dir === -1 ? -1 : 1;
+    this.group = view.group !== false;
+    this.folded = new Set(Array.isArray(view.folded) ? view.folded : []);
     this.samples = new Map();
     this.width = 900;
     this.entrance = new Entrance(2);
     this.entrance.start(cx);
+  }
+
+  keep(cx) {
+    localStorage.setItem("report.view", JSON.stringify({ sort: this.sort, dir: this.dir, group: this.group, folded: [...this.folded] }));
+    cx.notify();
   }
 
   // Token totals over time, per agent, for the last 10 minutes.
@@ -69,7 +85,7 @@ export class Report {
     const on = k && k === this.sort;
     return h_flex().id(`rh-${label}`).gap(5).items_center().when(Boolean(k), (el) => el.cursor_pointer().on_click((_e, cx) => {
       if (this.sort === k) this.dir = -this.dir; else { this.sort = k; this.dir = 1; }
-      cx.notify();
+      this.keep(cx);
     }))
       .child(div().px(6).py(4).ml(-6).rounded(2).when(on, (el) => el.bg(C.selBg)).child(micro(label, on ? C.selText : C.muted)))
       .when(Boolean(k), (el) => el.child(micro(on ? (this.dir > 0 ? "▼" : "▲") : "↕", on ? C.text : C.hairStrong, 9)));
@@ -125,7 +141,7 @@ export class Report {
       return h_flex().id(`rr-${m.address}`).relative().h(RH).flex_none().px(20).items_center().border_b(1).border_color(on ? C.selBg : C.hair)
         .when(on, (el) => el.bg(C.selBg)).text_color(fg).cursor_pointer()
         .hover((s) => (on ? s : s.bg(C.sunken)))
-        .on_click(() => run(m.pane ? "pane.focus" : "terminal.peek", m.pane ? { pane: m.pane } : { terminal: m.address }))
+        .on_click(() => goTo(m))
         .child(cells([
           h_flex().relative().h(RH).pl(indent(r.depth)).gap(9).items_center()
             .when(r.depth > 0, (el) => el.child(div().absolute().left(indent(r.depth) - (dense ? 13 : 15)).top(-4).w(10).h(RH / 2 + 4).border_l(1).border_b(1).border_color(on ? C.selMuted : C.hairStrong)))
@@ -149,7 +165,7 @@ export class Report {
       const gen = g.q.members.filter((m) => m.status === "working").length;
       const done = g.q.members.filter((m) => m.status === "done").length;
       return h_flex().id(`rg-${g.q.id}`).h(28).flex_none().px(20).gap(10).items_center().bg(C.ground).border_b(1).border_color(C.hair).cursor_pointer()
-        .on_click((_e, cx) => { folded ? this.folded.delete(g.q.id) : this.folded.add(g.q.id); cx.notify(); })
+        .on_click((_e, cx) => { folded ? this.folded.delete(g.q.id) : this.folded.add(g.q.id); this.keep(cx); })
         .child(div().w(22).h(16).flex().items_center().justify_center().rounded(3).bg(C.selBg).font_family(FONT.mono).text_size(9).text_color(C.selText).child(g.q.num))
         .child(wide(g.q.name, C.text, 10))
         .child(micro(`${pad2(g.q.members.length)} agents`, C.muted))
@@ -181,7 +197,7 @@ export class Report {
       .child(h_flex().px(20).py(10).gap(8).items_center().border_b(1).border_color(C.hair)
         .child(div().id("report-group").px(10).py(6).rounded_full().border_1().border_color(C.hairStrong).cursor_pointer()
           .when(this.group, (el) => el.bg(C.selBg))
-          .on_click((_e, cx) => { this.group = !this.group; cx.notify(); })
+          .on_click((_e, cx) => { this.group = !this.group; this.keep(cx); })
           .child(micro(`Group · ${this.group ? "Squad" : "None"}`, this.group ? C.selText : C.text)))
         .child(div().flex_1())
         .child(micro("Click a heading to sort · click a row to focus it", C.muted)))

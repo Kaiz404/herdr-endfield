@@ -6,8 +6,9 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 import { spaces, machines, panes, run, openOverlay, exec, hc, watchFolder, layout, window as appWindow } from "herdr";
-import { palette, root, narrow, find, statusOf, glyph, freshDot, micro, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT } from "./kit.js";
-import { roster, DENSE_AT } from "./roster.js";
+import { palette, root, narrow, find, glyph, freshDot, micro, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT } from "./kit.js";
+import { roster } from "./roster.js";
+import { DENSE_AT, statusOf } from "./fleet.js";
 
 function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));

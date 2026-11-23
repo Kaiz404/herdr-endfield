@@ -9,17 +9,25 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
 ## Files
 
 - `main.js` routes a role to its class: `boot`, `brand`, `footer`, `spaces`,
-  `agents`, `sortmenu`, `card`, `tabs`, `pane`, `status`, `toast`.
+  `agents`, `sortmenu`, `card`, `tabs`, `pane`, `status`, `toast`, `cutin`,
+  `report`, `dispatch`, `comms`.
 - `kit.js` owns the registries every role reads: `PALETTE` (keyed `paper` /
-  `night`, picked by `settings().dark`), `STATUS` (agent status to word, glyph
-  kind, bar colour, entrance effect, rank), `IDENTITY` (who an agent is drawn as)
+  `night`, picked by `settings().dark`), `IDENTITY` (who an agent is drawn as)
   and `MOTION` (every timing). It also holds the shared shapes (tiles, brackets,
   hatch, odometer, wipes, the selection plate and marker) and the motion helpers
   (`Entrance`, `StatusFx`).
-- `roster.js` is the fleet every surface reads: each agent's identity and callsign
-  (a repeated operator takes a spare, then a number, `PERLICA·2`, in creation
-  order so it never hops), its parent and depth, and squads (one per space) in
-  tree order.
+- `roster.js` is the fleet every surface reads, built by `fleet.js` from Herdr's
+  live lists: each agent's identity and callsign (a repeated operator takes a
+  spare, then a number, `PERLICA·2`, in creation order so it never hops), its
+  parent and depth, and squads in tree order: pinned agents first (they also lead
+  `agent.next`), then one per space. Priority ranks an agent by the most urgent
+  status in its tree.
+- Three modules hold the rules with no Herdr import, so `tests/` runs them under
+  `node --test` (CI and `verify.mjs --static` too): `fleet.js` (the `STATUS`
+  table, agent status to word, glyph kind, bar colour, entrance effect and rank,
+  and the roster), `orders.js` (Dispatch's argv, the command line it shows, and
+  what became of a run) and `messages.js` (which Comms screen tags count, how
+  many are kept, the log's size cap).
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
   `card.js` (the session panel), `dispatch.js` (the Dispatch dialog), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),
   `toast.js` (notifications; it decides between the cut-in, the Claimed slip and
@@ -140,6 +148,35 @@ and harmless runs in a throwaway `ef-*` space whose terminal was a plain PowerSh
 The design board's "When idle" meant "queued until the turn ends". hc has no queue,
 so the option is "Only if idle" and the dialog says what happens when it isn't.
 
+Dispatch runs an order once. When hc exits 0 the order is sent: the Comms log is
+written in its own step, and a failure there is shown but never re-enables
+Dispatch (the action becomes Close). hc's refusals (exit 2, 3, 7, 9, 10) typed
+nothing, so the person may fix and Dispatch again; any other failure may come
+after the text was pasted, so it also ends in Close. Send text always follows
+`--`. The command line under the dialog is the exact argv, quoted for Windows
+PowerShell 5.1 (on Windows) or sh, and wrapped rather than cut.
+
+Comms reads `<hc from>` tags off screens, which any program there could print. A
+tag counts only when its sender is a live terminal other than the recipient
+(never "you" or "hc"), each is marked Unverified, its text is cut at 280
+characters, and the pane keeps the newest 200. With "Now, wait for reply" the
+log records the last screen line after the turn as a "Screen line", not a
+reply: it may be a prompt, a spinner or a draft.
+
+## Native limits
+
+What the design boards draw that Herdr's mod API can't, and what stands in:
+
+- Corner brackets on the focused pane (`gw-brk`): the terminal body is native, and a
+  mod draws only the pane header. The header's yellow focus bar stands in.
+- "When idle" as a queue: hc has none (above). The option is "Only if idle".
+- The toast slot's place and size are Herdr's. The needs-input cut-in is an overlay
+  window of its own, opened above the slot so a toast never covers it.
+- Files can't be stat'ed from a mod, so `tools/probe.mjs` (node) reads transcripts
+  and sidecars and prunes by mtime.
+- Without the art pack, agents keep their program tiles and program callsigns; the
+  board's accent ring with initials is not drawn.
+
 ## Sounds
 
 Three original cues in `sounds/`, synthesised by `tools/make_sounds.py` with
@@ -187,9 +224,15 @@ Only native motion: `.transition` on opacity, width, height, left and top,
 `.loop`, and `.frames`. No colour ever transitions. One-shot `cx.timer.after`
 calls end a transient state (the boot, a Claimed flash, the card's open delay).
 The repeating timers are for data only: the agents list's 30s age labels, the
-spaces list's git and machine checks, and the 3s session poll, which runs only
-when a transcript or sidecar changed (`watchFolder`) or a sub-agent may have
-gone quiet, and only while the sidebar is shown.
+spaces list's git and machine checks, Comms' 15s screen scan (one at a time, six
+reads at once, 5s each), and the 3s session poll. That poll runs only when a
+watched folder changed (`watchFolder` on the sidecars and on the target agents'
+own project folders, the ones `probe.mjs` reports), a sub-agent may have gone
+quiet, or, every 15s, when a folder can't be watched (refused, or not created
+yet). It runs whether the sidebar is wide, a rail or hidden, since the HUD
+footer, the report and the session card read it. A glyph whose state has
+nothing in it draws still (`glyph(..., { still })`): an idle fleet repaints
+nothing.
 
 Plates snap; only the yellow marker travels. A list's selection is a plate
 (`plate()`, child 0 of its scroll area, under the rows) that jumps to the

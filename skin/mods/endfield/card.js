@@ -1,16 +1,19 @@
 // card: the session panel beside the sidebar while a squad row is hovered, laid out like an AIC
 // machine panel. An overlay window (it never takes the keyboard) the squad list opens and closes;
-// the panel only reports whether the pointer is on it (shared "endfield.card.hot").
+// the panel only reports whether the pointer is on it (shared "endfield.card.hot"). Its session is
+// the list's (shared "endfield.card.session", published while this card is open): no poller here.
 // props: {role: "card", terminal, title, where, callsign, snap: Session, overlay}
 
 import { div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, props, run, shared, setShared, closeOverlay, checking } from "herdr";
-import { palette, root, statusOf, micro, wide, dots, barcode, ticks, rings, pill, glyph, MOTION, FONT } from "./kit.js";
+import { props, run, shared, setShared, closeOverlay, checking } from "herdr";
+import { palette, root, micro, wide, dots, barcode, ticks, rings, pill, glyph, MOTION, FONT } from "./kit.js";
+import { statusOf } from "./fleet.js";
 import { roster } from "./roster.js";
-import { Sessions, DASH, fmtTokens, longDuration, ago } from "./sessions.js";
+import { DASH, fmtTokens, longDuration, ago } from "./sessions.js";
 import { readLog, KIND, openComms } from "./comms.js";
 import { openDispatch } from "./dispatch.js";
+import { showWork } from "./report.js";
 
 export const CARD = { width: 368, pad: 14, slide: 14 };
 const SEGS = 20;
@@ -24,14 +27,7 @@ export class Card {
     this.p = p;
     this.entered = false;
     this.comms = [];
-    this.sessions = new Sessions(`card-${p.overlay}`);
-    this.sessions.seed(p.snap);
     if (checking()) return;
-    const target = () => {
-      const a = agents().find((x) => x.address === p.terminal);
-      return a ? [{ terminal: a.address, cwd: p.snap?.cwd ?? null, status: a.status }] : [];
-    };
-    this.sessions.start(cx, target, () => true);
     cx.spawn(async (cx) => {
       this.comms = (await readLog()).filter((m) => m.from === p.terminal || m.to === p.terminal);
       cx.notify();
@@ -39,7 +35,6 @@ export class Card {
   }
 
   close() {
-    this.sessions.stop();
     setShared("endfield.card.hot", null);
   }
 
@@ -57,7 +52,8 @@ export class Card {
     const p = props() ?? this.p;
     if (this.entered && shared("endfield.card.open") !== p.overlay) closeOverlay(p.overlay);
     const m = roster().all.get(p.terminal);
-    const s = this.sessions.get(p.terminal) ?? p.snap ?? null;
+    const live = shared("endfield.card.session");
+    const s = (live?.terminal === p.terminal ? live : null) ?? p.snap ?? null;
     const status = m?.status ?? "idle";
     const st = statusOf(status);
     const ctx = s?.ctx;
@@ -174,6 +170,6 @@ export class Card {
               action: () => { closeOverlay(p.overlay); openDispatch({ mode: "send", target: p.terminal }); } }))
             .child(div().flex_1())
             .child(pill(C, "card-go", status === "blocked" ? "Answer" : "Focus", { kind: "primary", hot: this.hot === "card-go", on_hover: this.hover("card-go"),
-              action: () => this.act("agent.focus", { terminal: p.terminal }) }))))));
+              action: () => { showWork(); this.act("agent.focus", { terminal: p.terminal }); } }))))));
   }
 }

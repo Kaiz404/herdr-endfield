@@ -11,6 +11,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { props, closeOverlay, openOverlay, run, agents, spaces } from "herdr";
 import { palette, root, micro, wide, chip, cue, MOTION, FONT } from "./kit.js";
 import { roster } from "./roster.js";
+import { showWork } from "./report.js";
 
 const LEVEL = {
   info: { edge: "flow", glyph: "i" },
@@ -74,7 +75,10 @@ export class Toast {
     this.phase = "leaving";
     cx.notify();
     cx.timer.after(MOTION.toast.enter.duration, () => {
-      if (act && p.action?.name) run(p.action.name, p.action.args ?? {});
+      if (act && p.action?.name) {
+        if (p.action.args?.terminal || p.action.args?.pane) showWork();
+        run(p.action.name, p.action.args ?? {});
+      }
       closeOverlay(p.overlay);
     });
   }

@@ -8,9 +8,10 @@
 
 import { div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { props, closeOverlay, run, hc, checking } from "herdr";
+import { props, closeOverlay, hc, checking } from "herdr";
 import { palette, root, micro, wide, hazard, dots, band, barcode, MOTION, ASSETS } from "./kit.js";
 import { roster } from "./roster.js";
+import { goTo } from "./report.js";
 
 const PLATE = 328; // the caption plate's width: the slab, less its padding and the portrait column
 
@@ -103,7 +104,7 @@ export class CutIn {
       .child(h_flex().relative().mt(14).gap(8).items_center()
         .child(h_flex().id("cut-answer").h(28).pl(14).pr(4).gap(10).items_center().rounded_full().bg(C.signal).cursor_pointer()
           .on_hover(hover("cut-answer"))
-          .on_click(() => { this.shut(); run(m.pane ? "pane.focus" : "terminal.peek", m.pane ? { pane: m.pane } : { terminal: m.address }); })
+          .on_click(() => { this.shut(); goTo(m); })
           .child(div().text_size(12).font_semibold().text_color(C.ink).child("Answer"))
           .child(knob("cut-answer-knob", "▶", C.ink, C.signal)))
         .child(h_flex().id("cut-later").h(28).px(14).flex_none().items_center().rounded_full().border_1().border_color("#555555")

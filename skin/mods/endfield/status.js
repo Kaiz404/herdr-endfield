@@ -5,9 +5,10 @@
 
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { spaces, run, shared } from "herdr";
+import { spaces, shared } from "herdr";
 import { palette, root, hatch, micro, pad2, odometer, glyph, Entrance, MOTION } from "./kit.js";
 import { roster } from "./roster.js";
+import { goTo } from "./report.js";
 import { fmtTokens } from "./sessions.js";
 
 const NEEDS_W = 176;
@@ -62,7 +63,7 @@ export default class Status {
         .child(micro([focus?.model ?? "No agent", space?.branch, space?.machine ?? "Local"].filter(Boolean).join(" · "), C.barMuted).flex_shrink(1).min_w(0).truncate())
         // Opens to 176px while anyone needs input; the block inside is fixed, the opening clips it.
         .child(div().id("hud-needs").relative().h_full().flex_none().overflow_hidden().w(blocked.length ? NEEDS_W : 0).transition("width", MOTION.count.needs)
-          .cursor_pointer().on_click(() => blocked[0] && run(blocked[0].pane ? "pane.focus" : "terminal.peek", blocked[0].pane ? { pane: blocked[0].pane } : { terminal: blocked[0].address }))
+          .cursor_pointer().on_click(() => blocked[0] && goTo(blocked[0]))
           .child(h_flex().absolute().left(0).top(0).w(NEEDS_W).h_full().px(14).gap(8).items_center().bg(C.signal)
             .child(odometer("odo-needs", blocked.length, C.ink, 16))
             .child(micro("Needs input", C.ink).flex_1())

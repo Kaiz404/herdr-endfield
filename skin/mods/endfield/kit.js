@@ -5,6 +5,7 @@ import { div, svg, image, PathBuilder, Background } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { settings, layout, shared, setShared, run, keys, home, appHome, readTextFile, fonts, checking, playSound, window as appWindow } from "herdr";
 import * as fs from "fs/promises";
+import { statusOf } from "./fleet.js";
 
 export const ASSETS = "mods/endfield/art";
 export const FONT = { ui: "Geist", mono: "Geist Mono" };
@@ -100,17 +101,7 @@ const PALETTE = {
 const variant = () => (settings()?.dark ? "night" : "paper");
 export const palette = () => ({ ...SIGNAL, ...PALETTE[variant()] });
 
-// ---- status: every role reads a status through these two tables
-
-const STATUS = {
-  blocked: { word: "Needs input", kind: "pill", bar: "signal", edge: "hazard", rank: 4 },
-  error: { word: "Error", kind: "text", glyph: "×", hue: "error", bar: "red", rank: 4 },
-  done: { word: "Claimed", kind: "disc", glyph: "✓", bar: "lime", fresh: true, enter: ["flash", "pop"], rank: 3 },
-  working: { word: "Generating", kind: "march", hue: "flow", bar: "flowInv", conveyor: true, rank: 2 },
-  idle: { word: "Idle", kind: "mono", glyph: "zZ", bar: "hairStrong", quiet: true, rank: 1 },
-};
-export const statusOf = (s) => STATUS[s] ?? null;
-export const rank = (s) => STATUS[s]?.rank ?? 0;
+// ---- status: every role reads a status through the STATUS table (fleet.js) and GLYPH below
 
 // Two triangles stepping through on the shared frame clock (each slot frames its own lit beat).
 // still: the same two triangles unlit, for a place that names the state while nothing is in it.

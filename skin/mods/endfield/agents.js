@@ -8,10 +8,11 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, panes, focused, spaces, layout, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
-import { palette, root, narrow, find, toggleSidebar, statusOf, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, duration, telling, wipe, marker, nudge, rings, cross, ticks, pill, Entrance, StatusFx, MOTION, IDENTITY, FONT } from "./kit.js";
-import { roster, BY, DENSE_AT } from "./roster.js";
-import { toggleReport } from "./report.js";
+import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
+import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, duration, telling, wipe, marker, nudge, rings, cross, ticks, pill, Entrance, StatusFx, MOTION, IDENTITY, FONT } from "./kit.js";
+import { roster } from "./roster.js";
+import { BY, DENSE_AT, statusOf } from "./fleet.js";
+import { toggleReport, goTo } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
 import { CARD, cardHeight } from "./card.js";
@@ -78,7 +79,7 @@ export class SortMenu {
 
 export class Agents {
   init(_props, cx) {
-    this.folded = new Set();
+    try { this.folded = new Set(JSON.parse(localStorage.getItem("squads.folded") ?? "[]")); } catch { this.folded = new Set(); }
     this.width = 0;
     this.viewH = 0;
     this.scrollY = 0;
@@ -97,10 +98,9 @@ export class Agents {
     this.card = { open: null, hot: null, seq: 0 };
     // The one card this list owns; a card that isn't it (left from a reload) closes itself.
     setShared("endfield.card.open", null);
+    // Polled whether the sidebar is wide, a rail or hidden: the HUD footer, the report and the card read it.
     this.sessions = new Sessions("agents");
-    this.sessions.start(cx,
-      () => agents().filter(isClaude).map((a) => ({ terminal: a.address, cwd: cwdOf(a), status: a.status })),
-      () => !narrow() && !find(layout(), "sidebar")?.hidden);
+    this.sessions.start(cx, () => agents().filter(isClaude).map((a) => ({ terminal: a.address, cwd: cwdOf(a), status: a.status })));
   }
 
   close() {
@@ -199,9 +199,24 @@ export class Agents {
     run("pane.split", { direction: "right", pane: parent.pane, mod: "endfield-transcript", props: { path: k.path, title: k.title } });
   }
 
-  focus(m) {
-    if (m.pane) run("pane.focus", { pane: m.pane });
-    else run("terminal.peek", { terminal: m.address });
+  focus(m) { goTo(m); }
+
+  fold(id, cx) {
+    this.folded.has(id) ? this.folded.delete(id) : this.folded.add(id);
+    localStorage.setItem("squads.folded", JSON.stringify([...this.folded]));
+    cx.notify();
+  }
+
+  /** A pinned agent's row shows the pin; hovering any agent's row offers pin or unpin. */
+  pinButton(C, r, hot, on) {
+    const pinned = Boolean(r.m.agent?.pinned);
+    if (r.native || !r.m.agent || !(pinned || hot)) return null;
+    const id = `${r.key}-pin`;
+    return div().id(id).size(18).flex_none().flex().items_center().justify_center().rounded_full()
+      .text_color(on ? C.selText : pinned ? C.text : C.muted).hover((s) => s.bg(on ? C.selMuted : C.raised))
+      .tooltip(pinned ? "Unpin" : "Pin to the top")
+      .on_click((_e, cx) => { cx.stop_propagation(); run("terminal.pin", { terminal: r.m.address, pinned: !pinned }); })
+      .child(icon(pinned && hot ? "pin-off" : "pin", 11));
   }
 
   /** One agent row. r: { key, m, depth, h, top, on, title, meta, native, parentTop, parentDepth, click }, tops relative to its squad. */
@@ -262,6 +277,7 @@ export class Agents {
           .child(wide(m.ident.callsign, fg, dense ? 9 : 10).flex_none())
           .child(micro(r.meta, sub).min_w(0).truncate()))
         .child(div().min_w(0).truncate().font_medium().text_size(dense ? 11.5 : 13).child(r.title)))
+      .when(Boolean(this.pinButton(C, r, hot, on)), (el) => el.child(this.pinButton(C, r, hot, on)))
       .child(right);
   }
 
@@ -272,11 +288,11 @@ export class Agents {
     const hot = this.hovered === id;
     return h_flex().id(id).relative().h(D.head).flex_none().pl(14).pr(10).gap(8).items_center().cursor_pointer()
       .on_hover((over, cx) => { if (over) this.hovered = id; else if (this.hovered === id) this.hovered = null; cx.notify(); })
-      .on_click((_e, cx) => { folded ? this.folded.delete(q.id) : this.folded.add(q.id); cx.notify(); })
-      .tooltip(`Squad ${q.num} · ${q.name} · click to fold`)
+      .on_click((_e, cx) => this.fold(q.id, cx))
+      .tooltip(q.pinned ? "Pinned agents, from every space · click to fold" : `Squad ${q.num} · ${q.name} · click to fold`)
       .child(wipe(`${id}-wipe`, C.sunken, this.width, hot))
       .child(div().relative().w(22).h(16).flex_none().flex().items_center().justify_center().rounded(3).bg(C.selBg)
-        .font_family(FONT.mono).text_size(9).text_color(C.selText).child(q.num))
+        .font_family(FONT.mono).text_size(9).text_color(C.selText).child(q.pinned ? icon("pin", 10).text_color(C.selText) : q.num))
       .child(wide(q.name, C.text, 10).relative().flex_shrink(1).min_w(0).truncate())
       .when(folded, (el) => el.child(h_flex().id(`${id}-stack`).relative().flex_none().pl(4)
         .opacity(this.fresh.has(`${id}-stack`) ? 0 : 1).transition("opacity", MOTION.squad.stack)
@@ -285,10 +301,10 @@ export class Agents {
       .when(blocked > 0, (el) => el.child(div().relative().w(14).h(12).flex_none().flex().items_center().justify_center().bg(C.signal)
         .text_size(9).font_weight(700).text_color(C.ink).tooltip(`${blocked} need input`).child("!")))
       .child(micro(pad2(q.members.length), C.muted).relative().flex_none())
-      .child(div().id(`${id}-add`).relative().size(18).flex_none().flex().items_center().justify_center().rounded_full().border_1().border_color(C.hairStrong)
+      .when(!q.pinned, (el) => el.child(div().id(`${id}-add`).relative().size(18).flex_none().flex().items_center().justify_center().rounded_full().border_1().border_color(C.hairStrong)
         .hover((h) => h.bg(C.raised)).tooltip(`Dispatch a new agent to ${q.name}`)
         .on_click((_e, cx) => { cx.stop_propagation(); openDispatch({ mode: "new", space: q.id }); })
-        .child(icon("plus", 10)))
+        .child(icon("plus", 10))))
       .child(micro(folded ? "▸" : "▾", C.muted).relative().w(8).flex_none());
   }
 
@@ -337,7 +353,9 @@ export class Agents {
       const x = this.sessions.get(m.address);
       return x ? [[m.address, { ctx: x.ctx ?? null, tokens: x.tokens?.total ?? null, turns: x.turns ?? null }]] : [];
     }));
-    for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all]]) {
+    // The open card's whole session: the card draws it and runs no poller of its own.
+    const card = this.card.open ? this.sessions.get(this.card.open.address) : null;
+    for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all], ["endfield.card.session", card]]) {
       const text = JSON.stringify(value);
       if (text !== this.published?.[key]) { (this.published ??= {})[key] = text; setShared(key, value); }
     }
@@ -353,6 +371,7 @@ export class Agents {
     this.track(list, Date.now());
     for (const m of R.all.values()) this.fx.track(m.address, m.status, cx);
     setAgentOrder(R.flat.filter((m) => m.agent).map((m) => m.address));
+    this.share(R);
     if (narrow()) return this.rail(C, R);
 
     const shown = focused()?.agent;
@@ -413,7 +432,6 @@ export class Agents {
     this.scrollY = Math.min(this.scrollY, maxY);
     const below = this.viewH ? sections.reduce((n, s) => n + (s.folded ? 0 : s.rows.filter((r) => !r.native && s.start + r.top >= this.scrollY + this.viewH).length), 0) : 0;
     const active = R.flat.filter((m) => !statusOf(m.status)?.quiet).length;
-    this.share(R);
     // The geometric layer fills the list's empty foot, never behind a row.
     const room = this.viewH - y > 170;
 

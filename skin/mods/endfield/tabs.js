@@ -5,7 +5,8 @@
 import { div, svg, image } from "gpui-kit";
 import { h_flex, ScrollHandle } from "gpui-base";
 import { spaces, panes, run, openOverlay, window as appWindow, shared, layout, settings } from "herdr";
-import { palette, root, find, stop, statusOf, glyph, freshDot, micro, icon, pad2, telling, growDisc, pill, cue, Entrance, MOTION } from "./kit.js";
+import { palette, root, find, stop, glyph, freshDot, micro, icon, pad2, telling, growDisc, pill, cue, Entrance, MOTION } from "./kit.js";
+import { statusOf } from "./fleet.js";
 import { REPORT, toggleReport } from "./report.js";
 import { commsPane, openComms } from "./comms.js";
 
