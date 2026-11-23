@@ -108,3 +108,19 @@ export function buildRoster({ listed, terms, spaces, identity, sort = BY.priorit
   });
   return { all, squads, flat: squads.flatMap((q) => q.members) };
 }
+
+// A Claude Code session's own sub-agents share one operator, so each one shown takes the lowest
+// number no other shown one holds, and keeps it while it stays shown: ARDELIA·2, never ARDELIA·30.
+// prev: Map<id, n> from the last render; shown: ids in start order.
+export function subNumbers(prev, shown) {
+  const next = new Map(shown.filter((id) => prev.has(id)).map((id) => [id, prev.get(id)]));
+  const taken = new Set(next.values());
+  for (const id of shown) {
+    if (next.has(id)) continue;
+    let n = 1;
+    while (taken.has(n)) n++;
+    next.set(id, n);
+    taken.add(n);
+  }
+  return next;
+}

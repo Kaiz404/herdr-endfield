@@ -11,7 +11,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, duration, telling, wipe, marker, nudge, rings, cross, ticks, pill, Entrance, StatusFx, MOTION, IDENTITY, FONT } from "./kit.js";
 import { roster } from "./roster.js";
-import { BY, DENSE_AT, statusOf } from "./fleet.js";
+import { BY, DENSE_AT, statusOf, subNumbers } from "./fleet.js";
 import { toggleReport, goTo } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
@@ -95,6 +95,7 @@ export class Agents {
     cx.timer.every(30000, (cx) => { IDENTITY.refresh(); cx.notify(); });
     this.bounds = {};
     this.info = {};
+    this.subNums = new Map();
     this.card = { open: null, hot: null, seq: 0 };
     // The one card this list owns; a card that isn't it (left from a reload) closes itself.
     setShared("endfield.card.open", null);
@@ -395,6 +396,7 @@ export class Agents {
 
     // Each squad: its rows with tops inside the squad, and where the squad starts in the list.
     let y = 0;
+    const nextNums = new Map();
     const sections = R.squads.map((q) => {
       const folded = this.folded.has(q.id);
       const start = y + D.head;
@@ -414,11 +416,12 @@ export class Agents {
         }
         push(r);
         // Claude Code's own sub-agents, read from its transcript, hang under it like any child.
-        // They share one operator, so each is numbered in the order it started (ARDELIA, ARDELIA·2...).
-        const started = m.agent && isClaude(m.agent) ? [...(this.sessions.get(m.address)?.subagents ?? [])].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0)).map((k) => k.id) : [];
-        if (started.length) for (const k of this.natives(m)) {
+        const shownSubs = m.agent && isClaude(m.agent) ? this.natives(m) : [];
+        const nums = subNumbers(this.subNums.get(m.address) ?? new Map(), [...shownSubs].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0)).map((k) => k.id));
+        if (shownSubs.length) nextNums.set(m.address, nums);
+        for (const k of shownSubs) {
           const ident = IDENTITY.resolve(m.program, null, { parent: m.program });
-          const n = started.indexOf(k.id) + 1;
+          const n = nums.get(k.id);
           push({ key: `sa-${k.id}`, m: { address: `sa-${k.id}`, status: k.status, ident: { ...ident, callsign: `${ident.name.toUpperCase()}${n > 1 ? `·${n}` : ""}` } }, depth: m.depth + 1,
             h: D.child, top: inner, on: false, title: k.title, native: true, meta: [`◀ ${m.address.toUpperCase()}`, k.model?.short, `${pad2(k.tools)} tools`].filter(Boolean).join(" · "),
             parentTop: r.top, parentDepth: m.depth, click: () => this.openTranscript(m, k) });
@@ -427,6 +430,7 @@ export class Agents {
       y = start + (folded ? 0 : inner);
       return { q, folded, start, rows, inner, blocked: q.members.filter((m) => m.status === "blocked").length };
     });
+    this.subNums = nextNums;
     this.arrive([...sections.flatMap((s) => [...s.rows.map((r) => r.key), ...(s.folded ? [`sq-${s.q.id}-stack`] : [])]), ...blocked.map((m) => `pin-${m.address}`)], cx);
 
     const selIn = sections.find((s) => !s.folded && s.rows.some((r) => r.on));
