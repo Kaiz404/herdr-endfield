@@ -3,7 +3,8 @@
 //
 //   {cmd: "sessions", cache, sidecars, targets: [{terminal, cwd}]}
 //     -> {sessions: {terminal: Parsed & {sidecar}}, watch: [the folders whose writes change this answer],
-//         missing: [project folders that don't exist yet, so can't be watched]}
+//         missing: [project folders that don't exist yet, so can't be watched],
+//         limits: the newest rate_limits any sidecar carries, {five_hour, seven_day, updated_at} | null}
 //   {cmd: "render", path, from}  -> {to, size, entries: [{kind, text, tool?, arg?}]}
 //
 // Each transcript is folded once: the fold (a small summary) and the byte offset it reached
@@ -143,26 +144,31 @@ function subagents(cache, transcript) {
   });
 }
 
-/** The newest sidecar per terminal, from those written in the last day. */
+/**
+ * The newest sidecar per terminal, from those written in the last day, and the newest
+ * rate_limits among them: limits are the account's, so a session outside Herdr counts too.
+ */
 function sidecars(dir) {
   const byTerminal = new Map();
+  let limits = null;
   let names = [];
-  try { names = fs.readdirSync(dir).filter((n) => n.endsWith(".json")); } catch { return byTerminal; }
+  try { names = fs.readdirSync(dir).filter((n) => n.endsWith(".json")); } catch { return { byTerminal, limits }; }
   const now = Date.now();
   for (const n of names) {
     const p = path.join(dir, n);
     if (now - (stat(p)?.mtime ?? 0) > DAY) continue;
     const s = readJson(p);
+    if (s?.rate_limits && String(s.updated_at ?? "") > String(limits?.updated_at ?? "")) limits = { ...s.rate_limits, updated_at: s.updated_at };
     if (!s?.terminal) continue;
     const had = byTerminal.get(s.terminal);
     if (!had || String(s.updated_at ?? "") > String(had.updated_at ?? "")) byTerminal.set(s.terminal, s);
   }
-  return byTerminal;
+  return { byTerminal, limits };
 }
 
 function sessions(req) {
   const cache = readJson(req.cache) ?? {};
-  const side = req.sidecars ? sidecars(req.sidecars) : new Map();
+  const { byTerminal: side, limits } = req.sidecars ? sidecars(req.sidecars) : { byTerminal: new Map(), limits: null };
   const out = {};
   const watch = new Set(req.sidecars ? [req.sidecars] : []);
   const missing = new Set();
@@ -195,7 +201,7 @@ function sessions(req) {
   // Atomic replace: several mod copies may probe at once; the loser's work is only redone later.
   const tmp = `${req.cache}.${process.pid}.tmp`;
   try { fs.writeFileSync(tmp, JSON.stringify(cache)); fs.renameSync(tmp, req.cache); } catch { try { fs.unlinkSync(tmp); } catch {} }
-  return { sessions: out, watch: [...watch], missing: [...missing] };
+  return { sessions: out, watch: [...watch], missing: [...missing], limits };
 }
 
 // ---- render: a transcript as a tidy list for the transcript pane

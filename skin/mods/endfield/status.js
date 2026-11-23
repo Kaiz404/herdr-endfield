@@ -1,6 +1,7 @@
 // status: the HUD footer, an ink bar along the bottom. Numbers are the headline: agents active on
 // an odometer, then where you are, Generating and Claimed counts, the focused agent's context, its
-// model, branch and machine, and a yellow "Needs input" block that opens when anyone needs you
+// model, branch and machine, the account's Claude usage limits (5-hour and 7-day: percent used and
+// time to reset), and a yellow "Needs input" block that opens when anyone needs you
 // (click: go to the first one).
 
 import { div } from "gpui-kit";
@@ -10,6 +11,7 @@ import { palette, root, midTrunc, hatch, micro, pad2, odometer, glyph, Entrance,
 import { roster } from "./roster.js";
 import { goTo } from "./report.js";
 import { fmtTokens } from "./sessions.js";
+import { usage, USAGE_TICK_MS } from "./usage.js";
 
 const NEEDS_W = 176;
 
@@ -18,7 +20,10 @@ export default class Status {
     this.entrance = new Entrance(3);
     this.entrance.start(cx);
     // keys.json "<key>": "endfield.newSpace" lands here: the one copy every endfield window shows.
-    if (!checking()) cx.spawn(async () => { for (;;) if ((await nextCommand()) === "newSpace") await newSpace(); });
+    if (checking()) return;
+    // A data timer: the time to reset counts down in minutes while limits show.
+    cx.timer.every(USAGE_TICK_MS, (cx) => { if (shared("endfield.limits")) cx.notify(); });
+    cx.spawn(async () => { for (;;) if ((await nextCommand()) === "newSpace") await newSpace(); });
   }
 
   render() {
@@ -32,6 +37,8 @@ export default class Status {
     // The focused agent's session, as the squad list last read it (it owns the one poller).
     const focus = shared("endfield.focus") ?? null;
     const pct = focus?.ctx ? Math.min(100, focus.ctx.pct) : 0;
+    // The account's limits, the newest any statusline sidecar carries (the squad list publishes them).
+    const limits = usage(shared("endfield.limits"), Date.now());
     const crumb = (text) => div().min_w(0).truncate().text_color(C.barText).child(text);
     const rule = () => div().w(1).h(20).flex_none().bg(C.barRule);
     // A count of 0 draws its glyph still: idle is still, so the HUD never repaints for nothing.
@@ -39,6 +46,12 @@ export default class Status {
       .child(glyph({ ...C, flow: C.flowInv }, s, { size: 11, still: count(s) === 0 }))
       .child(odometer(`odo-${s}`, count(s), count(s) ? C.barText : C.barSlash, 13))
       .child(micro(word, C.barMuted));
+    // Urgent is a glyph plus red, as the context bar turns red; a reset window says so, never old numbers.
+    const quota = (w) => h_flex().flex_none().gap(5).items_center()
+      .when(w.hot, (el) => el.child(div().text_size(9).text_color(C.red).child("▲")))
+      .child(micro(w.label, C.barMuted))
+      .child(w.reset ? micro("Reset", C.barText) : div().text_size(13).font_semibold().line_height(1).text_color(w.hot ? C.red : C.barText).child(`${w.pct}%`))
+      .when(Boolean(w.left), (el) => el.child(micro(`· ${w.left}`, C.barMuted)));
     return root(C, this.entrance.apply(h_flex().relative().size_full().bg(C.bar)
       .child(hatch(C.barHatch))
       .child(h_flex().relative().size_full().pl(16).gap(16).items_center()
@@ -53,6 +66,7 @@ export default class Status {
         .child(rule())
         .child(tally("working", "Generating"))
         .child(tally("done", "Claimed"))
+        .when(Boolean(limits), (el) => el.child(rule()).child(h_flex().flex_none().gap(14).items_center().children(limits.map(quota))))
         .child(div().flex_1())
         .child(v_flex().w(170).flex_none().gap(5)
           .child(h_flex().justify_between().items_end()
