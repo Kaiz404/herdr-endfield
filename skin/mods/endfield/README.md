@@ -10,7 +10,7 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
 
 - `main.js` routes a role to its class: `boot`, `brand`, `footer`, `spaces`,
   `agents`, `sortmenu`, `card`, `tabs`, `pane`, `status`, `toast`, `cutin`,
-  `report`, `dispatch`, `comms`.
+  `report`, `dispatch`, `comms`, `action`, `archived`.
 - `kit.js` owns the registries every role reads: `PALETTE` (keyed `paper` /
   `night`, picked by `settings().dark`), `IDENTITY` (who an agent is drawn as)
   and `MOTION` (every timing). It also holds the shared shapes (tiles, brackets,
@@ -26,7 +26,8 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   `node --test` (CI and `verify.mjs --static` too): `fleet.js` (the `STATUS`
   table, agent status to word, glyph kind, bar colour, entrance effect and rank,
   and the roster), `orders.js` (Dispatch's argv, the command line it shows, and
-  what became of a run) and `messages.js` (which Comms screen tags count, how
+  what became of a run, and the session card's `ACTIONS` per program),
+  `archive.js` (the archived chats file and the command each resumes with) and `messages.js` (which Comms screen tags count, how
   many are kept, the log's size cap), `base.js` (the home base: which folder a
   new local space opens in) and `usage.js` (the HUD footer's Claude usage limits:
   which windows show, when one has reset, how time to reset reads).
@@ -35,7 +36,8 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   which every Endfield window shows once). On this computer it passes the home base as
   the folder; on another machine it passes none, so that machine's home applies.
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
-  `card.js` (the session panel), `dispatch.js` (the Dispatch dialog), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),
+  `card.js` (the session panel), `actions.js` (a card action's confirm dialog
+  and the Archived list), `dispatch.js` (the Dispatch dialog), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),
   `toast.js` (notifications; it decides between the cut-in, the Finished slip and
   the plain slab), `cutin.js` (the needs-input skill caption), `comms.js` (the
   message log Dispatch writes and the Comms pane), `report.js` (the oversight screen: a block in the
@@ -161,6 +163,40 @@ nothing, so the person may fix and Dispatch again; any other failure may come
 after the text was pasted, so it also ends in Close. Send text always follows
 `--`. The command line under the dialog is the exact argv, quoted for Windows
 PowerShell 5.1 (on Windows) or sh, and wrapped rather than cut.
+
+## Card actions: what was tested
+
+The session card's Chat pills (Rename, Plan, Next mode, Model, Effort, Archive)
+open a dialog like Dispatch's: it shows the exact lines and runs them once, on
+Confirm. Typed text always goes as `hc send <t> --if idle -- <text>`, never
+`--force`. Herdr's `done` is not `idle`, so hc refuses it (exit 10, "t40 is
+done, not idle") and the card says to look at the agent first. Checked on
+Claude Code 2.1.330 in a throwaway terminal started with `hc run --bg --keep`
+outside any space:
+
+- A pasted `/model opus` plus Enter runs as a command ("Set model to Opus 5.5
+  and saved as your default for new sessions"). It does write
+  `~/.claude/settings.json`, as the dialog warns. Sent from an agent's own
+  terminal, hc wraps the text in `<hc from="...">`, which turns a slash command
+  into a message. The skin runs hc from Herdr, with no sending terminal: a
+  task sent with Dispatch reached the transcript untagged.
+- `/effort high` persists: Claude Code saves it per model, as
+  `modelSettings.<model id>.effortLevel` in `~/.claude/settings.json`.
+- `hc keys <t> shift+tab` works on Windows. The cycle seen: don't ask (the
+  launch mode) to manual, accept edits, plan, auto, manual again. The
+  transcript records a mode only at the next turn, so the dialog reads the mode
+  from Claude Code's line under its prompt (`hc read`).
+- `/plan` turns on plan mode at once.
+- `hc kill` on a `--keep` terminal ends it for good: state `finished`, reason
+  `killed`, no shell put in its place. Archive still uses `/exit` through
+  `--if idle`: hc waits for any draft the person left, nothing mid-turn is
+  dropped, and `kill` would be the only ungated action on the card.
+
+Not tested live: Codex and Cursor (`/rename`, `/model --reasoning`, `/plan`,
+`/quit`, their resume commands), `/rename` in Claude Code, `claude --resume`
+from the Archived list, and what Herdr lists after `/exit` in a terminal Herdr
+started with `tab.new` (its shell stays; `endfield.archived` keeps that
+terminal out of Squads either way).
 
 Comms reads `<hc from>` tags off screens, which any program there could print. A
 tag counts only when its sender is a live terminal other than the recipient

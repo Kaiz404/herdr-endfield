@@ -75,14 +75,28 @@ rendered at 4x. It is a schematic, not a screenshot.
     chip shows its program's tile instead.
   - Session panel, 368px, beside the sidebar while a squad row is hovered,
     laid out like an AIC machine panel: the operator's bust in a dotted frame
-    with a range ring and an accent foot, an ink `// SESSION T3` chip and a
-    barcode, the task, `CALLSIGN · program · where`; three cells (Input on a
-    dot field: the folder and model as item tiles; the state with its march,
-    a tick ruler and `elapsed · turn`; Output: tokens in the wide face);
-    context reserves (20 blocks); Comms (the last two messages in and out,
-    `Log ▶`); the question in brackets when blocked; an ink footer with the
-    Current formula (`folder ▶▶ last action`), Peek, Pin, Dispatch + and
-    Answer/Focus ▶. Unknown fields (any non-Claude agent) read `—`.
+    with a range ring and an accent foot, an ink chip naming the work
+    (`// FIX LOGIN`: the tab's name, else the space's; never the terminal
+    address) and a barcode, the task, `CALLSIGN / program / where`; three
+    cells (Input on a dot field: the folder and model as item tiles; the
+    state with its march, a tick ruler and `elapsed  turn`; Tools: tool calls
+    in the wide face); Context (the input tokens of the last request, which
+    is what the session carries now, `of 1M  6%`, and 20 blocks); Chat (model,
+    effort and mode, then one pill per action: Claude Code Rename, Plan, Next
+    mode, Model, Effort, Archive; Codex Rename, Model, Archive; Cursor Rename,
+    Plan, Archive; typed ones dim with the reason when the agent isn't idle);
+    Comms (the last two messages in and out, `Log ▶`); the question in
+    brackets when blocked; an ink footer with the Current formula (`folder
+    ▶▶ last action`), Peek, Pin, Dispatch + and Answer/Focus ▶. Unknown
+    fields (any non-Claude agent) read `—`.
+  - Action dialog, 560px, from a Chat pill: the field it needs (a name, a
+    choice of models or levels), a Needs line (idle, or why not), a Does line
+    (the side effect: `/model` and `/effort` also become your defaults for new
+    sessions), and the graphite strip with the exact lines Confirm runs. After
+    a send it reads back the model or effort (session data) or the mode
+    (Claude Code's own line under its prompt), else says Sent.
+  - Archived list, 600px, from Report's Archived pill: archived chats newest
+    first, each with its folder, its resume command and **Resume**.
   - Footer, 40px: settings (with an orange diamond when an update is ready),
     add machine, fold sidebar, and the palette key in mono.
 - **Tab strip, 36px**, drags the window: tabs run full height, separated by
@@ -202,6 +216,17 @@ rendered at 4x. It is a schematic, not a screenshot.
   right (300ms) and the context blocks light 18ms apart. Moving onto the card
   keeps it; leaving both closes it after 160ms. Answer/Focus runs
   `agent.focus`, Peek `terminal.peek`, Pin `terminal.pin`.
+- **Chat actions:** a Chat pill closes the card and opens its dialog; nothing
+  runs from the pill. Confirm runs the shown lines once: typed text as
+  `hc send <t> --if idle -- "<text>"` (never `--force`), Next mode as
+  `hc keys <t> shift+tab` only if Herdr still says idle at the click, Rename
+  as `tab.rename` (plus `/rename <name>` when ticked). A `done` agent counts
+  as not idle: Peek or Focus it first. Each send is logged to Comms as an
+  Action. Archive types `/exit` (Claude Code) or `/quit` (Codex, Cursor),
+  records the chat in `data/endfield/archive.json` and keeps the terminal out
+  of Squads (`endfield.archived`). Resume runs `tab.new {name, space, folder,
+  argv}` with the program's `run` argv plus `--resume <id>` (Claude Code),
+  `resume --last` (Codex) or `resume` (Cursor), and drops the record.
 - **Claude Code sub-agent row:** working while its transcript was written in
   the last 20s and its last step is a tool call or not a final answer; else
   done, or idle once its parent is idle. Click opens its transcript
@@ -266,19 +291,26 @@ rendered at 4x. It is a schematic, not a screenshot.
   "window"`, `frame: "none"`, props `{role: "card", terminal, title, where,
   snap}`). Shared keys: `endfield.card.open` (the one card the agents list
   owns), `endfield.card.hot` (the pointer is on the card),
-  `endfield.identity` (the identity table changed).
+  `endfield.identity` (the identity table changed), `endfield.archived`
+  (`address@created` of archived terminals, kept out of every roster).
+- A card action's dialog is `{role: "action", terminal, action, snap}`, a
+  dialog with `frame: "none"`; the archived list is `{role: "archived"}`.
+  The actions are data: `ACTIONS[programKey]` in `orders.js`.
 - `herdr` calls: `spaces`, `agents`, `terminals`, `panes`, `focused`,
   `machines`, `layout`, `settings`, `keys`, `updates`, `fonts`, `shared`,
   `setShared`, `setAgentOrder`, `openOverlay`, `closeOverlay`, `run`, `exec`,
-  `hc`, `watchFolder`, `readTextFile`, `fs/promises`.
+  `hc`, `watchFolder`, `readTextFile`, `writeTextFile`, `knownAgents`,
+  `fs/promises`.
 - Programs it runs: `git` (branch, ahead/behind, changes), `hc` (machine list,
-  reconnect), and `node mods/endfield/tools/probe.mjs` (reads transcripts).
+  reconnect, Dispatch and card actions), and `node
+  mods/endfield/tools/probe.mjs` (reads transcripts).
 - Files it reads outside its folder: Claude Code transcripts under
   `~/.claude/projects/`; optional statusline sidecars in
   `data/endfield/sessions/<session_id>.json`; optional
   `art/operators/manifest.json` and `data/endfield/operators.json`. It writes
-  only under `data/endfield/` (the probe's cache and request files).
-- Commands: `space.select/move/new`, `tab.select/move/rename/close`,
+  only under `data/endfield/` (the probe's cache and request files, the Comms
+  log, `archive.json`).
+- Commands: `space.select/move/new`, `tab.new/select/move/rename/close`,
   `pane.focus/split/zoom/close`, `terminal.pin/peek`,
   `layout.resize/show/hide/select`, `app.palette`, `app.settings`, `mod.open`,
   `window.minimize/maximize/close`.
