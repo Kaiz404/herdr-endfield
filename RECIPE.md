@@ -179,11 +179,14 @@ rendered at 4x. It is a schematic, not a screenshot.
   `agent.focus`, Peek `terminal.peek`, Pin `terminal.pin`.
 - **Claude Code sub-agent row:** working while its transcript was written in
   the last 20s and its last step is a tool call or not a final answer; else
-  done, or idle once its parent is idle. Click (at most once a second) opens
-  its transcript read-only in a pane right of the parent: the prompt on a
+  done, or idle once its parent is idle. Click opens its transcript
+  read-only in a pane right of the parent: the prompt on a
   yellow edge, the assistant's words as markdown, each tool call as
   `● Tool · arg` with its result folded to its first line. It follows the
-  file and keeps the newest entry in view.
+  file and keeps the newest entry in view. A tab has one transcript pane:
+  clicking another sub-agent replaces it, clicking the one shown focuses it.
+  The shown sub-agent's row wears the selected plate, and the yellow marker
+  while its pane has focus.
 - **Tabs:** click selects (the yellow block slides over left and width,
   300ms), double-click renames, drag reorders, right-click opens the tab menu,
   the wheel switches tabs. Hover grows a 24px, 2px underline from the left.

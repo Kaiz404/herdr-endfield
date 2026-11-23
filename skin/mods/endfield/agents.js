@@ -11,7 +11,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, duration, telling, wipe, marker, nudge, rings, cross, ticks, pill, Entrance, StatusFx, MOTION, IDENTITY, FONT } from "./kit.js";
 import { roster } from "./roster.js";
-import { BY, DENSE_AT, statusOf, subNumbers, subagentView } from "./fleet.js";
+import { BY, DENSE_AT, statusOf, subNumbers, subagentView, TRANSCRIPT, transcriptsIn, transcriptPlan } from "./fleet.js";
 import { toggleReport, goTo } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
@@ -88,6 +88,9 @@ export class Agents {
     this.entrance.start(cx);
     try { this.changed = JSON.parse(localStorage.getItem("changed") ?? "{}"); } catch { this.changed = {}; }
     if (!this.changed || typeof this.changed !== "object" || Array.isArray(this.changed)) this.changed = {};
+    // Per tab, the sub-agent path its transcript pane was opened on (Herdr doesn't report a pane's props).
+    try { this.viewing = JSON.parse(localStorage.getItem("transcripts") ?? "{}") ?? {}; } catch { this.viewing = {}; }
+    if (!this.viewing || typeof this.viewing !== "object" || Array.isArray(this.viewing)) this.viewing = {};
     // Data, not animation: the "3m" labels age, and the operator assignments are reread.
     IDENTITY.refresh();
     cx.timer.every(30000, (cx) => { IDENTITY.refresh(); cx.notify(); });
@@ -190,12 +193,15 @@ export class Agents {
     return subagentView(this.sessions.get(m.address)?.subagents ?? [], this.opened.has(m.address));
   }
 
-  // One split per click: a double-click or a quick second press would stack two panes.
   openTranscript(parent, k) {
-    const now = Date.now();
-    if (now - (this.splitAt ?? 0) < 1000) return;
-    this.splitAt = now;
-    run("pane.split", { direction: "right", pane: parent.pane, mod: "endfield-transcript", props: { path: k.path, title: k.title } });
+    const tab = parent.tab;
+    const plan = transcriptPlan(panes(), tab, this.viewing[tab], k.path);
+    if (plan.focus) return run("pane.focus", { pane: plan.focus });
+    for (const pane of plan.close) run("pane.close", { pane });
+    run("pane.split", { direction: "right", pane: parent.pane, mod: TRANSCRIPT, props: { path: k.path, title: k.title } });
+    const all = panes();
+    this.viewing = Object.fromEntries(Object.entries({ ...this.viewing, [tab]: k.path }).filter(([t]) => t === tab || transcriptsIn(all, t).length));
+    localStorage.setItem("transcripts", JSON.stringify(this.viewing));
   }
 
   focus(m) { goTo(m); }
@@ -218,7 +224,7 @@ export class Agents {
       .child(icon(pinned && hot ? "pin-off" : "pin", 11));
   }
 
-  /** One agent row. r: { key, m, depth, h, top, on, title, meta, native, parentTop, parentDepth, click }, tops relative to its squad. */
+  /** One agent row. r: { key, m, depth, h, top, on, here?, title, meta, native, parentTop, parentDepth, click }, tops relative to its squad. */
   row(C, D, r) {
     const { m, depth } = r;
     const dense = D === H.dense;
@@ -425,11 +431,14 @@ export class Agents {
         const shownSubs = subs.shown;
         const nums = subNumbers(this.subNums.get(m.address) ?? new Map(), [...shownSubs].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0)).map((k) => k.id));
         if (shownSubs.length) nextNums.set(m.address, nums);
+        const docked = shownSubs.length ? transcriptsIn(panes(), m.tab)[0] : null;
         for (const k of shownSubs) {
           const ident = IDENTITY.resolve(m.program, null, { parent: m.program });
           const n = nums.get(k.id);
+          // The one its tab's transcript pane shows wears the selected plate; the yellow marker only while that pane is focused.
+          const viewed = Boolean(docked) && this.viewing[m.tab] === k.path;
           push({ key: `sa-${k.id}`, m: { address: `sa-${k.id}`, status: k.status, ident: { ...ident, callsign: `${ident.name.toUpperCase()}${n > 1 ? `·${n}` : ""}` } }, depth: m.depth + 1,
-            h: D.child, top: inner, on: false, title: k.title, native: true, meta: [`◀ ${m.address.toUpperCase()}`, k.model?.short, `${pad2(k.tools)} tools`].filter(Boolean).join(" · "),
+            h: D.child, top: inner, on: viewed, here: viewed && docked.focused, title: k.title, native: true, meta: [`◀ ${m.address.toUpperCase()}`, k.model?.short, `${pad2(k.tools)} tools`].filter(Boolean).join(" · "),
             parentTop: r.top, parentDepth: m.depth, click: () => this.openTranscript(m, k) });
         }
         if (subs.earlier) {
@@ -444,8 +453,9 @@ export class Agents {
     this.subNums = nextNums;
     this.arrive([...sections.flatMap((s) => [...s.rows.map((r) => r.key), ...(s.folded ? [`sq-${s.q.id}-stack`] : [])]), ...blocked.map((m) => `pin-${m.address}`)], cx);
 
-    const selIn = sections.find((s) => !s.folded && s.rows.some((r) => r.on));
-    const selRow = selIn?.rows.find((r) => r.on);
+    const here = (r) => r.here ?? r.on;
+    const selIn = sections.find((s) => !s.folded && s.rows.some(here));
+    const selRow = selIn?.rows.find(here);
     const sel = selRow ? { top: selIn.start + selRow.top, h: selRow.h } : null;
     const maxY = Math.max(0, y - this.viewH);
     this.scrollY = Math.min(this.scrollY, maxY);

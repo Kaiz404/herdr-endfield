@@ -135,3 +135,16 @@ export function subNumbers(prev, shown) {
   }
   return next;
 }
+
+// A sub-agent's transcript shows in one pane per tab, docked right of its parent.
+export const TRANSCRIPT = "endfield-transcript";
+export const transcriptsIn = (panes, tab) => panes.filter((p) => p.mod === TRANSCRIPT && p.tab === tab);
+
+// What a click on a sub-agent does in its parent's tab. `shown`: the path that tab's pane was
+// opened on. The one already shown is focused; any other click replaces every transcript pane
+// there with one new split, because a mod pane's props can't change once it is open.
+export function transcriptPlan(panes, tab, shown, path) {
+  const open = transcriptsIn(panes, tab);
+  if (open.length === 1 && shown === path) return { focus: open[0].pane };
+  return { close: open.map((p) => p.pane) };
+}
