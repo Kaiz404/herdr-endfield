@@ -1,5 +1,5 @@
 // Endfield's drawing kit: the palette and status registries every role reads,
-// plus the few shapes they share (tiles, brackets, hatch, status marks).
+// plus the few shapes they share (chips, pills, hatch, status marks, the geometric layer).
 
 import { div, svg, image, PathBuilder, Background } from "gpui-kit";
 import { h_flex } from "gpui-base";
@@ -278,18 +278,6 @@ export function path(text, fg, slash, { size = 13, weight = 500 } = {}) {
 
 export const icon = (name, size = 14) => svg(`${ASSETS}/${name}.svg`).size(size).flex_none();
 
-const CORNER = {
-  tl: (el, i) => el.top(i).left(i).border_t(1.5).border_l(1.5),
-  tr: (el, i) => el.top(i).right(i).border_t(1.5).border_r(1.5),
-  bl: (el, i) => el.bottom(i).left(i).border_b(1.5).border_l(1.5),
-  br: (el, i) => el.bottom(i).right(i).border_b(1.5).border_r(1.5),
-};
-
-/** Corner L-brackets (absolute; the parent must be .relative()). Brackets, not boxes. */
-export function brackets(color, corners = ["tl", "tr", "bl", "br"], arm = 7, inset = 3) {
-  return corners.map((c) => CORNER[c](div().absolute().w(arm).h(arm).border_color(color), inset));
-}
-
 const RECT = () => PathBuilder.fill().move_to("0%", "0%").line_to("100%", "0%").line_to("100%", "100%").line_to("0%", "100%").close().build();
 
 /** Tone-on-tone 45° grain filling a relative parent: material, not pattern. */
@@ -300,16 +288,6 @@ export function hatch(color, width = 1.5, interval = 5.66) {
 function programGlyph(program, size, color) {
   if (!program?.icon) return div().font_family(FONT.mono).text_size(size * 0.85).font_medium().text_color(color).child((program?.name ?? "?").slice(0, 1).toUpperCase());
   return program.tint ? svg(program.icon).size(size).text_color(color) : image(program.icon).w(size).h(size);
-}
-
-/** A program as a square thing: on a raised tile, a 2px status bar along its bottom that grows to 4px while its row is hot. */
-export function tile(C, program, status, { size = 26, inv = false, id = null, hot = false } = {}) {
-  const st = statusOf(status);
-  return div().relative().flex_none().size(size).rounded(3).border_1().border_color(inv ? C.selText : C.hair).bg(inv ? C.selText : C.raised)
-    .flex().items_center().justify_center().overflow_hidden()
-    .child(programGlyph(program, Math.round(size * 0.52), inv ? C.selBg : C.text))
-    .child(div().when(Boolean(id), (el) => el.id(`${id}-bar`)).absolute().left(0).right(0).bottom(0).h(hot ? 4 : 2).bg(C[st?.bar ?? "hairStrong"])
-      .transition("height", MOTION.row.wipe));
 }
 
 /**
@@ -571,9 +549,6 @@ export function pill(C, id, label, { kind = "paper", knob = "▶", hot = false, 
 
 /** A field of dots (6px pitch) filling a relative, overflow-hidden parent. */
 export const dots = (color) => svg(`${ASSETS}/dots.svg`).absolute().left(0).top(0).w(1440).h(960).text_color(color);
-
-/** The 48px blueprint grid behind the panes. */
-export const grid = (color) => svg(`${ASSETS}/grid.svg`).absolute().left(0).top(0).w(2400).h(1600).text_color(color);
 
 /** A catalogue barcode beside a title: texture, never content. */
 export const barcode = (color, w = 30) => div().w(w).h(8).flex_none().overflow_hidden().child(svg(`${ASSETS}/barcode.svg`).w(36).h(8).text_color(color));

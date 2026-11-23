@@ -89,6 +89,3 @@ export function roster(sort = BY.priority) {
   });
   return { all, squads, flat: squads.flatMap((q) => q.members) };
 }
-
-/** The most urgent status among some members. */
-export const urgent = (members) => members.reduce((top, m) => (rank(m.status) > rank(top) ? m.status : top), "idle");

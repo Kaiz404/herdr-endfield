@@ -82,7 +82,7 @@ export default class PaneHeader {
       .child(div().id(`ph-sq-${pane}`).absolute().right(4).top(4).size(4).bg(C.text).opacity(on ? 1 : 0).transition("opacity", MOTION.pane.fade))
       // The program's square tile: ink while focused.
       .child(div().relative().ml(6).size(height).flex_none().flex().items_center().justify_center().bg(on ? C.ink : C.sunken)
-        .child(badge({ ...C, selBg: "transparent", selText: on ? "#F2F2F2" : C.text }, on ? p.program : { ...p.program, tile: null, color: null }, 18)))
+        .child(badge({ ...C, selBg: on ? C.ink : C.sunken, selText: on ? "#F2F2F2" : C.text }, on ? p.program : { ...p.program, tile: null, color: null }, 18)))
       .when(Boolean(m), (el) => el.child(div().relative().tooltip(m.ident.callsign).child(chip(C, m.ident, p.status, { size: 22, id: `ph-chip-${pane}`, flash: fx.flash ? fx : null, ground: C.raised }))))
       .child(wide(name, C.text, 12).relative().flex_shrink(1).min_w(0).truncate())
       .child(micro(where, C.muted).relative().flex_shrink(2).min_w(0).truncate())

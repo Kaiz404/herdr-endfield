@@ -7,6 +7,7 @@ import { h_flex, ScrollHandle } from "gpui-base";
 import { spaces, panes, run, openOverlay, window as appWindow, shared, layout, settings } from "herdr";
 import { palette, root, find, stop, statusOf, glyph, freshDot, micro, icon, pad2, telling, growDisc, pill, cue, Entrance, MOTION } from "./kit.js";
 import { REPORT, toggleReport } from "./report.js";
+import { commsPane, openComms } from "./comms.js";
 
 // A tab Herdr named follows its agent's live title, as the agents list does; a name the person gave stays.
 function label(tab, lead) {
@@ -189,6 +190,11 @@ export default class Tabs {
             else { run("layout.select", { stack: "panel-body", child: p.id }); run("layout.show", { id: "panel" }); }
           });
         }))
+        .child((() => {
+          const open = Boolean(commsPane());
+          return pill(C, "tab-comms", "Comms", { kind: open ? "ink" : "ghost", knob: null, tip: open ? "Close the Comms pane" : "Who sent what to whom",
+            action: () => { if (!open) cue("tick"); openComms(); } });
+        })())
         .child((() => {
           const open = find(rootNode, REPORT.stack)?.active === REPORT.report;
           return pill(C, "tab-report", "Report", { kind: "ink", knob: open ? "×" : "▶", hot: this.hot === "tab-report", on_hover: this.hover("tab-report"),

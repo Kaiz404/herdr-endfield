@@ -18,7 +18,8 @@ const LEVEL = {
   warning: { edge: "signal", glyph: "!" },
   error: { edge: "red", glyph: "×" },
 };
-export const CUT = { width: 440, height: 214, margin: 16, foot: 28 };
+// foot: the HUD footer's height, so the cut-in sits just above it.
+const CUT = { width: 440, height: 214, margin: 16, foot: 44 };
 
 // Where the news comes from: the agent its action goes to, else a space, else Herdr itself.
 function origin(p) {

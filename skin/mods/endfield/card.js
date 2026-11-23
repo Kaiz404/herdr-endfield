@@ -9,8 +9,8 @@ import { agents, props, run, shared, setShared, closeOverlay, checking } from "h
 import { palette, root, statusOf, micro, wide, dots, barcode, ticks, rings, pill, glyph, MOTION, FONT } from "./kit.js";
 import { roster } from "./roster.js";
 import { Sessions, DASH, fmtTokens, longDuration, ago } from "./sessions.js";
-import { readLog, KIND } from "./comms.js";
-import { openDispatch } from "./agents.js";
+import { readLog, KIND, openComms } from "./comms.js";
+import { openDispatch } from "./dispatch.js";
 
 export const CARD = { width: 368, pad: 14, slide: 14 };
 const SEGS = 20;
@@ -145,7 +145,7 @@ export class Card {
           .child(h_flex().gap(8).items_center()
             .child(micro(`Comms · ${String(this.comms.length).padStart(2, "0")}`, C.muted))
             .child(div().flex_1().h(1).bg(C.hair))
-            .child(div().id("card-log").cursor_pointer().on_click(() => { setShared("endfield.comms", true); closeOverlay(p.overlay); }).child(micro("Log ▶", C.text))))
+            .child(div().id("card-log").cursor_pointer().on_click(() => { openComms(); closeOverlay(p.overlay); }).child(micro("Log ▶", C.text))))
           .when(this.comms.length === 0, (el) => el.child(div().text_size(11).text_color(C.muted).child("No messages yet. Dispatch sends the first one.")))
           .children(this.comms.slice(0, 2).map((c) => h_flex().gap(8).items_center().min_w(0)
             .child(micro(new Date(c.at).toTimeString().slice(0, 5), C.muted).w(34).flex_none())

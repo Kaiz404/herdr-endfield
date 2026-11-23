@@ -188,7 +188,11 @@
             }
           ],
           "padding": 8,
-          "gap": 8
+          "gap": 8,
+          "background": {
+            "image": "mods/endfield/art/grid.svg",
+            "fit": "cover"
+          }
         },
         {
           "id": "status",

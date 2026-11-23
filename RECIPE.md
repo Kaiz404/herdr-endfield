@@ -102,6 +102,25 @@ rendered at 4x. It is a schematic, not a screenshot.
   turn, and the status. Children stay under their parent whatever the sort.
   46px rows, 30px on one line past 12 agents; it scrolls. Output and rate exist
   for Claude Code agents only; others read `—`.
+- **Dispatch**: a 660px paper dialog with two corner brackets, `// Dispatch`
+  under the engine line (`hc send · to a running agent` or `hc run · new agent
+  in a space`) and a barcode, a Send to agent / New agent switch and a round
+  close. Send: target operators as party-chip tiles (yellow edge on the chosen
+  one) and a line that says what hc will do for its status. New agent: program
+  tiles on ink with a lime "installed" bar (not installed: dimmed), the
+  operator it will be drawn as (automatic), the squad (click for the next
+  space) and the parent. Then the task (or, for Shell, the command) in
+  brackets, the delivery (Only if idle, Now, Now and wait for reply) or
+  lifetime (Ends with parent, Outlives parent, No parent), and a graphite
+  footer: `Current formula YOU ▶▶ PERLICA · T3`, the exact hc command, Cancel
+  and the yellow Dispatch pill. Opened from a squad header's `+`, the session
+  panel's Dispatch, or the empty sidebar. Errors from hc show in the dialog.
+- **Comms**: the Comms pill opens a pane beside the focused one: `// Comms`,
+  All / You / Reports, a line naming its sources and what it can't see, and
+  message cards (time and age, sender chip ▶▶ recipient chip, the text in
+  brackets, the transport underneath, the left edge by kind: blue task or
+  message, lime reply, yellow needs input, red exited). YOU is the only yellow
+  chip; hc notes are a grey square.
 - **HUD footer, 44px**: ink with a faint 45° grain. The number of active
   agents on a 22px odometer, `// space / tab`, then `▶▶ 14 GENERATING` and
   `✓ 01 CLAIMED` on odometers; at the right the focused agent's context (used /

@@ -21,10 +21,10 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   order so it never hops), its parent and depth, and squads (one per space) in
   tree order.
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
-  `card.js` (the session panel), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),
+  `card.js` (the session panel), `dispatch.js` (the Dispatch dialog), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),
   `toast.js` (notifications; it decides between the cut-in, the Claimed slip and
   the plain slab), `cutin.js` (the needs-input skill caption), `comms.js` (the
-  message log Dispatch writes), `report.js` (the oversight screen: a block in the
+  message log Dispatch writes and the Comms pane), `report.js` (the oversight screen: a block in the
   layout's `work-stack`, beside `main`, so it covers the work area at any size;
   `toggleReport()` selects it).
 - `sessions.js` is the data layer for Claude Code sessions: one parsed shape per
@@ -54,12 +54,13 @@ python mods/endfield/tools/make_art.py
   `chevron-down`, `chevron-right`, `settings`, `server`, `monitor`,
   `sidebar`, `pin`, `pin-off`, `clock`, `layers`, `split-right`, `split-down`,
   `zoom`, `unzoom`, `win-min`, `win-max`, `win-restore`, `win-close`, and the
-  geometric layer: `dots` (6px dot field), `grid` (48px), `barcode`, `cross`
-  (registration), `ticks` / `vticks` (rulers, major every 20px), `rings` (range
-  rings). Each has one helper in `kit.js` (`dots()`, `grid()`, `barcode()`,
-  `cross()`, `ticks()`, `rings()`); the patterns are SVG `<pattern>` fills drawn
-  large and clipped by their parent. The cut-in's diagonal band is a native path
-  (`band()`).
+  geometric layer: `dots` (6px dot field), `barcode`, `cross` (registration),
+  `ticks` (a ruler, major every 20px), `rings` (range rings). Each has one helper
+  in `kit.js` (`dots()`, `barcode()`, `cross()`, `ticks()`, `rings()`); the dot
+  field is an SVG `<pattern>` fill drawn large and clipped by its parent. The
+  cut-in's diagonal band is a native path (`band()`).
+- Full colour: `grid` (the 48px blueprint grid, mid grey at 14%), the `work-body`
+  node's background image in the layout, so it shows in the gutters between panes.
 - Hazard stripes are drawn natively (`hazard()` in `kit.js`, a 45° pattern), not an asset.
 - The brand mark in the sidebar is drawn from divs (its bars rise).
 - `layouts/endfield.svg` is the settings preview, drawn by hand.
@@ -103,6 +104,41 @@ are missing is dropped, so deleting `art/operators/` leaves every surface as it
 was. The agents list rereads both files on start and every 30 s; the table is
 rebuilt, and every copy redrawn, only when their text changed (mods have no
 file `stat`, so the cache is keyed by content, not mtime).
+
+## Orchestration: what hc really offers
+
+Dispatch and Comms are UI over herdr-core's `hc`; the skin adds no engine of its
+own. Checked against hc on this machine (`hc --help`, `hc --skill`, `hc <cmd> --help`,
+and harmless runs in a throwaway `ef-*` space whose terminal was a plain PowerShell):
+
+- `hc send <t> <text>` pastes the text and presses Enter. It waits for an unfinished
+  draft the person is typing (up to `draft_wait`, 60s by default). `--if idle|working`
+  is a check, not a queue: on any other status it types nothing and fails
+  (`status_mismatch`, exit 10; a plain shell reports "is silent, not idle").
+  `--wait` then waits for the turn the send started (`--timeout`, default 180s).
+  A blocked agent is refused unless `--force`; Dispatch never forces. Verified:
+  plain send and the `--if idle` refusal.
+- `hc run [--bg] [--keep] [--parent <t> | --no-parent] [--outlive-parent] [--no-notify]
+  [--cwd <dir>] [--on <machine>] [--label k=v]... -- <argv> [task]` starts a terminal.
+  Run from a terminal, the parent defaults to that terminal. With
+  `--label herdr.space=<id> --label herdr.tab=<id>` it appears in Herdr; a tab id
+  Herdr doesn't know becomes a new tab in that space. Verified: a new tab appeared in
+  the `ef-*` space running the command.
+- `hc read <t> [--lines N]` prints the screen plus N lines of history (`--json` too).
+- `hc wait <t>` / `hc wait --children any|all` block until something stops working.
+- `hc events [--terminal t] [--children-of t] [--label k=v]` streams fact changes as
+  JSON lines. A mod can't hold a stream open (`exec` returns at exit, at most 10
+  minutes), so Comms doesn't use it.
+- Reports: an agent that receives a child's `hc send` sees it tagged
+  `<hc from="t7 name">...</hc>`, and hc types notes into a parent when a child blocks,
+  errors or exits (unless `notes = false`). A plain shell receives sends untagged
+  (verified: a child's `hc send` to its shell parent arrived as plain text), so the
+  tag path is implemented from the documented format and not verified here.
+- `hc templates` is empty on this machine; Dispatch passes the program's own argv
+  (`knownAgents()` `run`) and the task as its last argument.
+
+The design board's "When idle" meant "queued until the turn ends". hc has no queue,
+so the option is "Only if idle" and the dialog says what happens when it isn't.
 
 ## Sounds
 

@@ -12,6 +12,7 @@ import { agents, panes, focused, spaces, layout, run, shared, setShared, setAgen
 import { palette, root, narrow, find, toggleSidebar, statusOf, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, duration, telling, wipe, marker, nudge, rings, cross, ticks, pill, Entrance, StatusFx, MOTION, IDENTITY, FONT } from "./kit.js";
 import { roster, BY, DENSE_AT } from "./roster.js";
 import { toggleReport } from "./report.js";
+import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
 import { CARD, cardHeight } from "./card.js";
 
@@ -34,9 +35,6 @@ const SORTS = [
   { id: "order", label: "Tab order", icon: "layers", by: BY.order },
 ];
 const sortOf = () => SORTS.find((s) => s.id === shared("agents.sort")) ?? SORTS[0];
-
-/** Opens Dispatch: send to an agent, or start one in a squad (dispatch.js). */
-export const openDispatch = (p) => openOverlay({ mod: "endfield", kind: "dialog", frame: "none", width: 720, height: 600, props: { role: "dispatch", ...p } });
 
 // A tab nobody named (or named after its program) reads as its agent's live title.
 function leadPanes(all) {

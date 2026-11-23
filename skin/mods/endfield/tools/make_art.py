@@ -47,7 +47,8 @@ def pattern(pid, w, h, body, size):
             f'<rect width="{size[0]}" height="{size[1]}" fill="url(#{pid})"/></svg>\n')
 
 ICONS["dots"] = pattern("d", 6, 6, '<circle cx="3" cy="3" r="0.8"/>', (1440, 960))
-ICONS["grid"] = pattern("g", 48, 48, '<rect width="48" height="1"/><rect width="1" height="48"/>', (2400, 1600))
+# The blueprint grid is the work area's layout background, an image (not tinted): mid grey at 14% reads on paper and night.
+ICONS["grid"] = pattern("g", 48, 48, '<rect width="48" height="1" fill="#7F7F7F" fill-opacity="0.14"/><rect width="1" height="48" fill="#7F7F7F" fill-opacity="0.14"/>', (2400, 1600))
 ICONS["barcode"] = ('<svg xmlns="http://www.w3.org/2000/svg" width="36" height="8" viewBox="0 0 36 8" fill="currentColor">'
                     + "".join(f'<rect x="{x + o}" width="{w}" height="8"/>' for x in range(0, 36, 9) for o, w in ((0, 1), (3, 2), (6, 1)))
                     + "</svg>\n")
@@ -55,9 +56,6 @@ ICONS["cross"] = '<svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" v
 ICONS["ticks"] = ('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="6" viewBox="0 0 400 6" fill="currentColor">'
                   + "".join(f'<rect x="{x}" y="{0 if x % 20 == 0 else 3}" width="1" height="{6 if x % 20 == 0 else 3}"/>' for x in range(0, 400, 4))
                   + "</svg>\n")
-ICONS["vticks"] = ('<svg xmlns="http://www.w3.org/2000/svg" width="6" height="1200" viewBox="0 0 6 1200" fill="currentColor">'
-                   + "".join(f'<rect y="{y}" x="0" height="1" width="{6 if y % 20 == 0 else 3}"/>' for y in range(0, 1200, 4))
-                   + "</svg>\n")
 ICONS["rings"] = ('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300" fill="none" stroke="currentColor">'
                   '<circle cx="150" cy="150" r="148" stroke-dasharray="1 5" stroke-linecap="round"/><circle cx="150" cy="150" r="104"/>'
                   '<path d="M150 0v26M150 274v26M0 150h26M274 150h26"/></svg>\n')

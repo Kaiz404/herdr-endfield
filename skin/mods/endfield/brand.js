@@ -100,8 +100,11 @@ export class Footer {
 // opacity transition: .frames would loop), a yellow rule that retracts to the right, the subline,
 // then the whole screen fades and the regions build in. Click skips it.
 export class Boot {
-  init() {
+  // Closes on its own clock, set here rather than at its first size: a copy reloaded mid-life
+  // (a skin update) gets init again but never a first size.
+  init(_p, cx) {
     this.size = null;
+    if (!checking()) cx.timer.after(MOTION.boot.total + MOTION.settle.delay, () => this.close());
   }
 
   close() {
@@ -121,7 +124,6 @@ export class Boot {
         if (this.size) return;
         this.size = size;
         cx.notify();
-        cx.timer.after(MOTION.boot.total + MOTION.settle.delay, () => this.close());
       })
       .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); this.close(); })
       .opacity(go ? 0 : 1)
