@@ -113,17 +113,18 @@ export const statusOf = (s) => STATUS[s] ?? null;
 export const rank = (s) => STATUS[s]?.rank ?? 0;
 
 // Two triangles stepping through on the shared frame clock (each slot frames its own lit beat).
+// still: the same two triangles unlit, for a place that names the state while nothing is in it.
 const BEATS = [["▶", " ", " "], [" ", "▶", " "]];
-function march(color, size) {
+function march(color, size, still) {
   const slot = (beat) => div().relative().w(size * 0.8).h(size + 2).flex_none().font_family(FONT.ui).text_size(size).line_height(1)
     .child(div().absolute().top(0).left(0).opacity(0.25).text_color(color).child("▶"))
-    .child(div().absolute().top(0).left(0).text_color(color).frames(beat, MOTION.status.march.period));
+    .when(!still, (el) => el.child(div().absolute().top(0).left(0).text_color(color).frames(beat, MOTION.status.march.period)));
   return h_flex().flex_none().items_center().child(slot(BEATS[0])).child(slot(BEATS[1]));
 }
 
 // How each kind draws its glyph. ctx: { C, inv (on an inverted row), size }.
 const GLYPH = {
-  march: (st, { C, inv, size }) => march(C[inv ? `${st.hue}Inv` : st.hue], size - 2),
+  march: (st, { C, inv, size, still }) => march(C[inv ? `${st.hue}Inv` : st.hue], size - 2, still),
   // The disc pops: its size grows from 0 when an effect marks it new (needs a stable id).
   disc: (st, { C, size, id, pop }) => h_flex().w(size + 2).h(size + 2).flex_none().items_center().justify_center()
     .child(div().when(Boolean(id), (el) => el.id(id)).w(pop ? 0 : size + 2).h(pop ? 0 : size + 2)
@@ -136,9 +137,9 @@ const GLYPH = {
     .text_size(size - 2).font_weight(700).child("!"),
 };
 
-export function glyph(C, s, { inv = false, size = 11, id = null, pop = false } = {}) {
+export function glyph(C, s, { inv = false, size = 11, id = null, pop = false, still = false } = {}) {
   const st = statusOf(s);
-  return st ? GLYPH[st.kind](st, { C, inv, size, id, pop }) : null;
+  return st ? GLYPH[st.kind](st, { C, inv, size, id, pop, still }) : null;
 }
 
 /** Word plus glyph, never colour alone. The word keeps the row's text colour; only the glyph carries the hue. */
@@ -261,8 +262,15 @@ export function micro(text, color, size = 10) {
   return div().font_family(FONT.mono).text_size(size).line_height(1).text_color(color).child(String(text ?? "").toUpperCase());
 }
 
+// The wide face draws "~" as a flat wave at hyphen height, which reads as "-" at UI sizes (a home
+// space is named "~"), so a tilde is set in the mono face, as its own run.
 export function wide(text, color, size = 13) {
-  return div().font_family(wideFont()).text_size(size).line_height(1).text_color(color).child(String(text ?? "").toUpperCase());
+  const s = String(text ?? "").toUpperCase();
+  const el = div().font_family(wideFont()).text_size(size).line_height(1).text_color(color);
+  if (!s.includes("~")) return el.child(s);
+  return el.flex().items_center().children(s.split(/(~)/).filter(Boolean).map((part) => (part === "~"
+    ? div().flex_none().font_family(FONT.mono).text_size(size * 1.15).child("~")
+    : div().flex_shrink(1).min_w(0).truncate().child(part))));
 }
 
 export const pad2 = (n) => String(n).padStart(2, "0");

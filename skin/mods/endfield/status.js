@@ -31,8 +31,9 @@ export default class Status {
     const pct = focus?.ctx ? Math.min(100, focus.ctx.pct) : 0;
     const crumb = (text) => div().min_w(0).truncate().text_color(C.barText).child(text);
     const rule = () => div().w(1).h(20).flex_none().bg(C.barRule);
+    // A count of 0 draws its glyph still: idle is still, so the HUD never repaints for nothing.
     const tally = (s, word) => h_flex().flex_none().gap(6).items_center()
-      .child(glyph({ ...C, flow: C.flowInv }, s, { size: 11 }))
+      .child(glyph({ ...C, flow: C.flowInv }, s, { size: 11, still: count(s) === 0 }))
       .child(odometer(`odo-${s}`, count(s), count(s) ? C.barText : C.barSlash, 13))
       .child(micro(word, C.barMuted));
     return root(C, this.entrance.apply(h_flex().relative().size_full().bg(C.bar)

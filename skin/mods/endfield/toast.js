@@ -18,8 +18,12 @@ const LEVEL = {
   warning: { edge: "signal", glyph: "!" },
   error: { edge: "red", glyph: "×" },
 };
-// foot: the HUD footer's height, so the cut-in sits just above it.
-const CUT = { width: 440, height: 214, margin: 16, foot: 44 };
+// slot: the bottom of the window Herdr's toast slot covers (footer included, measured in r4), so the
+// cut-in sits above it and a slip never covers it.
+const CUT = { width: 440, height: 214, margin: 16, slot: 112 };
+
+// Herdr's title for an agent that needs the person.
+const NEEDS = /needs you$/i;
 
 // Where the news comes from: the agent its action goes to, else a space, else Herdr itself.
 function origin(p) {
@@ -31,11 +35,11 @@ function origin(p) {
 }
 
 /** The skill caption, bottom right of the window, for an agent that needs input. */
-export function openCutIn(terminal) {
+export function openCutIn(terminal, news = null) {
   let w = 1440, h = 900;
   try { const b = window.bounds(); w = b.width; h = b.height; } catch {}
   return openOverlay({ mod: "endfield", kind: "window", frame: "none", key: "endfield-cutin", width: CUT.width, height: CUT.height,
-    at: { x: Math.round(w - CUT.width - CUT.margin), y: Math.round(h - CUT.foot - CUT.height - CUT.margin) }, props: { role: "cutin", terminal } });
+    at: { x: Math.round(w - CUT.width - CUT.margin), y: Math.round(h - CUT.slot - CUT.height - CUT.margin) }, props: { role: "cutin", terminal, news } });
 }
 
 export class Toast {
@@ -46,18 +50,20 @@ export class Toast {
 
   // The one decision, made once the agent's new status has reached agents() (Herdr can post the
   // toast a beat before): a cut-in is shown when an agent needs input and its pane is not focused.
+  // Only Herdr's own attention toast ("Codex needs you", posted at level error) becomes the cut-in;
+  // any other news aimed at that agent stays a slab with its own words.
   decide(p) {
     if (this.kind) return;
     this.from = origin(p);
     const a = this.from.agent;
-    if (a?.status === "blocked") {
+    if (a?.status === "blocked" && NEEDS.test(p.title ?? "")) {
       this.kind = "handed";
-      if (!a.focused) { cue("needs"); openCutIn(a.address); }
+      if (!a.focused) { cue("needs"); openCutIn(a.address, { title: p.title ?? null, body: p.body ?? null }); }
       closeOverlay(p.overlay);
     } else if (a?.status === "done") {
       this.kind = "claimed";
       cue("claimed");
-    } else if (!a) {
+    } else if (!a || a.status === "blocked") {
       this.kind = "plain";
     }
   }
@@ -135,7 +141,7 @@ export class Toast {
         .size(16).rounded_full().bg(primary ? C.ink : C.selBg).flex().items_center().justify_center().text_size(7).text_color(primary ? C.signal : C.selText).child("▶"));
   }
 
-  /** Claimed: the operator's chip flashes once, a lime "Claimed ✓" pops, the task, and View. */
+  /** Claimed: the operator's chip flashes once, a lime "Claimed ✓" pops, the task, View, where, and × to dismiss. */
   claimedBody(C, p) {
     const a = this.from.agent;
     const m = roster().all.get(a.address);
@@ -144,13 +150,16 @@ export class Toast {
       .child(m ? chip(C, m.ident, "done", { size: 32, id: "toast-chip", flash: { lit: !shown }, ground: C.raised }) : div())
       .child(v_flex().flex_1().min_w(0).gap(7)
         .child(h_flex().gap(8).items_center()
-          .child(wide(m?.ident.callsign ?? a.program?.name ?? "", C.text, 11))
-          .child(div().id("toast-claimed").h(16).px(7).flex().items_center().rounded_full().bg(C.lime).text_size(10).font_semibold().text_color(C.ink)
+          .child(wide(m?.ident.callsign ?? a.program?.name ?? "", C.text, 11).flex_none())
+          .child(div().id("toast-claimed").h(16).px(7).flex_none().flex().items_center().rounded_full().bg(C.lime).text_size(10).font_semibold().text_color(C.ink)
             .opacity(shown ? 1 : 0).transition("opacity", MOTION.done.check).child("Claimed ✓"))
           .child(div().flex_1())
-          .child(micro(`// ${this.from.name} · ${a.address.toUpperCase()}`, C.muted).flex_none()))
+          .child(div().id("toast-x").size(18).flex_none().flex().items_center().justify_center().rounded_full().text_size(11).text_color(C.muted)
+            .hover((s) => s.bg(C.sunken).text_color(C.text)).tooltip("Dismiss")
+            .on_click((_e, cx) => { cx.stop_propagation(); this.leave(p, cx, false); }).child("×")))
+        .child(div().min_w(0).truncate().text_size(12).child(m?.title ?? p.body ?? ""))
         .child(h_flex().gap(8).items_center()
-          .child(div().flex_1().min_w(0).truncate().text_size(12).child(m?.title ?? p.body ?? ""))
-          .child(this.pill(C, "toast-view", "View", false))));
+          .child(this.pill(C, "toast-view", "View", false))
+          .child(micro(`// ${this.from.name} · ${a.address.toUpperCase()}`, C.muted).min_w(0).truncate())));
   }
 }

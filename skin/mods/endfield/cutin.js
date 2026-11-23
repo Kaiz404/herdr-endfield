@@ -1,5 +1,6 @@
 // cutin: the needs-input skill caption, an overlay window the toast role opens (Herdr's toast
-// slot is too small for it). props: {role: "cutin", terminal, overlay}.
+// slot is too small for it). props: {role: "cutin", terminal, news: {title, body} | null, overlay}:
+// news is the toast it replaced, shown when the screen gives no question.
 // Placeholder-first: the ink slab, plate, band and hazard rule mount flat; the portrait fades in;
 // a yellow block grows across the caption plate, holds, and retracts to its edge, revealing the
 // caption. All of it is one state change plus MOTION delays. It stays until answered or Later,
@@ -69,7 +70,8 @@ export class CutIn {
       })
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .child(dots("#FFFFFF1F"))
-      .child(band(C.signal))
+      // The band runs behind the portrait only: it ends above the question row and left of the source line.
+      .child(band(C.signal, 112).left(-22))
       .child(h_flex().relative().gap(16).items_center()
         // The portrait: the operator's signal duotone in a white frame, a yellow diamond above, a "!" badge.
         .child(div().relative().w(60).h(78).flex_none()
@@ -96,7 +98,7 @@ export class CutIn {
       .child(h_flex().id("cut-q").relative().mt(16).gap(8).items_stretch().opacity(go ? 1 : 0).transition("opacity", MOTION.cut.late)
         .child(div().w(4).flex_none().border_t(1.5).border_b(1.5).border_l(1.5).border_color("#F2F2F2"))
         .child(div().flex_1().min_w(0).py(7).font_family("JetBrains Mono").text_size(12).text_color("#E6E6E1").truncate()
-          .child(this.question ?? `Waiting for you in ${m.title}`))
+          .child(this.question ?? ([p.news?.title, p.news?.body].filter(Boolean).join(" · ") || `Waiting for you in ${m.title}`)))
         .child(div().w(4).flex_none().border_t(1.5).border_b(1.5).border_r(1.5).border_color("#F2F2F2")))
       .child(h_flex().relative().mt(14).gap(8).items_center()
         .child(h_flex().id("cut-answer").h(28).pl(14).pr(4).gap(10).items_center().rounded_full().bg(C.signal).cursor_pointer()
@@ -104,9 +106,10 @@ export class CutIn {
           .on_click(() => { this.shut(); run(m.pane ? "pane.focus" : "terminal.peek", m.pane ? { pane: m.pane } : { terminal: m.address }); })
           .child(div().text_size(12).font_semibold().text_color(C.ink).child("Answer"))
           .child(knob("cut-answer-knob", "▶", C.ink, C.signal)))
-        .child(h_flex().id("cut-later").h(28).px(14).items_center().rounded_full().border_1().border_color("#555555").cursor_pointer()
+        .child(h_flex().id("cut-later").h(28).px(14).flex_none().items_center().rounded_full().border_1().border_color("#555555")
+          .text_size(12).font_medium().text_color("#F2F2F2").cursor_pointer()
           .hover((s) => s.bg("#2C2C2C")).on_click(() => this.shut())
-          .child(div().text_size(12).font_medium().text_color("#F2F2F2").child("Later")))
+          .child("Later"))
         .child(div().flex_1())
         .child(micro("Stays until answered", "#A9A9A3"))));
   }
