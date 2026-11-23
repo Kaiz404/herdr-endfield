@@ -6,7 +6,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 import { spaces, machines, panes, run, openOverlay, exec, hc, watchFolder, layout, shared, setShared, window as appWindow } from "herdr";
-import { palette, root, narrow, find, midTrunc, glyph, freshDot, micro, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT } from "./kit.js";
+import { palette, root, narrow, find, midTrunc, glyph, freshDot, micro, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT, basename, homeBase, newSpace } from "./kit.js";
 import { roster } from "./roster.js";
 import { DENSE_AT, statusOf } from "./fleet.js";
 
@@ -357,11 +357,11 @@ export default class Spaces {
               .child(repair?.busy ? "Connecting…" : "Connect"))))
           .when(connected, (el) => el.child(div().id(`machine-add-${m ?? "local"}`).flex_none().size(18).flex().items_center().justify_center()
             .rounded_full().text_color(C.muted).hover((s) => s.bg(C.raised).text_color(C.text)).tooltip(`New space on ${m ?? "this computer"}`)
-            .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(icon("plus", 11))))
+            .on_click((_e, cx) => { cx.stop_propagation(); newSpace(m ?? null); }).child(icon("plus", 11))))
           .child(icon(folded ? "chevron-right" : "chevron-down", 10).text_color(C.muted)));
       const empty = h_flex().id(`machine-new-${m ?? "local"}`).h(H.note).flex_none().px(collapsed ? 0 : 16).gap(8).items_center().rounded(3)
         .text_size(12).text_color(C.muted).hover((s) => s.bg(C.sunken).text_color(C.text))
-        .on_click(() => run("space.new", { machine: m ?? "" }))
+        .on_click(() => { newSpace(m ?? null); })
         .when(collapsed, (el) => el.w(RAIL).justify_center().tooltip(`New space on ${m ?? "this computer"}`).child(icon("plus", 11)))
         .when(!collapsed, (el) => el.child(icon("plus", 11)).child("New space there"));
       if (!collapsed && rebuilt) { before += 1; beforePx += H.head; return [head]; }
@@ -535,6 +535,8 @@ export default class Spaces {
     const list = this.grouped(C, collapsed);
     this.fit(dense);
     const active = sp.find((p) => p.active)?.id;
+    const onRemote = Boolean(sp.find((p) => p.active)?.machine);
+    const base = homeBase();
     if (active !== this.revealed || this.activeAt !== this.revealedAt) {
       this.revealed = active;
       this.revealedAt = this.activeAt;
@@ -545,10 +547,13 @@ export default class Spaces {
         .when(!collapsed, (el) => el.h(38).pt(6).pl(16).pr(12).gap(8)
           .child(div().text_size(13).font_semibold().child("// Spaces"))
           .child(div().flex_1())
+          .when(Boolean(base) && !onRemote, (el) => el.child(div().min_w(0).truncate()
+            .child(micro(`base · ${basename(base.folder)}${base.note ? " · not found" : ""}`, base.note ? C.error : C.dim))))
           .child(micro(pad2(sp.length), C.muted)))
         .child(div().id("space-new").size(22).flex_none().flex().items_center().justify_center().rounded(3)
           .text_color(C.muted).hover((s) => s.bg(C.sunken).text_color(C.text))
-          .tooltip("New space").on_click(() => run("space.new")).child(icon("plus", 12))))
+          .tooltip(base && !onRemote ? `New space in ${base.folder}${base.note ? ` (${base.note})` : ""}` : "New space")
+          .on_click(() => { newSpace(); }).child(icon("plus", 12))))
       .child(v_flex().flex_1().min_h(0).pb(12).overflow_y_scrollbar().track_scroll(this.scroll)
         .on_size_change((size, cx) => { this.width = size.width; if (this.activeAt >= 0) this.scroll.scroll_to_item(this.activeAt + 1); cx.notify(); })
         .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })

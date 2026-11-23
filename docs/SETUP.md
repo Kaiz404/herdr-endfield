@@ -14,6 +14,7 @@ Commands are for Windows (PowerShell) first. Where macOS or Linux differs, the g
 - [6. Switch Claude Code to the ANSI theme](#6-switch-claude-code-to-the-ansi-theme)
 - [7. Add the PowerShell prompt](#7-add-the-powershell-prompt)
 - [8. Send work with Dispatch and read Comms](#8-send-work-with-dispatch-and-read-comms)
+- [9. Choose where new spaces open](#9-choose-where-new-spaces-open)
 - [Uninstall everything](#uninstall-everything)
 - [Troubleshooting](#troubleshooting)
 - [FAQ](#faq)
@@ -291,6 +292,48 @@ The **Report** pill, next to Comms, swaps the work area for one screen with ever
 
 **Undo.** Nothing to undo. To clear the log, delete `data/endfield/comms.jsonl`.
 
+## 9. Choose where new spaces open
+
+**What it does.** Every **New space** control in the Endfield sidebar opens the new space in your home base, a workspace folder, instead of your home folder. An agent treats the folder it starts in as its project. Started in your home folder, it can read and change everything there, such as `.ssh`, `.aws` and other programs' settings. Started in the home base, it works inside that folder.
+
+The Spaces header shows the base, for example `BASE · PROJECTS`. Hover the `+` to see the full path.
+
+- If you set nothing, the base is `Projects` in your home folder. If you have no `Projects` folder, the base is your home folder.
+- If the folder you set does not exist, new spaces open in your home folder, and the header shows the base in red with `NOT FOUND`.
+- A space on another machine opens in that machine's home. The base applies only to this computer.
+
+**Change it.**
+
+1. Open `data/endfield/settings.json` in your Herdr home:
+
+   ```powershell
+   notepad "$HOME\.config\herdr-app\data\endfield\settings.json"
+   ```
+
+2. Add `homeBase` with a folder, next to the other settings in the file. `~` means your home folder:
+
+   ```json
+   "homeBase": "~/Projects"
+   ```
+
+   On Windows you can also write a full path, such as `"D:\\work"`. Write each backslash twice in JSON.
+
+3. Save the file. The header changes within 30 seconds.
+
+To go back to the default, set `"homeBase": null` or remove the line.
+
+**Bind a key.** The installer does not change your keys. To open a space in the home base with a key, add a section to `keys.json` in your Herdr home. This example uses `alt-shift-n`:
+
+```json
+"layout:endfield": { "alt-shift-n": "endfield.newSpace" }
+```
+
+The section applies only while Endfield shows. Choose a key that `keys.json` does not already use. Herdr's own `ctrl-shift-n` still opens a space in the folder Herdr chooses. To make `ctrl-shift-n` use the home base in Endfield, bind `ctrl-shift-n` in the same section instead.
+
+**Check it worked.** Click the `+` in the Spaces header. In a terminal, `herdr-app ls` lists the new space with the base as its `folder`.
+
+**Undo.** Set `"homeBase"` to `"~"`, so new spaces open in your home folder again. Remove the `keys.json` line if you added it.
+
 ## Uninstall everything
 
 1. Switch Herdr back to its own layout:
@@ -408,6 +451,10 @@ The skin plays its alerts only when Herdr's `sounds.enabled` is `false`. Herdr p
 ### Why are there no images in the repo?
 
 The operator art is © Hypergryph / Gryphline. The [fan content guidelines](https://endfield.gryphline.com/en-us/news/4497) prohibit works that copy official material without clear originality. So the repo holds only a catalogue: URLs on the official site, a sha256 for each file, and crop settings. You download and build the art on your own machine. `node scripts/verify.mjs --static` runs in CI and fails on any image other than `preview.png`, on any file under `art/operators/`, and on links to the official CDN outside the catalogue. `preview.png` is a schematic drawn from the layout's settings preview, not a screenshot.
+
+### Does it need root or admin rights, or access to my home folder?
+
+No. The installer and the skin run as you, with no administrator or root rights. They write only inside the Herdr home. New spaces open in your home base, not your home folder, so the agents you start there work in that folder.
 
 ### Does it change my Claude Code settings?
 
