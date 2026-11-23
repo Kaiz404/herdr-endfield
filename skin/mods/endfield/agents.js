@@ -413,9 +413,12 @@ export class Agents {
         }
         push(r);
         // Claude Code's own sub-agents, read from its transcript, hang under it like any child.
+        // They share one operator, so each is numbered in the order it started (ARDELIA, ARDELIA·2...).
+        const started = [...(this.sessions.get(m.address)?.subagents ?? [])].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0)).map((k) => k.id);
         if (m.agent && isClaude(m.agent)) for (const k of this.natives(m)) {
           const ident = IDENTITY.resolve(m.program, null, { parent: m.program });
-          push({ key: `sa-${k.id}`, m: { address: `sa-${k.id}`, status: k.status, ident: { ...ident, callsign: ident.name.toUpperCase() } }, depth: m.depth + 1,
+          const n = started.indexOf(k.id) + 1;
+          push({ key: `sa-${k.id}`, m: { address: `sa-${k.id}`, status: k.status, ident: { ...ident, callsign: `${ident.name.toUpperCase()}${n > 1 ? `·${n}` : ""}` } }, depth: m.depth + 1,
             h: D.child, top: inner, on: false, title: k.title, native: true, meta: [`◀ ${m.address.toUpperCase()}`, k.model?.short, `${pad2(k.tools)} tools`].filter(Boolean).join(" · "),
             parentTop: r.top, parentDepth: m.depth, click: () => this.openTranscript(m, k) });
         }

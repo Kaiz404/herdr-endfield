@@ -266,6 +266,9 @@ export function wide(text, color, size = 13) {
 
 export const pad2 = (n) => String(n).padStart(2, "0");
 
+/** A branch cut in the middle, so its prefix and its ticket number both stay readable. */
+export const midTrunc = (s, n = 24) => (!s || s.length <= n ? s ?? "" : `${s.slice(0, Math.ceil((n - 1) / 2))}…${s.slice(s.length - Math.floor((n - 1) / 2))}`);
+
 /** A `// title`: the path prefix in the muted voice, the words in the row's. */
 export function path(text, fg, slash, { size = 13, weight = 500 } = {}) {
   return h_flex().min_w(0).items_center().text_size(size).font_weight(weight)

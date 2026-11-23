@@ -6,7 +6,7 @@
 // plain slab, ported from the shipped `toast`: click runs the action and closes, the host owns the
 // timeout, and a machine-login body gets a Copy button.
 
-import { div } from "gpui-kit";
+import { div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, closeOverlay, openOverlay, run, agents, spaces } from "herdr";
 import { palette, root, micro, wide, chip, cue, MOTION, FONT } from "./kit.js";
@@ -120,7 +120,7 @@ export class Toast {
     const command = login ? `hc machine login ${login[1]}` : null;
     return slab(edge, v_flex().flex_1().min_w(0).h_full().justify_center().pl(12).pr(14).gap(6)
       .child(h_flex().min_w(0).gap(8).items_center()
-        .child(div().size(18).flex_none().rounded_full().bg(edge).flex().items_center().justify_center()
+        .child(p.icon ? image(p.icon).size(18).flex_none() : div().size(18).flex_none().rounded_full().bg(edge).flex().items_center().justify_center()
           .text_size(11).font_weight(700).text_color(C.ink).child(level.glyph))
         .child(div().flex_1().min_w(0).truncate().text_size(13).font_semibold().child(login ? `${login[1]} needs a login` : p.title ?? ""))
         .child(micro(`// ${this.from.name}`, C.muted).flex_none()))

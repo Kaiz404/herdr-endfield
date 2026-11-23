@@ -89,6 +89,7 @@ export class Footer {
       .child(settings)
       .child(button("ef-machine", "server", "Add machine", () => run("mod.open", { name: "machine-add" })))
       .child(button("ef-fold", "sidebar", "Fold the sidebar", toggleSidebar))
+      .child(button("ef-search", "search", "Go to: spaces, tabs and agents", () => run("mod.open", { name: "picker" })))
       .child(div().flex_1())
       .child(div().id("ef-palette").cursor_pointer().tooltip("Commands").on_click(() => run("app.palette"))
         .child(micro(key ?? "Palette", C.muted)))));

@@ -5,8 +5,8 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, watchFolder, layout, window as appWindow } from "herdr";
-import { palette, root, narrow, find, glyph, freshDot, micro, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT } from "./kit.js";
+import { spaces, machines, panes, run, openOverlay, exec, hc, watchFolder, layout, shared, setShared, window as appWindow } from "herdr";
+import { palette, root, narrow, find, midTrunc, glyph, freshDot, micro, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT } from "./kit.js";
 import { roster } from "./roster.js";
 import { DENSE_AT, statusOf } from "./fleet.js";
 
@@ -330,8 +330,8 @@ export default class Spaces {
       const lamp = div().size(5).flex_none().bg(connected ? C.lime : C.dim);
       const head = h_flex().id(`machine-${m ?? "local"}`).flex_none().items_center().cursor_pointer()
         .when(collapsed, (el) => el.mt(6).w(RAIL).h(24).justify_center().rounded(3).relative()
-          .tooltip(login ? `${m} needs a login: run ${login}. Click for Settings.` : m ? `${m} · ${state}` : "This computer")
-          .child(icon(m ? "server" : "monitor", 13).text_color(C.muted))
+          .tooltip(login ? `${m} needs a login: run ${login}. Click for Settings.` : m ? `${m} · ${state}${machine?.keeps_running_after_logout === false ? " · ⚠ agents stop when you disconnect" : ""}` : "This computer")
+          .child(icon(m ? "server" : "monitor", 13).text_color(machine?.keeps_running_after_logout === false ? C.error : C.muted))
           .when(Boolean(m), (el) => el.child(lamp.absolute().right(4).bottom(3))))
         .when(!collapsed, (el) => el.h(H.head).px(16).gap(8))
         .hover((s) => s.bg(C.sunken))
@@ -395,7 +395,7 @@ export default class Spaces {
     if (!tree) parts.push(`${w.tabs.length} ${w.tabs.length === 1 ? "tab" : "tabs"}`);
     if (g) {
       if (!tree && !same(g.name)) parts.push(g.name);
-      if (!same(g.branch ?? "")) parts.push(g.branch ?? "detached");
+      if (!same(g.branch ?? "")) parts.push(midTrunc(g.branch ?? "detached"));
       const sync = [g.ahead > 0 ? `↑${g.ahead}` : "", g.behind > 0 ? `↓${g.behind}` : ""].filter(Boolean).join(" ");
       if (sync) parts.push(sync);
     }
@@ -508,12 +508,30 @@ export default class Spaces {
     run("layout.resize", { id: "spaces", ...want });
   }
 
+  // Ported from the shipped spaces mod: each space's avatar colour (a theme name) in shared
+  // "space.colors", which other mods read; the least used one for a new space, pruned when it goes.
+  keepColors(sp) {
+    const names = ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1"];
+    const had = shared("space.colors") ?? {};
+    const ids = new Set(sp.map((s) => s.id));
+    const kept = Object.fromEntries(Object.entries(had).filter(([id]) => ids.has(id)));
+    let changed = Object.keys(kept).length !== Object.keys(had).length;
+    for (const s of sp) {
+      if (kept[s.id] || s.name === "~") continue;
+      const uses = (c) => Object.values(kept).filter((v) => v === c).length;
+      kept[s.id] = names.reduce((best, c) => (uses(c) < uses(best) ? c : best));
+      changed = true;
+    }
+    if (changed) setShared("space.colors", kept);
+  }
+
   render() {
     const C = palette();
     const collapsed = narrow();
     const sp = spaces();
     const dense = !collapsed && roster().all.size >= DENSE_AT;
     this.rh = dense ? H.dense : H.row;
+    this.keepColors(sp);
     const list = this.grouped(C, collapsed);
     this.fit(dense);
     const active = sp.find((p) => p.active)?.id;

@@ -35,6 +35,7 @@ ICONS = {
     "win-max": stroke('<rect x=".5" y=".5" width="9" height="9"/>', size=10, width=1),
     "win-restore": stroke('<rect x=".5" y="2.5" width="7" height="7"/><path d="M2.5 2.5V.5h7v7h-2"/>', size=10, width=1),
     "win-close": stroke('<path d="M0 0l10 10M10 0L0 10"/>', size=10, width=1),
+    "search": stroke('<circle cx="7" cy="7" r="4.5"/><path d="M10.4 10.4L14 14"/>'),
 }
 
 # The geometric layer, all tinted with the text colour and drawn large, then clipped by their

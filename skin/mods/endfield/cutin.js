@@ -46,6 +46,8 @@ export class CutIn {
     const m = roster().all.get(p.terminal);
     if (!m || m.status !== "blocked" || m.focused) { this.shut(); return div(); }
     const go = this.go;
+    // One cut-in at a time (one key): any other agent waiting is counted here, and the HUD lists them.
+    const others = roster().flat.filter((x) => x.status === "blocked" && x.address !== m.address).length;
     const art = m.ident.avatar;
     const where = `// ${m.spaceName} · ${m.address.toUpperCase()}`;
     const knob = (id, glyph, bg, fg) => div().id(id).relative().left(this.hot === id ? 3 : 0).transition("left", MOTION.row.nudge)
@@ -112,6 +114,6 @@ export class CutIn {
           .hover((s) => s.bg("#2C2C2C")).on_click(() => this.shut())
           .child("Later"))
         .child(div().flex_1())
-        .child(micro("Stays until answered", "#A9A9A3"))));
+        .child(micro(others ? `+${others} more need input` : "Stays until answered", "#A9A9A3"))));
   }
 }

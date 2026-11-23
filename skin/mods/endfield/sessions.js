@@ -56,6 +56,7 @@ function shape(t, raw, parentStatus) {
     tools: s.tools ?? 0,
     status: now - s.mtime < LIVE_MS && (s.pending || !s.final) ? "working" : parentStatus === "idle" ? "idle" : "done",
     lastAt: s.mtime,
+    startedAt: s.firstAt ?? null,
     lastAction: s.last,
   })).sort((a, b) => b.lastAt - a.lastAt);
   return {

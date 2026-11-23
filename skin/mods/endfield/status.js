@@ -6,7 +6,7 @@
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { spaces, shared } from "herdr";
-import { palette, root, hatch, micro, pad2, odometer, glyph, Entrance, MOTION } from "./kit.js";
+import { palette, root, midTrunc, hatch, micro, pad2, odometer, glyph, Entrance, MOTION } from "./kit.js";
 import { roster } from "./roster.js";
 import { goTo } from "./report.js";
 import { fmtTokens } from "./sessions.js";
@@ -60,7 +60,7 @@ export default class Status {
               .child(micro(focus?.ctx ? `/${fmtTokens(focus.ctx.total)}` : "", C.barMuted))))
           .child(div().relative().h(3).bg("#383838")
             .child(div().id("hud-ctx").absolute().left(0).top(0).h(3).w(1.7 * pct).bg(pct >= 75 ? C.red : C.barText).transition("width", MOTION.count.roll))))
-        .child(micro([focus?.model ?? "No agent", space?.branch, space?.machine ?? "Local"].filter(Boolean).join(" · "), C.barMuted).flex_shrink(1).min_w(0).truncate())
+        .child(micro([focus?.model ?? "No agent", midTrunc(space?.branch), space?.machine ?? "Local"].filter(Boolean).join(" · "), C.barMuted).flex_shrink(1).min_w(0).truncate())
         // Opens to 176px while anyone needs input; the block inside is fixed, the opening clips it.
         .child(div().id("hud-needs").relative().h_full().flex_none().overflow_hidden().w(blocked.length ? NEEDS_W : 0).transition("width", MOTION.count.needs)
           .cursor_pointer().on_click(() => blocked[0] && goTo(blocked[0]))

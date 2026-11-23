@@ -6,7 +6,7 @@
 import { div } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { panes, props, run, layout } from "herdr";
-import { palette, root, stop, statusMark, badge, chip, hazard, micro, wide, icon, basename, telling, growDisc, Entrance, StatusFx, MOTION } from "./kit.js";
+import { palette, root, stop, midTrunc, statusMark, badge, chip, hazard, micro, wide, icon, basename, telling, growDisc, Entrance, StatusFx, MOTION } from "./kit.js";
 import { roster } from "./roster.js";
 
 // The first visible tab frame, including the active child of a stack.
@@ -52,8 +52,10 @@ export default class PaneHeader {
     const height = frame?.height ?? 34;
     const bottom = frame?.position === "bottom";
     const m = p.terminal && p.program?.agent ? roster().all.get(p.terminal) : null;
-    const name = (p.program?.agent && telling(p)) || ((p.program?.agent || p.program?.shell) && p.program.name) || p.title || p.program?.name || "shell";
-    const where = [m?.ident.callsign, p.terminal?.toUpperCase(), basename(p.cwd), p.branch].filter(Boolean).join(" · ");
+    const name = (p.mod === "endfield" && "Comms") || (p.program?.agent && telling(p)) || ((p.program?.agent || p.program?.shell) && p.program.name) || p.title || p.program?.name || "shell";
+    // The skin's own pane (Comms) is named for what it is, with the "//" tile, not an unknown program.
+    const comms = p.mod === "endfield";
+    const where = comms ? "Who sent what to whom" : [m?.ident.callsign, p.terminal?.toUpperCase(), basename(p.cwd), midTrunc(p.branch)].filter(Boolean).join(" · ");
     const pane = p.pane;
     const on = p.focused;
     const open = this.hovered;
@@ -82,7 +84,8 @@ export default class PaneHeader {
       .child(div().id(`ph-sq-${pane}`).absolute().right(4).top(4).size(4).bg(C.text).opacity(on ? 1 : 0).transition("opacity", MOTION.pane.fade))
       // The program's square tile: ink while focused.
       .child(div().relative().ml(6).size(height).flex_none().flex().items_center().justify_center().bg(on ? C.ink : C.sunken)
-        .child(badge({ ...C, selBg: on ? C.ink : C.sunken, selText: on ? "#F2F2F2" : C.text }, on ? p.program : { ...p.program, tile: null, color: null }, 18)))
+        .child(comms ? micro("//", on ? "#F2F2F2" : C.text, 12)
+          : badge({ ...C, selBg: on ? C.ink : C.sunken, selText: on ? "#F2F2F2" : C.text }, on ? p.program : { ...p.program, tile: null, color: null }, 18)))
       .when(Boolean(m), (el) => el.child(div().relative().tooltip(m.ident.callsign).child(chip(C, m.ident, p.status, { size: 22, id: `ph-chip-${pane}`, flash: fx.flash ? fx : null, ground: C.raised }))))
       .child(wide(name, C.text, 12).relative().flex_shrink(1).min_w(0).truncate())
       .child(micro(where, C.muted).relative().flex_shrink(2).min_w(0).truncate())
