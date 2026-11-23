@@ -19,7 +19,7 @@ function mark(C, size, risen, id = "mark") {
   return div().relative().size(size).flex_none().rounded(3).bg(C.selBg)
     .children(BARS.map((b, i) => div().id(`${id}-bar-${i}`).absolute().left(b.left * k).bottom(7 * k).w(b.w * k)
       .h(risen ? b.h * k : 0).bg(C.selText).when(Boolean(b.faint), (el) => el.opacity(0.45))
-      .transition("height", { ...MOTION.move, delay: MOTION.rise.delay * i })));
+      .transition("height", { ...MOTION.select.edge, delay: MOTION.brand.rise.delay * i })));
 }
 
 export class Brand {
@@ -52,7 +52,7 @@ export class Brand {
       // The window's single tri-colour mark: hard stops, right-aligned, wiping in after the bars.
       .child(h_flex().absolute().right(16).bottom(10).h(3).w(28).justify_end()
         .child(h_flex().id("tri-bar").h_full().w(shown ? 28 : 0).overflow_hidden()
-          .transition("width", MOTION.tri)
+          .transition("width", MOTION.brand.tri)
           .child(div().w(5).h_full().flex_none().bg(C.magenta)).child(div().w(5).h_full().flex_none().bg(C.mint)).child(div().w(18).h_full().flex_none().bg(C.signal))))));
   }
 }
@@ -117,11 +117,11 @@ export class Boot {
         if (this.size) return;
         this.size = size;
         cx.notify();
-        cx.timer.after(MOTION.boot.duration + MOTION.settle.delay, () => this.close());
+        cx.timer.after(MOTION.boot.total + MOTION.settle.delay, () => this.close());
       })
       .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); this.close(); })
       .opacity(go ? 0 : 1)
-      .transition("opacity", { ...MOTION.bootFade, delay: MOTION.boot.duration - MOTION.bootFade.duration })
+      .transition("opacity", MOTION.boot.exit)
       .when(go, (el) => el.child(contour(s.width, s.height, "#FFFFFF")))
       .child(v_flex().gap(18).items_center()
         .child(wide("Herdr", "#F2F2F2", 22))
@@ -130,9 +130,9 @@ export class Boot {
           .child(glyph({ ...C, flow: C.signal }, "working", { size: 10 }))))
       .child(div().absolute().left(0).top(0).bottom(0).w(10).bg("#2C2C2C")
         .child(div().id("boot-gauge").absolute().left(0).right(0).bottom(0).h(go ? s.height : 0).bg(C.signal)
-          .transition("height", MOTION.bootGauge)))
+          .transition("height", MOTION.boot.bar)))
       // The wipe: slow start, slam finish (ease-in is the nearest native curve to the site's cubic-bezier(1,0,.7,1)).
       .child(div().id("boot-wipe").absolute().left(0).top(0).bottom(0).w(go ? s.width : 0).bg(C.signal)
-        .transition("width", MOTION.bootWipe));
+        .transition("width", MOTION.boot.rule));
   }
 }

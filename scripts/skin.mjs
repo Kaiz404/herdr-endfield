@@ -36,6 +36,10 @@ export function entries() {
     .sort((a, b) => RANK(a.rel) - RANK(b.rel) || a.rel.localeCompare(b.rel));
 }
 
+// Folders earlier versions installed and this one no longer has (endfield-toast is now the endfield
+// mod's toast role). sync and install delete them from the home; nothing else would.
+export const RETIRED = ["mods/endfield-toast"];
+
 export const modDirs = () => [...new Set(entries().filter((e) => e.rel.startsWith("mods/")).map((e) => e.rel.split("/").slice(0, 2).join("/")))];
 
 const TEXT = /\.(js|mjs|json|md|svg|txt|py|ps1|sh)$/;

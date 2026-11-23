@@ -76,7 +76,7 @@ export class Card {
       .child(h_flex().id("card").relative().w(CARD.width).flex_none().self_start().overflow_hidden().rounded(4).border_1().border_color(C.hair)
         .bg(C.raised).shadow_lg()
         .left(this.entered ? CARD.slide : 0).opacity(this.entered ? 1 : 0)
-        .transition("left", MOTION.move).transition("opacity", MOTION.colour)
+        .transition("left", MOTION.card.slide).transition("opacity", MOTION.row.wipe)
         .child(div().w(3).flex_none().self_stretch().bg(C[st?.bar ?? "hairStrong"]))
         .child(v_flex().flex_1().min_w(0)
           .child(line(v_flex().pl(14).pr(16).pt(14).pb(12).gap(9))
@@ -104,7 +104,7 @@ export class Card {
             .child(h_flex().gap(3).children(Array.from({ length: SEGS }, (_, k) => {
               const on = k < filled;
               return div().id(`seg-${k}`).w(10).h(8).flex_none().bg(on ? (hot && k >= SEGS * HOT_FROM ? C.red : C.text) : C.hair)
-                .opacity(on && !this.entered ? 0.25 : 1).transition("opacity", { ...MOTION.colour, delay: k * MOTION.segment.delay });
+                .opacity(on && !this.entered ? 0.25 : 1).transition("opacity", { ...MOTION.row.wipe, delay: k * MOTION.card.segment.delay });
             }))))
           .child(line(h_flex())
             .child(cell("Tool calls", wide(s?.tools != null ? String(s.tools).padStart(2, "0") : DASH, C.text, 16)))

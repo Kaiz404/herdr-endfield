@@ -1,20 +1,23 @@
 # Endfield
 
 The chrome of the `endfield` layout: one mod in roles (`props.role`), routed by
-`ROLES` in `main.js`, plus `mods/endfield-toast` for notifications. Paper chrome,
-ink terminal cards, one acid yellow that means "you, here, now".
+`ROLES` in `main.js`. Notifications are a role too: the layout names this mod as its
+`toast`, and Herdr opens it with notification props and no role, which `main.js`
+routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
+"you, here, now".
 
 ## Files
 
 - `main.js` routes a role to its class: `boot`, `brand`, `footer`, `spaces`,
-  `agents`, `sortmenu`, `card`, `tabs`, `pane`, `status`.
+  `agents`, `sortmenu`, `card`, `tabs`, `pane`, `status`, `toast`.
 - `kit.js` owns the registries every role reads: `PALETTE` (keyed `paper` /
   `night`, picked by `settings().dark`), `STATUS` (agent status to word, glyph
   kind, bar colour, entrance effect, rank), `IDENTITY` (who an agent is drawn as)
   and `MOTION` (every timing). It also holds the shared shapes (tiles, brackets,
-  hatch, odometer, wipes) and the motion helpers (`Entrance`, `StatusFx`, `flicker`).
+  hatch, odometer, wipes, the selection plate and marker) and the motion helpers
+  (`Entrance`, `StatusFx`).
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (agents, sort menu),
-  `card.js` (the session card), `tabs.js`, `pane.js`, `status.js`.
+  `card.js` (the session card), `tabs.js`, `pane.js`, `status.js`, `toast.js`.
 - `sessions.js` is the data layer for Claude Code sessions: one parsed shape per
   agent terminal (model, context, tokens, tools, turns, last action, pending
   question, sub-agents). Sources, first wins: a statusline sidecar in
@@ -100,23 +103,27 @@ Geist, Geist Mono and JetBrains Mono ship with Herdr.
 
 ## Motion
 
-Every timing is a row of `MOTION` in `kit.js` (`colour`, `move`, `flicker`,
-`breathe`, `boot`, ...), shaped as the native policy it feeds, so a surface
-writes `.transition("width", MOTION.move)` and never a number. The trailer rows
-(`typeOn`, `revealGrow` / `revealHold` / `revealRetract`, `flash`) carry the
-timings measured off the official trailers. `mods/endfield-toast` cannot import
-`kit.js`, so its few timings stay local to it.
+Every timing is a row of `MOTION` in `kit.js`, named as on the design's motion
+board (`select.edge`, `row.wipe`, `pane.pulse`, `cut.grow`, `boot.rule`, ...) and
+shaped as the native policy it feeds, so a surface writes
+`.transition("top", MOTION.select.edge)` and never a number.
 
 Only native motion: `.transition` on opacity, width, height, left and top,
-`.loop`, and `.frames`. One-shot `cx.timer.after` calls end a transient state
-(the boot, a flicker, a pop, the card's open delay). The repeating timers are
-for data only: the agents list's 30s age labels, the spaces list's git and
-machine checks, and the 3s session poll, which runs only when a transcript or
-sidecar changed (`watchFolder`) or a sub-agent may have gone quiet, and only
-while the sidebar is shown.
+`.loop`, and `.frames`. No colour ever transitions. One-shot `cx.timer.after`
+calls end a transient state (the boot, a Claimed flash, the card's open delay).
+The repeating timers are for data only: the agents list's 30s age labels, the
+spaces list's git and machine checks, and the 3s session poll, which runs only
+when a transcript or sidecar changed (`watchFolder`) or a sub-agent may have
+gone quiet, and only while the sidebar is shown.
 
-Selection is one block per list (`slide()` in `kit.js`) whose `top` moves to the
-selected row. That needs every row's height to be fixed: the `H` tables in
-`spaces.js` and `agents.js`. The tab strip's yellow block moves `left` and
-`width` over the widths each tab reports. Each block is child 0 of its scroll
-area, so `scroll_to_item` indexes there are one higher than the row index.
+Plates snap; only the yellow marker travels. A list's selection is a plate
+(`plate()`, child 0 of its scroll area, under the rows) that jumps to the
+selected row with no transition, and a 2px yellow marker (`marker()`, the last
+child, over the rows) whose `top` moves there. That needs every row's height to
+be fixed: the `H` tables in `spaces.js` and `agents.js`. The tab strip does the
+same: its yellow plate jumps, and a 3px ink marker along its foot slides over the
+widths each tab reports. Scroll indexes (`scroll_to_item`) are one higher than
+the row index because of the plate.
+
+Regions build in placeholder-first after the boot (`Entrance`): drawn at
+opacity 0, then each fades in (`build.in`), `build.stagger` apart.

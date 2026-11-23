@@ -5,7 +5,7 @@
 import { div } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { panes, props, run, layout } from "herdr";
-import { palette, root, stop, statusMark, badge, micro, icon, path, basename, telling, growDisc, Entrance, StatusFx, flicker, MOTION } from "./kit.js";
+import { palette, root, stop, statusMark, badge, micro, icon, path, basename, telling, growDisc, Entrance, StatusFx, MOTION } from "./kit.js";
 
 // The first visible tab frame, including the active child of a stack.
 function paneFrame(node) {
@@ -72,24 +72,24 @@ export default class PaneHeader {
       // Focus: the yellow tab grows down the hairline tab, the corner bracket drops into place.
       .child(div().absolute().left(0).top(0).bottom(0).w(4).bg(C.hair))
       .child(div().id(`ph-tab-${pane}`).absolute().left(0).top(0).w(4).h(on ? HEIGHT : 0).bg(C.signal)
-        .transition("height", MOTION.move))
+        .transition("height", MOTION.pane.bar))
       .child(div().id(`ph-brk-${pane}`).absolute().right(3).top(on ? 3 : -10).w(7).h(7).border_t(1.5).border_r(1.5).border_color(C.text)
-        .opacity(on ? 1 : 0).transition("top", MOTION.move).transition("opacity", MOTION.fade))
+        .opacity(on ? 1 : 0).transition("top", MOTION.pane.brackets).transition("opacity", MOTION.pane.fade))
       .child(badge(C, p.program, 16))
       .child(div().flex_shrink(1).min_w(0).child(path(name, C.text, C.muted, { size: 12.5, weight: 600 })))
       .child(micro(where, C.muted).flex_shrink(2).min_w(0).truncate())
       .child(div().flex_1())
-      .child(flicker(div().flex_none(), fx.flicker).child(statusMark(C, p.status, { size: 11, id: `ph-disc-${pane}`, pop: fx.pop }) ?? div()))
+      .child(div().flex_none().child(statusMark(C, p.status, { size: 11, id: `ph-disc-${pane}`, pop: fx.pop }) ?? div()))
       // The tray opens on hover; each button fades and slides in 40ms after the one before.
       .child(h_flex().id(`ph-tray-${pane}`).flex_none().h(BUTTON).overflow_hidden().w(open ? TRAY : 0)
-        .transition("width", MOTION.move)
+        .transition("width", MOTION.pane.brackets)
         .child(div().w(1).h(14).mx(4).flex_none().bg(C.hair))
         .children(ACTIONS.map((a, i) => {
           const key = `${a.id}-${pane}`;
           const hot = this.hot === key;
           return div().id(`ph-${key}`).relative().size(BUTTON).flex_none().ml(i ? GAP : 0).flex().items_center().justify_center().rounded(3)
             .opacity(open ? 1 : 0).left(open ? 0 : 6)
-            .transition("opacity", { ...MOTION.fade, delay: i * MOTION.stagger.delay }).transition("left", { ...MOTION.move, delay: i * MOTION.stagger.delay })
+            .transition("opacity", { ...MOTION.pane.fade, delay: i * MOTION.pane.actions.delay }).transition("left", { ...MOTION.pane.brackets, delay: i * MOTION.pane.actions.delay })
             .text_color(hot ? (a.danger ? C.ink : C.text) : C.muted)
             .when(!a.danger, (el) => el.hover((s) => s.bg(C.sunken)))
             .tooltip(p.zoomed && a.zoomed ? "Unzoom" : a.tip)

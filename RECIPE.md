@@ -85,15 +85,13 @@ rendered at 4x. It is a schematic, not a screenshot.
 
 - **Working:** `▶▶` steps through (300ms a beat) in flow blue, and a 1px blue
   segment rides the agent row's floor (3200ms, there and back).
-- **Blocked:** a yellow "Needs input" pill; the hazard tick breathes (opacity
-  0.55 to 1, 1400ms); the row flickers once (three 200ms pulses) when it
-  enters the state.
-- **Done:** the lime disc pops from 0 and the row flickers once; it turns idle
-  when looked at.
+- **Blocked:** a yellow "Needs input" pill and a hazard tick, both still:
+  blocked waits.
+- **Done:** the lime disc grows from 0 (200ms); it turns idle when looked at.
 - **Idle:** `zZ Idle` in muted text, still.
 - **Start:** an ink screen over faint contour lines, a 10px yellow gauge fills
   the left edge, a yellow wipe crosses, then the screen fades (1.5s; a click
-  skips it). The regions flicker in 200ms apart: brand, spaces and tabs,
+  skips it). The regions build in placeholder-first, each fading in (120ms) 100ms apart: brand, spaces and tabs,
   agents and panes, status. The mark's bars rise 80ms apart and the
   tri-colour bar wipes in.
 - **Spaces:** click selects (the ink fill wipes in, the yellow edge grows
@@ -138,7 +136,7 @@ rendered at 4x. It is a schematic, not a screenshot.
 - `layouts/endfield.json`: root row, `titlebar: "none"`, `traffic_lights:
   [12, 16]`, theme `{light: "endfield", dark: "endfield-night"}`, font
   JetBrains Mono 14/500, `ui_font` Geist, `terminal_padding: [14, 10]`,
-  `toast: "endfield-toast"`, `preview: "layouts/endfield.svg"`.
+  `toast: "endfield"` (the mod's `toast` role), `preview: "layouts/endfield.svg"`.
   - `sidebar` (column, 248px, min 44, max 480, chrome): `brand` (64px,
     `window_drag`), `sidebar-lists` (`spaces` weight 1, `agents` weight 1.2,
     min 90 each), `sidebar-footer` (40px).
@@ -159,7 +157,9 @@ rendered at 4x. It is a schematic, not a screenshot.
   status), `IDENTITY` (who an agent is drawn as) and `MOTION` (every timing).
   Behaviour is adapted from Herdr's shipped `spaces`, `agents`, `tabs`, `pane`,
   `workspace-chrome`, `workspace-status` and `toast` mods.
-- `mods/endfield-toast`: the layout's toast mod. `mods/endfield-transcript`:
+- Notifications: the layout's `toast` is the `endfield` mod; Herdr opens it with
+  notification props and no role, and `main.js` routes those to `toast`.
+  `mods/endfield-transcript`:
   the transcript pane, props `{path, title}`.
 - The session card is the `endfield` mod as an overlay window (`kind:
   "window"`, `frame: "none"`, props `{role: "card", terminal, title, where,
@@ -231,7 +231,7 @@ rendered at 4x. It is a schematic, not a screenshot.
 
 ## Done when
 
-- `herdr-app check` passes on `mods/endfield`, `mods/endfield-toast` and
+- `herdr-app check` passes on `mods/endfield` and
   `mods/endfield-transcript`, there is no `*.error` file, and `herdr-app
   status` lists no errors (`node scripts/verify.mjs` runs all of these).
 - `herdr-app do layout.switch --name endfield` shows the boot, then every

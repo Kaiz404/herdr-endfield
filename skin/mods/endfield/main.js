@@ -10,6 +10,7 @@
 //   tabs      the tab strip, + menu, Files/Changes, window buttons
 //   pane      a pane's header (the layout's pane frame)
 //   status    the ink status bar
+//   toast     every notification: the layout's `toast` is this mod, and Herdr gives it no role
 
 import { View, div } from "gpui-kit";
 import { props } from "herdr";
@@ -20,13 +21,16 @@ import { Card } from "./card.js";
 import Tabs from "./tabs.js";
 import PaneHeader from "./pane.js";
 import Status from "./status.js";
+import { Toast } from "./toast.js";
 
-const ROLES = { boot: Boot, brand: Brand, footer: Footer, spaces: Spaces, agents: Agents, sortmenu: SortMenu, card: Card, tabs: Tabs, pane: PaneHeader, status: Status };
+const ROLES = { boot: Boot, brand: Brand, footer: Footer, spaces: Spaces, agents: Agents, sortmenu: SortMenu, card: Card, tabs: Tabs, pane: PaneHeader, status: Status, toast: Toast };
+// Herdr opens the layout's toast mod with notification props and no role.
+const roleOf = (p) => p.role ?? (p.overlay && "title" in p ? "toast" : null);
 
 export default class Endfield extends View {
   init(p, cx) {
     const pr = props() ?? p ?? {};
-    const R = ROLES[pr.role];
+    const R = ROLES[roleOf(pr)];
     this.role = R ? new R() : null;
     this.role?.init?.(pr, cx);
   }
@@ -36,7 +40,7 @@ export default class Endfield extends View {
   }
 
   render(cx) {
-    if (!this.role) return div().child(`endfield: no role "${props()?.role}"`);
+    if (!this.role) return div().child(`endfield: no role "${roleOf(props() ?? {})}"`);
     return this.role.render(cx);
   }
 }

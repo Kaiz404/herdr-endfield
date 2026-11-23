@@ -6,7 +6,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 import { spaces, machines, panes, run, openOverlay, exec, hc, watchFolder, window as appWindow } from "herdr";
-import { palette, root, narrow, statusOf, glyph, freshDot, micro, wide, icon, pad2, path, wipe, slide, nudge, Entrance, FONT } from "./kit.js";
+import { palette, root, narrow, statusOf, glyph, freshDot, micro, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT } from "./kit.js";
 
 function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
@@ -502,7 +502,8 @@ export default class Spaces {
         .on_size_change((size, cx) => { this.width = size.width; if (this.activeAt >= 0) this.scroll.scroll_to_item(this.activeAt + 1); cx.notify(); })
         .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })
         // Child 0 is the selection block (scroll indexes above are +1 for it); hidden when the selected space is folded away.
-        .child(slide("sp-slide", C, Math.max(0, this.activeTop), H.row, { edge: true }).when(collapsed || this.activeTop < 0, (el) => el.opacity(0)))
-        .children(list))));
+        .child(plate(C, Math.max(0, this.activeTop), H.row).when(collapsed || this.activeTop < 0, (el) => el.opacity(0)))
+        .children(list)
+        .child(marker("sp-mark", C, Math.max(0, this.activeTop), H.row).when(collapsed || this.activeTop < 0, (el) => el.opacity(0))))));
   }
 }

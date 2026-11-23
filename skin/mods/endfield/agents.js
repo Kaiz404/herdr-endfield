@@ -8,7 +8,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, terminals, panes, focused, spaces, layout, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
-import { palette, root, narrow, find, toggleSidebar, rank, statusOf, statusMark, glyph, hazardTick, tile, micro, icon, pad2, duration, telling, wipe, slide, nudge, flicker, contour, Entrance, StatusFx, MOTION, IDENTITY } from "./kit.js";
+import { palette, root, narrow, find, toggleSidebar, rank, statusOf, statusMark, glyph, hazardTick, tile, micro, icon, pad2, duration, telling, wipe, plate, marker, nudge, contour, Entrance, StatusFx, MOTION, IDENTITY } from "./kit.js";
 import { Sessions, isClaude } from "./sessions.js";
 import { CARD, cardHeight } from "./card.js";
 
@@ -117,7 +117,7 @@ export class Agents {
     const seq = ++this.card.seq;
     const rowOf = () => (agents().some((a) => a.address === this.hovered) ? this.hovered : null);
     const row = rowOf();
-    cx.timer.after((row && row !== this.card.open?.address ? MOTION.cardOpen : MOTION.cardClose).delay, () => {
+    cx.timer.after((row && row !== this.card.open?.address ? MOTION.card.open : MOTION.card.close).delay, () => {
       if (seq !== this.card.seq) return;
       const open = this.card.open;
       const want = rowOf() ?? (open && this.card.hot === open.id ? open.address : null);
@@ -294,7 +294,7 @@ export class Agents {
       const fx = this.fx.of(a.address);
       const st = statusOf(a.status);
       this.info[a.address] = { title: label(a), where };
-      return flicker(h_flex()
+      return h_flex()
         .id(`ag-${a.address}`)
         .relative()
         .h(H.row)
@@ -310,7 +310,7 @@ export class Agents {
         .child(wipe(`ag-hover-${a.address}`, C.sunken, this.width, hovered && !on))
         // Only while working: a 1px segment rides the row's floor like a conveyor.
         .when(Boolean(st?.conveyor), (el) => el.child(div().absolute().left(0).right(0).bottom(0).h(1).overflow_hidden()
-          .child(div().absolute().top(0).h(1).w(28).bg(C[on ? "flowInv" : "flow"]).loop("left", { from: -28, to: this.width, ...MOTION.conveyor }))))
+          .child(div().absolute().top(0).h(1).w(28).bg(C[on ? "flowInv" : "flow"]).loop("left", { from: -28, to: this.width, ...MOTION.status.scan }))))
         .when(statusOf(a.status)?.edge === "hazard", (el) => el.child(div().absolute().left(0).top(8).bottom(8).flex().child(hazardTick(34))))
         .child(div().relative().id(`agent-fold-${a.address}`)
           .when(kids > 0, (el) => el.tooltip(this.folded.has(a.address) ? `Show ${kids} sub-agents` : "Fold sub-agents").on_click((_e, cx) => {
@@ -342,7 +342,7 @@ export class Agents {
             })
             .child(icon(a.pinned ? "pin-off" : "pin", 12))))
           .when(!hovered && Boolean(when), (el) => el.child(micro(duration(now - when), sub)))
-          .when(Boolean(session?.ctx), (el) => el.child(miniGauge(C, session.ctx, on)))), fx.flicker);
+          .when(Boolean(session?.ctx), (el) => el.child(miniGauge(C, session.ctx, on))));
     };
 
     // Each entry carries its height and whether it is the selected one, for the selection block.
@@ -397,8 +397,9 @@ export class Agents {
           .child("Agents show up here when they report their status. Older versions and agents inside tmux may not."))))
       .child(v_flex().id("ag-list").flex_1().min_h(0).pb(8).overflow_y_scrollbar()
         .on_size_change((size, cx) => { this.width = size.width; cx.notify(); })
-        .child(slide("ag-slide", C, top, rows[at]?.h ?? H.row).when(at < 0, (el) => el.opacity(0)))
-        .children(rows.map((r) => r.el)))));
+        .child(plate(C, top, rows[at]?.h ?? H.row).when(at < 0, (el) => el.opacity(0)))
+        .children(rows.map((r) => r.el))
+        .child(marker("ag-mark", C, top, rows[at]?.h ?? H.row).when(at < 0, (el) => el.opacity(0))))));
   }
 
   rail(C, list) {
