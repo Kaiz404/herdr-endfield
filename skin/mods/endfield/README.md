@@ -16,7 +16,11 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   and `MOTION` (every timing). It also holds the shared shapes (tiles, brackets,
   hatch, odometer, wipes, the selection plate and marker) and the motion helpers
   (`Entrance`, `StatusFx`).
-- `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (agents, sort menu),
+- `roster.js` is the fleet every surface reads: each agent's identity and callsign
+  (a repeated operator takes a spare, then a number, `PERLICA·2`, in creation
+  order so it never hops), its parent and depth, and squads (one per space) in
+  tree order.
+- `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
   `card.js` (the session card), `tabs.js`, `pane.js`, `status.js`, `toast.js`.
 - `sessions.js` is the data layer for Claude Code sessions: one parsed shape per
   agent terminal (model, context, tokens, tools, turns, last action, pending
@@ -45,16 +49,18 @@ python mods/endfield/tools/make_art.py
   `chevron-down`, `chevron-right`, `settings`, `server`, `monitor`,
   `sidebar`, `pin`, `pin-off`, `clock`, `layers`, `split-right`, `split-down`,
   `zoom`, `unzoom`, `win-min`, `win-max`, `win-restore`, `win-close`, `contour`.
-- Full colour (`image()`): `hazard` (the yellow and ink tick on a blocked agent row).
+- Hazard stripes are drawn natively (`hazard()` in `kit.js`, a 45° pattern), not an asset.
 - The brand mark in the sidebar is drawn from divs (its bars rise).
 - `layouts/endfield.svg` is the settings preview, drawn by hand.
 
 ## Operators
 
-`IDENTITY.resolve(program, terminal, { sub })` in `kit.js` is the one place that
-decides an agent's operator. It returns `{ operator, name, accent, avatar, fallbackIcon }`,
-where `avatar` holds the paths `32`, `64`, `128`, `round` and `signal`, and
-`fallbackIcon` is the program, drawn as its usual tile when `avatar` is null.
+`IDENTITY.resolve(program, terminal, { parent })` in `kit.js` is the one place that
+decides an agent's operator. It returns `{ operator, name, accent, avatar, badge, fallbackIcon }`,
+where `avatar` holds the paths `32`, `64`, `128`, `round`, `bust` and `signal`, `badge`
+is the class badge (`C`, `X`, `Cu`, `O`, `G`), and `fallbackIcon` is the program, drawn
+as its tile inside the chip when `avatar` is null. `chip()` draws every party chip;
+`roster.js` adds the callsign.
 
 Two files feed it, both optional:
 
@@ -70,6 +76,8 @@ Two files feed it, both optional:
   }
   ```
 
+  An optional `"spares": ["laevatain"]` lists the operators a repeat takes before
+  callsigns get numbers (default: the manifest's `unassigned`).
   `programs` maps a program key (`program.key`: `claude`, `codex`, ...) to an
   operator slug. `sub-agent` is used for sub-agents and `shell` for any agent
   with no entry of its own. `terminals` maps one terminal address to a slug and
@@ -77,7 +85,8 @@ Two files feed it, both optional:
   tile. Unknown slugs also fall back to the tile.
 
 Resolution order: `terminals[address]`, then `programs["sub-agent"]` for a
-sub-agent, then `programs[program.key]`, then `programs.shell`; overrides replace
+child of the same program (a cross-vendor child keeps its own program's
+operator), then `programs[program.key]`, then `programs.shell`; overrides replace
 the manifest's `default_assignment` key by key. An operator whose avatar files
 are missing is dropped, so deleting `art/operators/` leaves every surface as it
 was. The agents list rereads both files on start and every 30 s; the table is

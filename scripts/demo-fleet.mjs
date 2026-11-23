@@ -74,7 +74,10 @@ if (verb === "up") {
   const made = existsSync(MADE) ? JSON.parse(readFileSync(MADE, "utf8")) : { spaces: {}, children: [] };
   for (const t of made.children) { try { sh("hc", ["kill", t]); sh("hc", ["rm", t]); } catch {} }
   for (const id of Object.values(made.spaces)) { try { app("space.close", { id, confirmed: true }); } catch {} }
-  rmSync(DIR, { recursive: true, force: true });
+  rmSync(MADE, { force: true });
+  rmSync(STATE, { force: true });
+  // Closing shells can hold their folders a while on Windows; empty folders in the temp dir are harmless.
+  try { rmSync(DIR, { recursive: true, force: true, maxRetries: 8, retryDelay: 250 }); } catch { console.log(`left empty folders in ${DIR}`); }
   console.log(`down: closed ${Object.keys(made.spaces).length} spaces, ${made.children.length} children`);
 } else {
   console.log("usage: demo-fleet.mjs up [--agents N] | set <name|all> <state> | down");

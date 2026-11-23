@@ -5,8 +5,9 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, watchFolder, window as appWindow } from "herdr";
-import { palette, root, narrow, statusOf, glyph, freshDot, micro, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT } from "./kit.js";
+import { spaces, machines, panes, run, openOverlay, exec, hc, watchFolder, layout, window as appWindow } from "herdr";
+import { palette, root, narrow, find, statusOf, glyph, freshDot, micro, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT } from "./kit.js";
+import { roster, DENSE_AT } from "./roster.js";
 
 function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
@@ -16,7 +17,7 @@ const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
 const base = (path) => path.replace(/\/+$/, "").split("/").pop();
 const RAIL = 28;
 // Fixed heights, so the selection block knows where the selected row starts.
-const H = { row: 38, head: 28, note: 30, guidance: 48 };
+const H = { row: 38, head: 28, note: 30, guidance: 48, cell: 48, cols: 6, top: 38 };
 // Changes made outside Herdr (an editor's save, a commit elsewhere) are looked for this often.
 const FALLBACK = 60000;
 // Places looked at together: all at once, hundreds of spaces exhaust open files or a core's execs.
@@ -478,10 +479,59 @@ export default class Spaces {
       .when(Boolean(st) && !st.quiet, (el) => el.child(div().absolute().left(0).right(0).bottom(0).h(2).bg(C[st.bar]))));
   }
 
+  /** A fleet's spaces as numbered squares, six to a row; squads in the list below keep the numbers. */
+  grid(C) {
+    const rows = this.ordered();
+    const cells = rows.map(({ w, i }) => {
+      const on = w.active;
+      const st = statusOf(w.status);
+      return v_flex().id(`space-${w.id}`).relative().flex_1().min_w(0).h(44).items_center().justify_center().gap(5).cursor_pointer()
+        .hover((s) => s.bg(C.sunken))
+        .tooltip(`${pad2(i + 1)} ${w.name}${w.machine ? ` · ${w.machine}` : ""} · ${st?.word ?? "Idle"}`)
+        .on_click(() => run("space.select", { id: w.id }))
+        .on_mouse_down("right", () => this.menu(w))
+        .child(div().relative().w(28).h(26).flex().items_center().justify_center().rounded(3).border_1()
+          .border_color(on ? C.selBg : C.hairStrong).bg(on ? C.selBg : C.ground).font_family(FONT.mono).text_size(10).text_color(on ? C.selText : C.text)
+          .child(pad2(i + 1))
+          .when(on, (el) => el.child(div().absolute().left(-1).top(-1).bottom(-1).w(2).bg(C.signal)))
+          .when(Boolean(st?.fresh) && !on, (el) => el.child(freshDot(C, 6).absolute().right(-3).top(-3))))
+        .child(h_flex().h(9).items_center().child(glyph(C, w.status ?? "idle", { size: 9 }) ?? div()));
+    });
+    const lines = [];
+    for (let k = 0; k < cells.length; k += H.cols) lines.push(h_flex().gap(4).children([...cells.slice(k, k + H.cols), ...Array.from({ length: Math.max(0, k + H.cols - cells.length) }, () => div().flex_1())]));
+    return v_flex().px(14).pt(2).pb(6).gap(4).children(lines);
+  }
+
+  // The spaces block shrinks to the grid while the fleet is compact and gets its share back after.
+  fit(dense, count) {
+    const node = find(layout(), "spaces");
+    if (!node) return;
+    const want = dense ? { px: H.top + Math.ceil(count / H.cols) * H.cell + 10 } : { weight: 1 };
+    const have = node.size ?? {};
+    if (have.px === want.px && (want.px || have.weight === want.weight)) return;
+    const key = JSON.stringify(want);
+    if (this.fitted === key) return;
+    this.fitted = key;
+    run("layout.resize", { id: "spaces", ...want });
+  }
+
   render() {
     const C = palette();
     const collapsed = narrow();
     const sp = spaces();
+    const dense = !collapsed && roster().all.size >= DENSE_AT;
+    this.fit(dense, sp.length);
+    if (dense) {
+      return root(C, this.entrance.apply(v_flex().size_full().min_h(0).bg(C.ground)
+        .child(h_flex().flex_none().h(H.top).pt(6).pl(16).pr(12).gap(8).items_center()
+          .child(div().text_size(13).font_semibold().child("// Spaces"))
+          .child(div().flex_1())
+          .child(micro(pad2(sp.length), C.muted))
+          .child(div().id("space-new").size(22).flex_none().flex().items_center().justify_center().rounded(3)
+            .text_color(C.muted).hover((s) => s.bg(C.sunken).text_color(C.text))
+            .tooltip("New space").on_click(() => run("space.new")).child(icon("plus", 12))))
+        .child(div().id("space-grid").flex_1().min_h(0).overflow_y_scrollbar().child(this.grid(C)))));
+    }
     const list = this.grouped(C, collapsed);
     const active = sp.find((p) => p.active)?.id;
     if (active !== this.revealed || this.activeAt !== this.revealedAt) {

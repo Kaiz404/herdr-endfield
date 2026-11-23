@@ -9,6 +9,7 @@
 
 ### New
 
+- **Squads.** The agents list is now squads: agents grouped per space, numbered like their space, each a party chip (the operator's portrait, a yellow ring when it needs input, a class badge for the program) with its callsign over its task. Children hang under their parent with right-angle connectors across vendors. Squads fold to a stack of their operators. From 12 agents the sidebar goes compact, spaces become numbered squares, and agents that need input are pinned above every squad. Status words follow the game: Generating, Needs input, Claimed, Idle.
 - **Demo fleet.** `node scripts/demo-fleet.mjs up --agents 30` fills Herdr with stand-in agents (Node processes that only report a status) for screenshots and checks at scale; `down` removes them.
 
 - **First public layout.** The Endfield layout, its light and night themes, the `endfield`, `endfield-toast` and `endfield-transcript` mods, and a settings preview.

@@ -13,12 +13,7 @@ def stroke(body, size=16, width=1.3):
 def fill(body, w=16, h=16):
     return f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" fill="currentColor">{body}</svg>\n'
 
-hazard = ['<rect width="3" height="34" fill="#191919"/>']
-for y in range(-6, 40, 6):
-    hazard.append(f'<polygon points="0,{y} 3,{y - 3} 3,{y} 0,{y + 3}" fill="#FFFA00"/>')
-
 ICONS = {
-    "hazard": '<svg xmlns="http://www.w3.org/2000/svg" width="3" height="34" viewBox="0 0 3 34">' + "".join(hazard) + "</svg>\n",
     "diamond": fill('<path d="M8 1.5L14.5 8L8 14.5L1.5 8z"/>'),
     # The ink button's hover arrow: what its yellow side tab turns into.
     "tri": fill('<path d="M0 0L6 4L0 8z"/>', 6, 8),

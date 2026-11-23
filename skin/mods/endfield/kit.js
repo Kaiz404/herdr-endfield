@@ -94,10 +94,10 @@ export const palette = () => ({ ...SIGNAL, ...PALETTE[variant()] });
 // ---- status: every role reads a status through these two tables
 
 const STATUS = {
-  blocked: { word: "Needs input", short: "Input", kind: "pill", bar: "signal", edge: "hazard", rank: 4 },
+  blocked: { word: "Needs input", kind: "pill", bar: "signal", edge: "hazard", rank: 4 },
   error: { word: "Error", kind: "text", glyph: "×", hue: "error", bar: "red", rank: 4 },
-  done: { word: "Done", kind: "disc", glyph: "✓", bar: "lime", fresh: true, enter: ["flash", "pop"], rank: 3 },
-  working: { word: "Working", kind: "march", hue: "flow", bar: "flowInv", conveyor: true, rank: 2 },
+  done: { word: "Claimed", kind: "disc", glyph: "✓", bar: "lime", fresh: true, enter: ["flash", "pop"], rank: 3 },
+  working: { word: "Generating", kind: "march", hue: "flow", bar: "flowInv", conveyor: true, rank: 2 },
   idle: { word: "Idle", kind: "mono", glyph: "zZ", bar: "hairStrong", quiet: true, rank: 1 },
 };
 export const statusOf = (s) => STATUS[s] ?? null;
@@ -123,8 +123,8 @@ const GLYPH = {
       .text_size(size - 3).font_weight(700).text_color(C.ink).child(st.glyph)),
   mono: (st, { C, inv, size }) => div().flex_none().font_family(FONT.mono).text_size(size - 1.5).text_color(inv ? C.selMuted : C.muted).child(st.glyph),
   text: (st, { C, inv, size }) => div().flex_none().text_size(size + 1).font_medium().text_color(C[inv ? `${st.hue}Inv` : st.hue]).child(st.glyph),
-  pill: (st, { C }) => div().flex_none().h(16).px(7).flex().items_center().rounded_full().bg(C.signal).text_color(C.ink)
-    .text_size(10).font_semibold().child(st.short),
+  pill: (st, { C, size }) => div().flex_none().w(size + 5).h(size).flex().items_center().justify_center().bg(C.signal).text_color(C.ink)
+    .text_size(size - 2).font_weight(700).child("!"),
 };
 
 export function glyph(C, s, { inv = false, size = 11, id = null, pop = false } = {}) {
@@ -144,9 +144,9 @@ export function statusMark(C, s, { inv = false, size = 11, id = null, pop = fals
   return h_flex().flex_none().gap(5).items_center().child(glyph(C, s, { inv, size, id, pop })).child(div().text_size(size).font_medium().text_color(fg).child(st.word));
 }
 
-/** The blocked row's hazard tick. Blocked waits, so it stays still. */
-export function hazardTick(h = 34) {
-  return image(`${ASSETS}/hazard.svg`).w(3).h(h).flex_none();
+/** Hazard stripes (yellow on ink, 45°): a blocked row's edge, the Needs-input strip, the pulse rule. Still: blocked waits. */
+export function hazard(C, w, h) {
+  return div().relative().w(w).h(h).flex_none().overflow_hidden().bg(C.ink).child(hatch(C.signal, 3, 6));
 }
 
 /** Unseen done: a small rotated-square dot. */
@@ -161,8 +161,10 @@ export function freshDot(C, size = 8) {
 
 const MANIFEST = "art/operators/manifest.json";
 const OVERRIDES = "data/endfield/operators.json";
-const AVATAR = { 32: "avatar32", 64: "avatar64", 128: "avatar128", round: "avatar64round", signal: "signal" };
-let cast = { text: null, programs: {}, terminals: {}, operators: {} };
+const AVATAR = { 32: "avatar32", 64: "avatar64", 128: "avatar128", round: "avatar64round", bust: "bust480", signal: "signal" };
+// The class badge on a chip: the program, in one or two letters.
+const BADGE = { claude: "C", codex: "X", cursor: "Cu", opencode: "O", gemini: "G" };
+let cast = { text: null, programs: {}, terminals: {}, operators: {}, spares: [] };
 let reading = null;
 
 async function readJson(rel) {
@@ -189,7 +191,8 @@ export const IDENTITY = {
           if (await present(Object.values(avatar))) operators[op.slug] = { operator: op.slug, name: op.name, accent: op.accent ?? null, avatar };
         }
         const defaults = Object.fromEntries(Object.entries(manifest?.default_assignment ?? {}).map(([k, v]) => [k, v?.operator ?? null]));
-        cast = { text, operators, programs: { ...defaults, ...(overrides?.programs ?? {}) }, terminals: { ...(overrides?.terminals ?? {}) } };
+        const spares = (overrides?.spares ?? manifest?.unassigned ?? []).filter((slug) => operators[slug]);
+        cast = { text, operators, spares, programs: { ...defaults, ...(overrides?.programs ?? {}) }, terminals: { ...(overrides?.terminals ?? {}) } };
         if (!checking()) setShared("endfield.identity", Date.now());
       }
       reading = null;
@@ -198,17 +201,28 @@ export const IDENTITY = {
   },
 
   /**
-   * An agent's identity: { operator, name, accent, avatar: {32, 64, 128, round, signal}, fallbackIcon }.
-   * First listed wins: the terminal's override, "sub-agent" for a sub-agent, the program's, "shell".
+   * An agent's identity: { operator, name, accent, avatar: {32, 64, 128, round, bust, signal}, badge,
+   * fallbackIcon, pinned }. First listed wins: the terminal's override, "sub-agent" for a child of the
+   * same program (a cross-vendor child keeps its own program's operator), the program's, "shell".
    * A null there means "no operator": operator, accent and avatar come back null, and fallbackIcon
-   * (the program) is what the surface draws.
+   * (the program) is what the surface draws. `pinned` says the terminal override chose it.
    */
-  resolve(program, terminal = null, { sub = false } = {}) {
-    const slug = [cast.terminals[terminal], sub ? cast.programs["sub-agent"] : undefined, cast.programs[program?.key], cast.programs.shell]
+  resolve(program, terminal = null, { parent = null } = {}) {
+    const pinned = cast.terminals[terminal];
+    const slug = [pinned, parent && parent.key === program?.key ? cast.programs["sub-agent"] : undefined, cast.programs[program?.key], cast.programs.shell]
       .find((v) => v !== undefined);
-    const op = cast.operators[slug] ?? null;
-    return { operator: op?.operator ?? null, name: op?.name ?? program?.name ?? "", accent: op?.accent ?? null, avatar: op?.avatar ?? null, fallbackIcon: program ?? null };
+    return this.as(slug, program, pinned !== undefined);
   },
+
+  /** The identity of a given operator slug (null: none), drawn for `program`. */
+  as(slug, program, pinned = false) {
+    const op = cast.operators[slug] ?? null;
+    const badge = BADGE[program?.key] ?? (program?.name ?? "?").slice(0, 1).toUpperCase();
+    return { operator: op?.operator ?? null, name: op?.name ?? program?.name ?? "", accent: op?.accent ?? null, avatar: op?.avatar ?? null, badge, fallbackIcon: program ?? null, pinned };
+  },
+
+  /** Operators held back for repeats (data/endfield/operators.json "spares", else the manifest's unassigned). */
+  spares() { return cast.spares; },
 };
 
 // ---- type
@@ -266,6 +280,31 @@ export function tile(C, program, status, { size = 26, inv = false, id = null, ho
     .child(programGlyph(program, Math.round(size * 0.52), inv ? C.selBg : C.text))
     .child(div().when(Boolean(id), (el) => el.id(`${id}-bar`)).absolute().left(0).right(0).bottom(0).h(hot ? 4 : 2).bg(C[st?.bar ?? "hairStrong"])
       .transition("height", MOTION.row.wipe));
+}
+
+/**
+ * An agent as a game party chip: a round portrait in a ring (white; yellow when it needs input), a
+ * 1px halo in the operator's accent (the selection's ink when selected), and the class badge bottom
+ * right. Without art the circle holds the program's own tile, so a missing pack never moves a row.
+ * flash: the Claimed beat, a yellow disc drawn at .9 that fades (lit is its first frame).
+ */
+export function chip(C, ident, status, { size = 36, on = false, id = null, flash = null, ground = null } = {}) {
+  const ring = status === "blocked" ? C.signal : "#FFFFFF";
+  const ringW = size >= 30 ? 2 : 1.5;
+  const inner = size - 2;
+  const face = inner - 2 * ringW;
+  const program = ident.fallbackIcon;
+  const fill = ident.avatar ? ident.accent ?? C.hairStrong : program?.tile ?? C.selBg;
+  const badge = Math.round(size * (size >= 30 ? 0.42 : 0.5));
+  return div().relative().size(size).flex_none()
+    .child(div().absolute().left(0).top(0).size(size).rounded_full().bg(on ? C.selBg : ident.accent ?? C.hairStrong))
+    .child(div().absolute().left(1).top(1).size(inner).rounded_full().bg(ring))
+    .child(div().absolute().left(1 + ringW).top(1 + ringW).size(face).rounded_full().bg(fill).overflow_hidden().flex().items_center().justify_center()
+      .child(ident.avatar ? image(ident.avatar.round).size(face) : programGlyph(program, Math.round(face * 0.55), program?.color ?? C.selText)))
+    .when(Boolean(flash) && Boolean(id), (el) => el.child(div().id(`${id}-flash`).absolute().left(0).top(0).size(size).rounded_full().bg(C.signal)
+      .opacity(flash.lit ? 0.9 : 0).transition("opacity", MOTION.done.flash)))
+    .when(Boolean(ident.badge), (el) => el.child(div().absolute().right(-3).bottom(-3).size(badge).rounded_full().bg(C.ink).border(1.5).border_color(ground ?? (on ? C.selBg : C.ground))
+      .flex().items_center().justify_center().font_family(FONT.mono).text_size(Math.max(5.5, badge * 0.48)).text_color("#F2F2F2").child(ident.badge)));
 }
 
 /** The pane header's 16px program badge: the program's own tile colour, else ink. */
@@ -360,7 +399,7 @@ export const MOTION = {
   cut: { portrait: ease(100, "linear", 83), late: ease(100, "linear", 166), grow: ease(330), retract: ease(350, "ease-in", 630), text: ease(100, "linear", 630) },
   count: { roll: ease(300), needs: ease(300) },
   squad: { fold: ease(300), stack: ease(120, "linear", 180) },
-  pin: { enter: ease(300), content: ease(100, "linear", 83) },
+  pin: { content: ease(100, "linear", 83) },
   dispatch: { enter: ease(200) },
   link: { draw: ease(240), land: ease(120, "linear", 240) },
   comms: { enter: ease(200) },

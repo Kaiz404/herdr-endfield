@@ -25,24 +25,37 @@ rendered at 4x. It is a schematic, not a screenshot.
   - Spaces: header "// Spaces" (Geist 13 semibold), a mono count and a `+`.
     Rows are 38px: `// name` (Geist 13 medium, the `//` muted) over a mono
     10px label (tab count, repo, branch, ↑ahead ↓behind). The selected row is
-    inverted (ink, `#F2F2F2` text) with a 2px yellow left edge: one ink block
-    for the whole list that slides to the selected row. At the right:
-    marching `▶▶` for working, a yellow "Input" pill for blocked, a lime disc
+    inverted (ink, `#F2F2F2` text) in one frame; a 2px yellow marker travels
+    to it (300ms). At the right:
+    marching `▶▶` for working, a yellow block with an ink `!` for blocked, a lime disc
     with an ink ✓ plus an orange diamond for unseen done, nothing for idle.
     Machine groups (once a remote machine exists) get a wide-caps header, a
     hairline running to the right, a connection lamp and a chevron.
-  - Agents, 50px rows: header "// Agents", mono `03/05 ACTIVE`, a round sort
-    button. A 26px raised tile with the program icon and a 2px status bar on
-    its bottom edge; the title (the agent's live title or its tab's name);
-    under it the status word plus glyph, the model's short name (`OPUS 5.5`,
-    Claude Code only) and a mono `space / tab`; elapsed time top right (a pin
-    button on hover) over a 5-block context gauge (5x6px blocks, 2px apart;
-    lit blocks red `#C42126` from 75%). Blocked rows carry a 3px hazard tick on
-    the left edge. The focused agent's row sits on the list's sliding ink
-    block. Sub-agents hang below their parent with right-angle hairlines:
-    first Claude Code's own (read from its transcript: title, status, model,
-    tool count; every working one, else the newest 4, with `+N` on the parent
-    for the rest), then terminals the agent started with `hc run`.
+  - Squads: header "// Squads", mono `03/05 ACTIVE`, a `Priority ▾` pill
+    (Priority or Tab order, within each squad). One squad per space, numbered
+    like its space: a 22x16 ink number box, the space name in wide caps, a
+    hairline, a yellow `!` box when someone needs input, the count, a round `+`
+    (Dispatch a new agent there) and `▾`. Clicking the header folds it (rows
+    close, 300ms) and a stack of its operators' 16px chips stands in for them.
+    Agent rows, 56px (children 50px): a party chip (36px, children 28px: the
+    operator's round portrait in a 2px white ring, yellow when it needs input,
+    a 1px halo in the operator's accent, a class badge bottom right: `C`
+    Claude Code, `X` Codex, `Cu` Cursor, `O` OpenCode, `G` Gemini); the
+    callsign in wide caps 10px (`PERLICA`; a repeat takes a spare operator,
+    then `PERLICA·2`) with the model or `◀ T3` beside it; the task (13px
+    medium); at the right "Generating ▶▶", a yellow "Needs input" pill,
+    "✓ Claimed" or "zZ Idle", over the elapsed time and a 5-block context
+    gauge. Blocked rows carry 4px hazard stripes on the left edge; a
+    generating row's floor has a 28px blue segment scanning across (1600ms).
+    Children (terminals started with `hc run`, and Claude Code's own
+    sub-agents read from its transcript) hang under their parent with a 1px
+    right angle from the parent chip's foot, whatever their vendor. From 12
+    agents everything goes compact: 34px rows, 24/20px chips, callsign over
+    task, a status glyph only (`▶▶`, `!`, `✓`, `zZ`); the spaces block becomes
+    numbered squares, six a row; and a pinned "Needs input" box (hazard edge,
+    count, three rows, then "+N more · Report ▶") sits above every squad. The
+    list scrolls and says "▾ N more agents below". Without the art pack every
+    chip shows its program's tile instead.
   - Session card, 330px, beside the sidebar while an agent row is hovered:
     white slab, 1px hairline, radius 4, large shadow, a 3px status-colour edge.
     `// Session · T1` and the session's age; the title (15px semibold); a
@@ -97,9 +110,11 @@ rendered at 4x. It is a schematic, not a screenshot.
 - **Spaces:** click selects (the ink fill wipes in, the yellow edge grows
   down); drag reorders within a machine (a 2px line shows where); right-click
   opens the space menu; the machine header folds its group.
-- **Agents:** click focuses the pane (the ink block slides there, 300ms); the
-  tile folds sub-agents; hover shows pin; a sub-agent without a pane opens as
-  a peek. The sort button opens Priority or Grouped by space. `alt-up` /
+- **Squads:** click focuses the pane (the plate snaps, the yellow marker
+  travels, 300ms); a child without a pane opens as a peek; a Claude Code
+  sub-agent opens its transcript beside its parent. A squad header folds it.
+  The sort pill opens Priority or Tab order. A new child draws its connector
+  top-down (240ms); a newly pinned agent fades in. `alt-up` /
   `alt-down` follow the list's order.
 - **Session card:** after 250ms on an agent row it fades in and slides 16px
   right (300ms) and the context blocks light 18ms apart. Moving onto the card
