@@ -179,6 +179,7 @@ async function readJson(rel) {
 }
 
 async function present(paths) {
+  if (!paths.every(Boolean)) return false;
   try { return (await Promise.all(paths.map((p) => fs.exists(`${appHome()}/${p}`)))).every(Boolean); } catch { return false; }
 }
 

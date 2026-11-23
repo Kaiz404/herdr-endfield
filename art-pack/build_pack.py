@@ -11,7 +11,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 INK, PAPER, SIGNAL = (0x19, 0x19, 0x19), (0xEE, 0xED, 0xEC), (0xFF, 0xFA, 0x00)
 FILES = {'avatar32': 'avatar-32.png', 'avatar64': 'avatar-64.png', 'avatar128': 'avatar-128.png',
-         'avatar64round': 'avatar-64-round.png', 'signal': 'signal.png'}
+         'avatar64round': 'avatar-64-round.png', 'bust480': 'bust-480.png', 'signal': 'signal.png'}
 RECIPE = {'name', 'accent', 'image', 'eyes', 'face_width', 'bust'}
 
 
@@ -83,7 +83,7 @@ def main():
         s = o['face_width'] * W / 0.7
         bx, by, side = (o['bust']['center'][0] * W, o['bust']['center'][1] * H, o['bust']['side'] * W) if 'bust' in o else (ex, ey, 1.17 * s)
         b = bust(im, bx, by, side)
-        made = {**avatars(im, ex, ey, s), 'signal': duotone(b, INK, SIGNAL, gamma=2.2)}
+        made = {**avatars(im, ex, ey, s), 'bust480': b, 'signal': duotone(b, INK, SIGNAL, gamma=2.2)}
         os.makedirs(os.path.join(out_dir, slug), exist_ok=True)
         for key, name in FILES.items():
             made[key].save(os.path.join(out_dir, slug, name), optimize=True)

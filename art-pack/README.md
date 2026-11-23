@@ -5,9 +5,7 @@ The skin can give each agent a character ("operator") instead of its program til
 - **The official renders, fetched on your machine.** `scripts/fetch-operators.mjs` downloads them from the official site and builds the pack. See [Fetch the official operators](#fetch-the-official-operators).
 - **Your own images.** `build_pack.py` turns them into the files the skin reads. See [Make a pack](#make-a-pack).
 
-Status: the skin's identity registry (`IDENTITY` in `skin/mods/endfield/kit.js`) reads the pack and your overrides today. The surfaces that draw avatars (agent rows, session card, pane header, toast) are not built yet; see [ROADMAP.md](../ROADMAP.md). Until then a pack changes nothing on screen.
-
-Without an art pack, every surface draws the program's own tile.
+With a pack, each agent's party chip in the sidebar, the pane name plates, Dispatch, Comms and the Report show the operator's round portrait. The session panel shows the bust, and the needs-input cut-in shows the signal portrait. Without a pack, every surface draws the program's own tile.
 
 ## What art you can use
 
@@ -29,7 +27,7 @@ What it does:
 1. Reads [`operators.json`](operators.json), the catalogue. Each operator row has its name, class, element, rarity, accent, the official CDN URL and sha256 of its source render, the official page URL, and its crop recipe (`eyes`, `face_width`, `bust`). The catalogue holds no images.
 2. Downloads each source over https, with a 30 second timeout and an 8 MB cap, into a temp folder. It refuses any URL that is not on the catalogue's `cdn`.
 3. Checks each file's sha256. If the official site now serves a different file, it stops, installs nothing, and says the catalogue needs an update.
-4. Runs `build_pack.py` on the downloads, then copies the pack into `art/operators/` in `HERDR_APP_HOME`, else `~/.config/herdr-app` (`%USERPROFILE%\.config\herdr-app` on Windows): the five files per operator, `manifest.json` and `CREDITS.md`.
+4. Runs `build_pack.py` on the downloads, then copies the pack into `art/operators/` in `HERDR_APP_HOME`, else `~/.config/herdr-app` (`%USERPROFILE%\.config\herdr-app` on Windows): the six files per operator, `manifest.json` and `CREDITS.md`.
 5. Deletes the temp folder.
 
 Rerunning it is safe. It records what it built in `art/operators/.fetch-operators.json` and skips operators whose source hash and built files still match, so a second run downloads nothing. It never deletes a file. Before it replaces a file it did not write, or one you edited, it copies it to `art/operators/.fetch-operators-backup/<time>/`. It merges into an existing `manifest.json`: other operators, extra fields and your `default_assignment` stay.
@@ -91,7 +89,8 @@ For each operator, in `art/operators/<slug>/`:
 |---|---|---|
 | `avatar-32.png`, `avatar-64.png`, `avatar-128.png` | square | Agent tiles, cards and headers. Smaller sizes are sharpened. |
 | `avatar-64-round.png` | 64, circular | Round badges. |
-| `signal.png` | 400x480 | Head and shoulders in ink and signal yellow, faded at the bottom. |
+| `bust-480.png` | 400x480 | Head and shoulders in full colour, faded at the bottom. The session panel. |
+| `signal.png` | 400x480 | The same bust in ink and signal yellow. The needs-input cut-in. |
 
 And `art/operators/manifest.json`, which the skin reads:
 
@@ -108,6 +107,7 @@ And `art/operators/manifest.json`, which the skin reads:
         "avatar64": "art/operators/kestrel/avatar-64.png",
         "avatar128": "art/operators/kestrel/avatar-128.png",
         "avatar64round": "art/operators/kestrel/avatar-64-round.png",
+        "bust480": "art/operators/kestrel/bust-480.png",
         "signal": "art/operators/kestrel/signal.png"
       }
     }
@@ -115,7 +115,7 @@ And `art/operators/manifest.json`, which the skin reads:
 }
 ```
 
-Paths are relative to the Herdr home. An operator with any of the five files missing is dropped, and its agents keep their program tiles.
+Paths are relative to the Herdr home. An operator with any of the six files missing is dropped, and its agents keep their program tiles.
 
 ## Per-person overrides
 
