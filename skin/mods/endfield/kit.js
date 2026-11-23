@@ -189,7 +189,8 @@ async function present(paths) {
 export const IDENTITY = {
   /** Rereads both files; rebuilds the table, and redraws every copy, only when their text changed. */
   refresh() {
-    reading ??= (async () => {
+    // try/finally: one failed read must not leave `reading` set, or no refresh would ever run again.
+    reading ??= (async () => { try {
       const [[mText, manifest], [oText, overrides], [, own]] = await Promise.all([readJson(MANIFEST), readJson(OVERRIDES), readJson(PREFS)]);
       prefs = { sounds: { ...prefs.sounds, ...(own?.sounds ?? {}) } };
       await baseFor(own);
@@ -205,8 +206,7 @@ export const IDENTITY = {
         cast = { text, operators, spares, defaults, overrides: { ...(overrides?.programs ?? {}) }, terminals: { ...(overrides?.terminals ?? {}) } };
         if (!checking()) setShared("endfield.identity", Date.now());
       }
-      reading = null;
-    })();
+    } finally { reading = null; } })();
     return reading;
   },
 
