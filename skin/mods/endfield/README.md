@@ -26,9 +26,11 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   `node --test` (CI and `verify.mjs --static` too): `fleet.js` (the `STATUS`
   table, agent status to word, glyph kind, bar colour, entrance effect and rank,
   and the roster), `orders.js` (Dispatch's argv and the transcript pane's
-  follow-up relay, the command line each shows, and what became of a run) and `messages.js` (which Comms screen tags count, how
-  many are kept, the log's size cap) and `base.js` (the home base: which folder a
-  new local space opens in).
+  follow-up relay, the command line each shows, and what became of a run) and
+  `messages.js` (which Comms screen tags count, how many are kept, the log's size
+  cap), `base.js` (the home base: which folder a new local space opens in) and
+  `usage.js` (the HUD footer's Claude usage limits: which windows show, when one
+  has reset, how time to reset reads).
 - `kit.js` `newSpace()` is the one way a space is made: every New space control in
   `spaces.js` and the `endfield.newSpace` key command (handled by the `status` role,
   which every Endfield window shows once). On this computer it passes the home base as

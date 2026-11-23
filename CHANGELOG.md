@@ -8,6 +8,8 @@
 
 - **Follow up with a sub-agent.** The transcript pane of a Claude Code sub-agent has a box at its foot. Type a follow-up and click **Send** or press Enter. A Claude Code sub-agent has no terminal to type into, so the box sends your text to its parent agent and asks the parent to pass it on with its SendMessage tool. The pane says so (**Sent via PERLICA**) and shows the exact `hc send` command before you send. It sends only when the parent is waiting for you (idle or finished). While the parent is working or needs input, **Send** is disabled and the pane says why. Each follow-up appears in Comms. Agents started with `hc` have their own terminal, so you type in their pane or use Dispatch, as before.
 
+- **Usage limits in the HUD footer.** The footer shows your Claude 5-hour and weekly limits, each as two short rows: the percent used on top (`5-HOUR 54% USED`), a small bar and the time to reset below (`RESETS 1H 40M`). From 80% a window turns red with a `▲`. A window that has reset since Claude Code last reported it reads `RESET` over an empty bar, not its old numbers. In a narrow window the bars go first, then the weekly window's `USED`. The numbers come from the [Claude Code statusline](extras/claude-statusline/README.md), so copy the updated `statusline-endfield.sh` to `~/.claude/` again to get them. Without it the section is not shown.
+
 ### Changed
 
 - **One transcript pane per tab.** Clicking a Claude Code sub-agent in Squads opens its transcript right of its parent, as before. Clicking another sub-agent now replaces that pane instead of splitting the tab again, and clicking the one shown focuses it. The shown sub-agent's row is marked as selected.

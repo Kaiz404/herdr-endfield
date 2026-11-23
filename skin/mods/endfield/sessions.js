@@ -1,7 +1,7 @@
 // sessions: what a Claude Code session behind an agent terminal is doing, one parsed shape
 // per terminal. Sources, first wins:
 //   1. a sidecar a Claude Code statusline writes: data/endfield/sessions/<session_id>.json
-//      {session_id, terminal, cwd, transcript_path, model:{id, display_name}, context:{used, total, pct}, updated_at}
+//      {session_id, terminal, cwd, transcript_path, model:{id, display_name}, context:{used, total, pct}, rate_limits, updated_at}
 //   2. the transcript itself, ~/.claude/projects/<cwd slug>/<session>.jsonl. Without a sidecar the
 //      terminal is matched to its folder's most recently written transcript: approximate, since
 //      two sessions in one folder can't be told apart (`approx`).
@@ -92,6 +92,8 @@ export class Sessions {
   constructor(name) {
     this.name = name;
     this.map = new Map();
+    // The account's Claude usage limits, the newest any sidecar carries (probe.mjs).
+    this.limits = null;
     this.dirty = true;
     this.busy = false;
     this.key = "";
@@ -153,7 +155,7 @@ export class Sessions {
   }
 
   poll(cx, targets, key) {
-    if (this.busy || !targets.length) { if (!targets.length) { this.map.clear(); this.follow(cx, []); } return; }
+    if (this.busy || !targets.length) { if (!targets.length) { this.map.clear(); this.limits = null; this.follow(cx, []); } return; }
     this.busy = true;
     this.dirty = false;
     this.key = key;
@@ -173,6 +175,7 @@ export class Sessions {
         const next = new Map();
         for (const t of targets) next.set(t.terminal, shape(t, out.sessions?.[t.terminal], t.status));
         this.map = next;
+        this.limits = out.limits ?? null;
         this.missing = (out.missing ?? []).length > 0;
         if (!this.stopped && out.watch) this.follow(cx, out.watch);
       } catch {

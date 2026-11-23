@@ -360,7 +360,8 @@ export class Agents {
         .child(micro(`+${blocked.length - PIN.max} more need input`, C.muted)).child(div().flex_1()).child(micro("Report ▶", C.text))));
   }
 
-  // This list owns the one session poller: the HUD footer gets the focused agent's context, the
+  // This list owns the one session poller: the HUD footer gets the focused agent's context and the
+  // account's usage limits, the
   // report every Claude Code agent's context, tokens and turns. Published only when they change.
   share(R) {
     const f = R.flat.find((m) => m.focused);
@@ -372,7 +373,7 @@ export class Agents {
     }));
     // The open card's whole session: the card draws it and runs no poller of its own.
     const card = this.card.open ? this.sessions.get(this.card.open.address) : null;
-    for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all], ["endfield.card.session", card]]) {
+    for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all], ["endfield.card.session", card], ["endfield.limits", this.sessions.limits]]) {
       const text = JSON.stringify(value);
       if (text !== this.published?.[key]) { (this.published ??= {})[key] = text; setShared(key, value); }
     }
