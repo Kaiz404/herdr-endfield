@@ -160,6 +160,8 @@ export class Agents {
       this.card.seq++;
       this.card.armed = false;
       this.setCard(null);
+      // The press may have been on another agent's row: its card still opens after the usual delay.
+      if (this.cardFacts().row) { this.cardTick(cx); return; }
     } else if (closed && closed === this.card.open?.id) setShared("endfield.card.closed", null);
     const open = this.card.open;
     if (moved || (open && !this.card.armed && wantedCard(this.cardFacts()) !== open.address)) this.cardTick(cx);
