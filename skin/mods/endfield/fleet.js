@@ -7,7 +7,7 @@ export const STATUS = {
   blocked: { word: "Needs input", kind: "pill", bar: "signal", edge: "hazard", rank: 4 },
   error: { word: "Error", kind: "text", glyph: "×", hue: "error", bar: "red", rank: 4 },
   done: { word: "Finished", kind: "disc", glyph: "✓", bar: "lime", fresh: true, enter: ["flash", "pop"], rank: 3 },
-  working: { word: "Generating", kind: "march", hue: "flow", bar: "flowInv", conveyor: true, rank: 2 },
+  working: { word: "Generating", kind: "march", hue: "flow", bar: "flowInv", rank: 2 },
   idle: { word: "Idle", kind: "mono", glyph: "zZ", bar: "hairStrong", quiet: true, oneLine: true, rank: 1 },
 };
 export const statusOf = (s) => STATUS[s] ?? null;
@@ -134,6 +134,19 @@ export function subNumbers(prev, shown) {
     taken.add(n);
   }
   return next;
+}
+
+// A sub-agent's transcript shows in one pane per tab, docked right of its parent.
+export const TRANSCRIPT = "endfield-transcript";
+export const transcriptsIn = (panes, tab) => panes.filter((p) => p.mod === TRANSCRIPT && p.tab === tab);
+
+// What a click on a sub-agent does in its parent's tab. `shown`: the path that tab's pane was
+// opened on. The one already shown is focused; any other click replaces every transcript pane
+// there with one new split, because a mod pane's props can't change once it is open.
+export function transcriptPlan(panes, tab, shown, path) {
+  const open = transcriptsIn(panes, tab);
+  if (open.length === 1 && shown === path) return { focus: open[0].pane };
+  return { close: open.map((p) => p.pane) };
 }
 
 // A Squads row's height class: an idle agent folds to one line, any other keeps two. agents.js
