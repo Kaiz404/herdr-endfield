@@ -429,7 +429,7 @@ export const MOTION = {
   row: { wipe: ease(200), nudge: ease(200) },
   card: { reveal: ease(200, "ease-out", 250), slide: ease(300), open: { delay: 250 }, close: { delay: 160 }, segment: { delay: 18 } },
   pane: { bar: ease(300), brackets: ease(300), fade: ease(200), actions: { delay: 40 }, pulse: { from: 0, to: 0.42, period: 1400, easing: "ease-in-out" } },
-  status: { march: { period: 300 }, scan: { period: 1600, easing: "linear" } },
+  status: { march: { period: 300 } },
   done: { flash: ease(300), check: ease(200), clear: { delay: 300 } },
   toast: { enter: ease(300), fade: ease(200), countdown: { duration: 6000, easing: "linear" } },
   // The skill caption (trailer pattern 5): block grows, holds, retracts to its edge, revealing text.

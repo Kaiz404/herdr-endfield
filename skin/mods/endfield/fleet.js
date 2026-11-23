@@ -7,7 +7,7 @@ export const STATUS = {
   blocked: { word: "Needs input", kind: "pill", bar: "signal", edge: "hazard", rank: 4 },
   error: { word: "Error", kind: "text", glyph: "×", hue: "error", bar: "red", rank: 4 },
   done: { word: "Claimed", kind: "disc", glyph: "✓", bar: "lime", fresh: true, enter: ["flash", "pop"], rank: 3 },
-  working: { word: "Generating", kind: "march", hue: "flow", bar: "flowInv", conveyor: true, rank: 2 },
+  working: { word: "Generating", kind: "march", hue: "flow", bar: "flowInv", rank: 2 },
   idle: { word: "Idle", kind: "mono", glyph: "zZ", bar: "hairStrong", quiet: true, rank: 1 },
 };
 export const statusOf = (s) => STATUS[s] ?? null;

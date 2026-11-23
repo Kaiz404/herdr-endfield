@@ -269,9 +269,6 @@ export class Agents {
       .on_click(r.click)
       .child(wipe(`${r.key}-wipe`, C.sunken, this.width, hot && !on))
       .when(st?.edge === "hazard", (el) => el.child(div().absolute().left(0).top(6).flex().child(hazard(C, 4, r.h - 12))))
-      // Only while generating: a 28px segment scans the row's floor.
-      .when(Boolean(st?.conveyor), (el) => el.child(div().absolute().left(14).right(14).bottom(0).h(1).overflow_hidden()
-        .child(div().absolute().top(0).h(1).w(28).bg(C[on ? "flowInv" : "flow"]).loop("left", { from: -28, to: this.width, ...MOTION.status.scan }))))
       .when(Boolean(link), (el) => el.child(link))
       .child(chip(C, m.ident, m.status, { size, on, id: r.key, flash: fx.flash ? fx : null }))
       .child(nudge(v_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(dense ? 4 : 6)
