@@ -5,8 +5,8 @@
 
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { spaces, shared } from "herdr";
-import { palette, root, midTrunc, hatch, micro, pad2, odometer, glyph, Entrance, MOTION } from "./kit.js";
+import { spaces, shared, nextCommand, checking } from "herdr";
+import { palette, root, midTrunc, hatch, micro, pad2, odometer, glyph, Entrance, MOTION, newSpace } from "./kit.js";
 import { roster } from "./roster.js";
 import { goTo } from "./report.js";
 import { fmtTokens } from "./sessions.js";
@@ -17,6 +17,8 @@ export default class Status {
   init(_props, cx) {
     this.entrance = new Entrance(3);
     this.entrance.start(cx);
+    // keys.json "<key>": "endfield.newSpace" lands here: the one copy every endfield window shows.
+    if (!checking()) cx.spawn(async () => { for (;;) if ((await nextCommand()) === "newSpace") await newSpace(); });
   }
 
   render() {

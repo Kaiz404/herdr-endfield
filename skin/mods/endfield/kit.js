@@ -3,9 +3,10 @@
 
 import { div, svg, image, PathBuilder, Background } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { settings, layout, shared, setShared, run, keys, home, appHome, readTextFile, fonts, checking, playSound, window as appWindow } from "herdr";
+import { settings, layout, shared, setShared, run, keys, home, appHome, readTextFile, fonts, checking, playSound, spaces, window as appWindow } from "herdr";
 import * as fs from "fs/promises";
 import { statusOf } from "./fleet.js";
+import { resolveHomeBase } from "./base.js";
 
 export const ASSETS = "mods/endfield/art";
 export const FONT = { ui: "Geist", mono: "Geist Mono" };
@@ -189,6 +190,7 @@ export const IDENTITY = {
     reading ??= (async () => {
       const [[mText, manifest], [oText, overrides], [, own]] = await Promise.all([readJson(MANIFEST), readJson(OVERRIDES), readJson(PREFS)]);
       prefs = { sounds: { ...prefs.sounds, ...(own?.sounds ?? {}) } };
+      await baseFor(own);
       const text = JSON.stringify([mText, oText]);
       if (text !== cast.text) {
         const operators = {};
@@ -230,6 +232,24 @@ export const IDENTITY = {
   /** Operators held back for repeats (data/endfield/operators.json "spares", else the manifest's unassigned). */
   spares() { return cast.spares; },
 };
+
+// ---- the home base: where new local spaces open (base.js decides; settings.json `homeBase`).
+
+async function baseFor(own, machine = null) {
+  const b = await resolveHomeBase(own?.homeBase, home(), (p) => fs.exists(p), machine);
+  if (b && !checking() && JSON.stringify(b) !== JSON.stringify(homeBase())) setShared("endfield.base", b);
+  return b;
+}
+
+/** The last resolved home base, { folder, note }, for labels; null until the first read. */
+export const homeBase = () => shared("endfield.base") ?? null;
+
+/** Every New space control and the endfield.newSpace key: on `machine` (default: the shown
+ *  space's), in the home base on this computer, in that machine's own home elsewhere. */
+export async function newSpace(machine = spaces().find((s) => s.active)?.machine ?? null) {
+  const b = await baseFor((await readJson(PREFS))[1], machine);
+  run("space.new", { machine: machine ?? "", ...(b ? { folder: b.folder } : {}) });
+}
 
 // ---- sound: original cues, synthesised by tools/make_sounds.py.
 // The two alerts play only when Herdr's own attention sounds are off, so one event never sounds
