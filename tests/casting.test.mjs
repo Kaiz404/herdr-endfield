@@ -56,7 +56,7 @@ test("a pool is spent before any callsign number", () => {
   const pool = CASTING.pools.haiku;
   const taken = new Set();
   const id = identityOf(full);
-  const names = Array.from({ length: pool.length + 2 }, (_, i) => castCrew(id, null, [{ id: `a${i}`, ident: id.resolve(claude, null, { parent: claude, model: "claude-haiku-4-5" }) }], claude, taken).get(`a${i}`).callsign);
+  const names = Array.from({ length: pool.length + 2 }, (_, i) => castCrew(id, null, [{ id: `a${i}`, ident: id.resolve(claude, null, { parent: claude, model: "claude-haiku-4-5" }), program: claude }], taken).get(`a${i}`).callsign);
   assert.deepEqual(names, ["AKEKURI", "ANTAL", "CATCHER", "ESTELLA", "FLUORITE", "AKEKURI·2", "ANTAL·2"]);
 });
 
@@ -83,10 +83,53 @@ test("a same-program child with no model of its own draws from its parent's tier
 test("a session's sub-agents differ from each other and the fleet, and keep their draw while shown", () => {
   const id = identityOf(full);
   const R = fleet(full, { t1: "claude-opus-5-5" });
-  const crew = (ids) => ids.map((k, i) => ({ id: k, startedAt: i, ident: id.resolve(claude, null, { parent: claude, model: "claude-opus-5-5" }) }));
-  const first = castCrew(id, null, crew(["a1", "a2", "a3"]), claude, new Set(R.taken));
+  const crew = (ids) => ids.map((k, i) => ({ id: k, startedAt: i, ident: id.resolve(claude, null, { parent: claude, model: "claude-opus-5-5" }), program: claude }));
+  const first = castCrew(id, null, crew(["a1", "a2", "a3"]), new Set(R.taken));
   assert.deepEqual(["a1", "a2", "a3"].map((k) => first.get(k).callsign), ["YVONNE", "ARDELIA", "LAST RITE"], "t1 holds Laevatain, so its sub-agents start at Yvonne");
-  const next = castCrew(id, first, crew(["a2", "a3", "a4"]), claude, new Set([...R.taken, ...held([...first.values()])]));
+  const next = castCrew(id, first, crew(["a2", "a3", "a4"]), new Set([...R.taken, ...held([...first.values()])]));
   assert.equal(next.get("a2").callsign, "ARDELIA", "a sub-agent still shown keeps its operator");
   assert.equal(next.get("a4").callsign, "TYPHOEUS", "a newcomer skips every operator still held");
+});
+
+// Pane agents keep their operator across renders: `prev` is the last render's cast.
+const panes = (addrs, models, prev, avoid) => {
+  const listed = addrs.map((address) => ({ address, program: claude, status: "idle", title: address, space: "s1", space_name: "s1", tab: "x", tab_index: 1, pane: address, seq: 0, pinned: false, focused: false }));
+  const terms = listed.map((a) => ({ address: a.address, created_ms: Number(a.address.slice(1)), parent: null, state: "live", program: claude }));
+  return buildRoster({ listed, terms, spaces: [{ id: "s1", name: "s1" }], identity: identityOf(full), models, prev, avoid });
+};
+const callsigns = (R) => Object.fromEntries([...R.all].map(([a, m]) => [a, m.ident.callsign]));
+const opus = "claude-opus-5-5";
+
+test("a pane agent keeps its operator when an earlier agent closes", () => {
+  const first = panes(["t1", "t2", "t3"], { t1: opus, t2: opus, t3: opus });
+  assert.deepEqual(callsigns(first), { t1: "LAEVATAIN", t2: "YVONNE", t3: "ARDELIA" });
+  const after = panes(["t2", "t3"], { t2: opus, t3: opus }, first.cast);
+  assert.deepEqual(callsigns(after), { t2: "YVONNE", t3: "ARDELIA" });
+  const joined = panes(["t2", "t3", "t4"], { t2: opus, t3: opus, t4: opus }, after.cast);
+  assert.equal(joined.all.get("t4").ident.callsign, "LAEVATAIN", "a newcomer takes the first operator nobody keeps");
+});
+
+test("models arriving in any order move only the agent whose model arrived", () => {
+  const none = panes(["t1", "t2"], {});
+  assert.deepEqual(callsigns(none), { t1: "PERLICA", t2: "PERLICA·2" }, "no model yet: Claude's default");
+  const t2First = panes(["t1", "t2"], { t2: opus }, none.cast);
+  assert.deepEqual(callsigns(t2First), { t1: "PERLICA", t2: "LAEVATAIN" });
+  const both = panes(["t1", "t2"], { t1: opus, t2: opus }, t2First.cast);
+  assert.deepEqual(callsigns(both), { t1: "YVONNE", t2: "LAEVATAIN" });
+});
+
+test("a new model tier redraws; the same inputs again give the same cast", () => {
+  const first = panes(["t1", "t2"], { t1: opus, t2: opus });
+  const again = panes(["t1", "t2"], { t1: opus, t2: opus }, first.cast);
+  assert.deepEqual(callsigns(again), callsigns(first), "every surface rebuilds from the shared cast and agrees");
+  const moved = panes(["t1", "t2"], { t1: "claude-haiku-4-5", t2: opus }, first.cast);
+  assert.deepEqual(callsigns(moved), { t1: "AKEKURI", t2: "YVONNE" });
+});
+
+test("a new pane agent avoids operators sub-agents hold; a kept one stays put", () => {
+  const first = panes(["t1"], { t1: opus }, undefined, ["yvonne·1"]);
+  assert.equal(first.all.get("t1").ident.callsign, "LAEVATAIN");
+  const R = panes(["t1", "t2"], { t1: opus, t2: opus }, first.cast, ["laevatain·1", "yvonne·1"]);
+  assert.deepEqual(callsigns(R), { t1: "LAEVATAIN", t2: "ARDELIA" });
+  assert.ok(R.taken.has("yvonne·1"), "taken carries the avoided slots on to the sub-agents' draw");
 });

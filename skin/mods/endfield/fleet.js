@@ -35,7 +35,7 @@ export const PINNED = "pinned";
 
 /**
  * { all: Map<address, Member>, squads: [{ id, num, name, machine, pinned?, members: Member[] }], flat: Member[],
- *   taken: the operator slots the members drew (see castCrew) }
+ *   cast: Map<address, ident>, the `prev` of the next call, taken: the slots the members drew and `avoid` (see castCrew) }
  * Member: { address, agent (AgentInfo, null for a child without a pane), program, status, title,
  *   space, spaceName, tab, tabIndex, pane, seq, pinned, focused, created, turn, parent (address | null),
  *   depth, kids (addresses), urgency, model (id | null), ident: identity.resolve(...) + { callsign, drawn } }
@@ -43,8 +43,9 @@ export const PINNED = "pinned";
  * the list and agent.next start with them. `sort` orders siblings; children stay under their parent.
  * identity: { resolve(program, terminal, {parent, model}) -> ident + {pool}, as(slug, program) } (IDENTITY in kit.js).
  * models: { address: model id } for the agents whose model is known.
+ * prev: the last call's `cast`. avoid: slots a newcomer must not draw (the shown sub-agents', see held).
  */
-export function buildRoster({ listed, terms, spaces, identity, models = {}, sort = BY.priority }) {
+export function buildRoster({ listed, terms, spaces, identity, models = {}, prev = null, avoid = [], sort = BY.priority }) {
   const termOf = new Map(terms.map((t) => [t.address, t]));
   const all = new Map();
   for (const a of listed) {
@@ -78,15 +79,19 @@ export function buildRoster({ listed, terms, spaces, identity, models = {}, sort
   const urgency = (m) => (m.urgency ??= Math.max(rank(m.status), ...m.kids.map((k) => urgency(all.get(k)))));
   for (const m of all.values()) urgency(m);
 
-  // Identity in creation order: each agent draws the first operator of its pool no earlier one
-  // holds, and a callsign number (PERLICA·2) only once the pool is spent. A child of the same
-  // program with no model of its own runs its parent's, as Claude Code's sub-agents do.
-  const taken = new Set();
-  for (const m of [...all.values()].sort(byCreation)) {
+  // Identity: an agent keeps its last draw while its pool stays the same (see castCrew), so one
+  // closing or another's model arriving moves nobody else. Newcomers, in creation order, draw the
+  // first operator of their pool nobody holds. A child of the same program with no model of its
+  // own runs its parent's, as Claude Code's sub-agents do.
+  const order = [...all.values()].sort(byCreation);
+  for (const m of order) {
     const up = m.parent ? all.get(m.parent) : null;
     m.model = models[m.address] ?? (up && up.program?.key === m.program?.key ? up.model ?? null : null);
-    m.ident = cast(identity, identity.resolve(m.program, m.address, { parent: up?.program ?? null, model: m.model }), m.program, taken);
+    m.ident = identity.resolve(m.program, m.address, { parent: up?.program ?? null, model: m.model });
   }
+  const crew = castCrew(identity, prev, order.map((m) => ({ id: m.address, ident: m.ident, program: m.program })), new Set(avoid));
+  for (const m of order) m.ident = crew.get(m.address);
+  const taken = new Set([...held([...crew.values()]), ...avoid]);
 
   const place = (m, depth) => [{ ...m, depth }, ...m.kids.map((k) => all.get(k)).sort(sort).flatMap((k) => place(k, depth + 1))];
   const tops = [...all.values()].filter((m) => !m.parent);
@@ -102,7 +107,7 @@ export function buildRoster({ listed, terms, spaces, identity, models = {}, sort
     const mine = tops.filter((m) => m.space === sp.id && !m.pinned);
     if (mine.length) squads.push(squad(sp.id, String(i + 1).padStart(2, "0"), sp.name, sp.machine ?? null, mine));
   });
-  return { all, squads, flat: squads.flatMap((q) => q.members), taken };
+  return { all, squads, flat: squads.flatMap((q) => q.members), cast: crew, taken };
 }
 
 // A Claude Code session's own sub-agents under its row: the working ones, or all of them while
@@ -175,9 +180,9 @@ export function choose(cast, program, terminal, { parent = null, model = null } 
 
 const slot = ({ slug, n }) => `${slug}·${n}`;
 
-/** The first of `pool` that `taken` doesn't hold: each once, then each again as ·2, and so on. -> {slug, n} */
+/** The first of `pool` that `taken` doesn't hold: each once, then each again as ·2, and so on. -> {slug, n, from} */
 export function draw(pool, taken) {
-  for (let n = 1; ; n++) for (const slug of pool) if (!taken.has(slot({ slug, n }))) return { slug, n };
+  for (let n = 1; ; n++) for (const slug of pool) if (!taken.has(slot({ slug, n }))) return { slug, n, from: pool.join() };
 }
 
 // ident: identity.resolve(...), whose pool[0] it draws as; d: the drawn slot.
@@ -194,18 +199,19 @@ export function cast(identity, ident, program, taken) {
 }
 
 /**
- * A Claude Code session's own sub-agents: each keeps what it drew while it stays shown; newcomers,
- * in start order, draw around `taken`, so siblings differ and a number appears only once a pool is
+ * Draws a crew (a session's sub-agents, or the pane agents): each keeps what it drew while it stays
+ * and draws from the same pool, so a new model tier, pin or override redraws it. Newcomers, in
+ * start order, draw around `taken`, so siblings differ and a number appears only once a pool is
  * spent: ARDELIA·2, never ARDELIA·30. prev: Map<id, ident> from the last render;
- * crew: [{id, startedAt, ident}] -> Map<id, ident + { callsign, drawn }>
+ * crew: [{id, startedAt?, ident, program}] -> Map<id, ident + { callsign, drawn }>
  */
-export function castCrew(identity, prev, crew, program, taken) {
+export function castCrew(identity, prev, crew, taken) {
   const out = new Map();
   for (const k of crew) {
     const d = prev?.get(k.id)?.drawn;
-    if (d && k.ident.pool.includes(d.slug)) { taken.add(slot(d)); out.set(k.id, named(identity, k.ident, program, d)); }
+    if (d?.from === k.ident.pool.join()) { taken.add(slot(d)); out.set(k.id, named(identity, k.ident, k.program, d)); }
   }
-  for (const k of [...crew].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0))) if (!out.has(k.id)) out.set(k.id, cast(identity, k.ident, program, taken));
+  for (const k of [...crew].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0))) if (!out.has(k.id)) out.set(k.id, cast(identity, k.ident, k.program, taken));
   return out;
 }
 

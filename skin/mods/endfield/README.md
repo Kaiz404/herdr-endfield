@@ -19,7 +19,7 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   (`Entrance`, `StatusFx`).
 - `roster.js` is the fleet every surface reads, built by `fleet.js` from Herdr's
   live lists: each agent's identity and callsign (a repeated operator takes a
-  spare, then a number, `PERLICA·2`, in creation order so it never hops), its
+  spare, then a number, `PERLICA·2`; each agent keeps its draw so it never hops), its
   parent and depth, and squads in tree order: pinned agents first (they also lead
   `agent.next`), then one per space. Priority ranks an agent by the most urgent
   status in its tree.
@@ -93,12 +93,16 @@ The rules are pure, in `fleet.js`, and `tests/casting.test.mjs` runs them:
 `CASTING` maps a model id to a tier and a tier to a pool of operators (see
 [docs/CASTING.md](../../../docs/CASTING.md)); `choose()` picks the slug and pool;
 `cast()` draws the first operator of the pool no other agent holds and names the
-callsign, numbering (`YVONNE·2`) only once the pool is spent. `buildRoster()`
-casts every agent in creation order; a same-program child with no model of its
-own runs its parent's. `castCrew()` casts a Claude Code session's sub-agents
-around the fleet, each keeping its operator while it stays shown. The agents
-list's session poller publishes each Claude Code agent's model id as the shared
-key `endfield.models`, which `roster.js` passes in, so every surface casts alike.
+callsign, numbering (`YVONNE·2`) only once the pool is spent. `castCrew()`
+casts a crew from the last render's cast: each member keeps its operator while
+it stays and draws from the same pool, and newcomers draw in start order.
+`buildRoster()` casts the pane agents that way, in creation order, with newcomers
+skipping the slots shown sub-agents hold; a same-program child with no model of
+its own runs its parent's. The agents list casts each Claude Code session's
+sub-agents around the fleet the same way. `roster.js` keeps the last cast and
+the sub-agents' slots (`holdCrew()`) in module scope, which every copy of the
+mod shares, so every surface casts alike. The agents list's session poller
+publishes each Claude Code agent's model id as the shared key `endfield.models`.
 
 Two files feed it, both optional:
 

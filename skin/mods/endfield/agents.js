@@ -11,7 +11,7 @@ import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE } from "./kit.js";
-import { roster } from "./roster.js";
+import { roster, holdCrew } from "./roster.js";
 import { BY, DENSE_AT, statusOf, castCrew, held, subagentView, TRANSCRIPT, transcriptsIn, transcriptPlan, rowShape, rowMeta } from "./fleet.js";
 import { toggleReport, goTo } from "./report.js";
 import { openDispatch } from "./dispatch.js";
@@ -414,8 +414,8 @@ export class Agents {
     // Each squad: its rows with tops inside the squad, and where the squad starts in the list.
     let y = 0;
     const nextNums = new Map();
-    // Sub-agents draw around the fleet's operators and the ones sub-agents already hold.
-    const taken = new Set([...R.taken, ...held([...this.subNums.values()].flatMap((c) => [...c.values()]))]);
+    // Sub-agents draw around the fleet's operators and the ones sub-agents already hold (holdCrew).
+    const taken = new Set(R.taken);
     const sections = R.squads.map((q) => {
       const folded = this.folded.has(q.id);
       const start = y + D.head;
@@ -444,7 +444,7 @@ export class Agents {
         const shownSubs = subs.shown;
         // Each draws from its own model's pool (its parent's model when the transcript names none).
         const crew = castCrew(IDENTITY, this.subNums.get(m.address), shownSubs.map((k) => ({ id: k.id, startedAt: k.startedAt,
-          ident: IDENTITY.resolve(m.program, null, { parent: m.program, model: k.model?.id ?? m.model }) })), m.program, taken);
+          ident: IDENTITY.resolve(m.program, null, { parent: m.program, model: k.model?.id ?? m.model }), program: m.program })), taken);
         if (shownSubs.length) nextNums.set(m.address, crew);
         const docked = shownSubs.length ? transcriptsIn(panes(), m.tab)[0] : null;
         for (const k of shownSubs) {
@@ -464,6 +464,7 @@ export class Agents {
       return { q, folded, start, rows, inner, blocked: q.members.filter((m) => m.status === "blocked").length };
     });
     this.subNums = nextNums;
+    holdCrew(held([...nextNums.values()].flatMap((c) => [...c.values()])));
     this.arrive([...sections.flatMap((s) => [...s.rows.map((r) => r.key), ...(s.folded ? [`sq-${s.q.id}-stack`] : [])]), ...blocked.map((m) => `pin-${m.address}`)], cx);
 
     const here = (r) => r.here ?? r.on;
