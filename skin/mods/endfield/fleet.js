@@ -34,15 +34,17 @@ export const BY = {
 export const PINNED = "pinned";
 
 /**
- * { all: Map<address, Member>, squads: [{ id, num, name, machine, pinned?, members: Member[] }], flat: Member[] }
+ * { all: Map<address, Member>, squads: [{ id, num, name, machine, pinned?, members: Member[] }], flat: Member[],
+ *   taken: the operator slots the members drew (see castCrew) }
  * Member: { address, agent (AgentInfo, null for a child without a pane), program, status, title,
  *   space, spaceName, tab, tabIndex, pane, seq, pinned, focused, created, turn, parent (address | null),
- *   depth, kids (addresses), urgency, ident: identity.resolve(...) + { callsign } }
+ *   depth, kids (addresses), urgency, model (id | null), ident: identity.resolve(...) + { callsign, drawn } }
  * Pinned agents (and their trees) come first, in a squad of their own ahead of every space's, so
  * the list and agent.next start with them. `sort` orders siblings; children stay under their parent.
- * identity: { resolve(program, terminal, {parent}), as(slug, program), spares() } (IDENTITY in kit.js).
+ * identity: { resolve(program, terminal, {parent, model}) -> ident + {pool}, as(slug, program) } (IDENTITY in kit.js).
+ * models: { address: model id } for the agents whose model is known.
  */
-export function buildRoster({ listed, terms, spaces, identity, sort = BY.priority }) {
+export function buildRoster({ listed, terms, spaces, identity, models = {}, sort = BY.priority }) {
   const termOf = new Map(terms.map((t) => [t.address, t]));
   const all = new Map();
   for (const a of listed) {
@@ -76,20 +78,14 @@ export function buildRoster({ listed, terms, spaces, identity, sort = BY.priorit
   const urgency = (m) => (m.urgency ??= Math.max(rank(m.status), ...m.kids.map((k) => urgency(all.get(k)))));
   for (const m of all.values()) urgency(m);
 
-  // Identity in creation order: a repeated operator first takes a spare, then a callsign (PERLICA·2).
-  const used = new Map();
-  const spares = [...identity.spares()];
+  // Identity in creation order: each agent draws the first operator of its pool no earlier one
+  // holds, and a callsign number (PERLICA·2) only once the pool is spent. A child of the same
+  // program with no model of its own runs its parent's, as Claude Code's sub-agents do.
+  const taken = new Set();
   for (const m of [...all.values()].sort(byCreation)) {
-    let ident = identity.resolve(m.program, m.address, { parent: m.parent ? all.get(m.parent).program : null });
-    const key = ident.operator ?? `program:${m.program?.key}`;
-    if (used.has(key) && ident.operator && !ident.pinned) {
-      const spare = spares.find((s) => !used.has(s));
-      if (spare) ident = identity.as(spare, m.program);
-    }
-    const k = ident.operator ?? key;
-    const n = (used.get(k) ?? 0) + 1;
-    used.set(k, n);
-    m.ident = { ...ident, callsign: `${ident.name.toUpperCase()}${n > 1 ? `·${n}` : ""}` };
+    const up = m.parent ? all.get(m.parent) : null;
+    m.model = models[m.address] ?? (up && up.program?.key === m.program?.key ? up.model ?? null : null);
+    m.ident = cast(identity, identity.resolve(m.program, m.address, { parent: up?.program ?? null, model: m.model }), m.program, taken);
   }
 
   const place = (m, depth) => [{ ...m, depth }, ...m.kids.map((k) => all.get(k)).sort(sort).flatMap((k) => place(k, depth + 1))];
@@ -106,7 +102,7 @@ export function buildRoster({ listed, terms, spaces, identity, sort = BY.priorit
     const mine = tops.filter((m) => m.space === sp.id && !m.pinned);
     if (mine.length) squads.push(squad(sp.id, String(i + 1).padStart(2, "0"), sp.name, sp.machine ?? null, mine));
   });
-  return { all, squads, flat: squads.flatMap((q) => q.members) };
+  return { all, squads, flat: squads.flatMap((q) => q.members), taken };
 }
 
 // A Claude Code session's own sub-agents under its row: the working ones, or all of them while
@@ -120,21 +116,101 @@ export function subagentView(subs, open) {
   return { shown: open ? newest : working, earlier: newest.length - working.length };
 }
 
-// A Claude Code session's own sub-agents share one operator, so each one shown takes the lowest
-// number no other shown one holds, and keeps it while it stays shown: ARDELIA·2, never ARDELIA·30.
-// prev: Map<id, n> from the last render; shown: ids in start order.
-export function subNumbers(prev, shown) {
-  const next = new Map(shown.filter((id) => prev.has(id)).map((id) => [id, prev.get(id)]));
-  const taken = new Set(next.values());
-  for (const id of shown) {
-    if (next.has(id)) continue;
-    let n = 1;
-    while (taken.has(n)) n++;
-    next.set(id, n);
-    taken.add(n);
-  }
-  return next;
+// ---- casting: which operator an agent is drawn as. IDENTITY in kit.js reads the art pack and the
+// person's overrides; the rules are here, so tests/fleet.test.mjs can run them.
+
+// Stronger models draw stronger operators. The lowercased model id (any "vendor/" prefix dropped)
+// is tested against `rules` in order and the first match names its tier; the tier's pool is the
+// draw order. A model no rule knows draws `fallback`. docs/CASTING.md has the game facts and sources.
+export const CASTING = {
+  rules: [
+    [/fable|mythos/, "fable"],
+    [/haiku|nano|flash-?lite|tiny/, "haiku"],
+    [/opus/, "opus"],
+    [/sonnet/, "sonnet"],
+    [/^gpt-[a-z0-9.-]*-pro|^o\d+-pro|deep-?think|ultra|grok-[a-z0-9.-]*heavy/, "fable"],
+    [/gemini-[a-z0-9.-]*flash/, "sonnet"],
+    // "mini" as a word of its own (gpt-5-mini, o4-mini), never the end of "gemini".
+    [/(^|[-_.])mini($|[-_.])/, "sonnet"],
+    [/flash|fast|(^|[-:/])\d{1,2}b($|[-_.])/, "haiku"],
+    [/composer|cursor/, "sonnet"],
+    [/gemini-[a-z0-9.-]*pro|^gpt-\d|codex|^o\d|grok|deepseek.*(pro|reasoner)|kimi.*pro/, "opus"],
+    [/deepseek|kimi|qwen|glm|minimax|mistral|devstral|codestral|llama|mimo|hy\d/, "sonnet"],
+  ],
+  pools: {
+    fable: ["arcane", "argent-flow", "mi-fu", "rossi", "si", "zhuang-fangyi", "camille", "tangtang", "gilberta"],
+    opus: ["laevatain", "yvonne", "ardelia", "last-rite", "typhoeus", "liino", "pogranichnik", "lifeng", "kay", "perlica", "xaihi"],
+    sonnet: ["chen-qianyu", "avywenna", "ember", "snowshine", "arclight", "wulfgard", "da-pan", "alesh", "mimino", "purrchena"],
+    haiku: ["akekuri", "antal", "catcher", "estella", "fluorite"],
+  },
+  fallback: "endministrator",
+};
+
+/** A model id's tier ("fable" | "opus" | "sonnet" | "haiku"), or null when no rule knows it. */
+export const tierOf = (model) => {
+  const id = String(model ?? "").toLowerCase().split("/").pop();
+  return CASTING.rules.find(([re]) => re.test(id))?.[1] ?? null;
+};
+
+/** The operators a model draws from, in order; null when there is no model. */
+export const poolFor = (model) => (model ? CASTING.pools[tierOf(model)] ?? [CASTING.fallback] : null);
+
+/**
+ * Who an agent is drawn as. First listed wins: its terminal's pin, the person's override for a
+ * same-program child ("sub-agent") or for its program, its model's pool (the members the art pack
+ * has), then the pack's defaults: "sub-agent" for a same-program child, its program, "shell".
+ * cast: {terminals, overrides, defaults: {key: slug | null}, operators: {slug: any}, spares: slug[]}
+ * -> {slug (null: the program's own tile), pinned, pool: the draw order, spares last}
+ */
+export function choose(cast, program, terminal, { parent = null, model = null } = {}) {
+  const pinned = cast.terminals[terminal];
+  const child = Boolean(parent) && parent.key === program?.key;
+  const chosen = [pinned, child ? cast.overrides["sub-agent"] : undefined, cast.overrides[program?.key]].find((v) => v !== undefined);
+  const tier = chosen === undefined ? (poolFor(model) ?? []).filter((s) => cast.operators[s]) : [];
+  const slug = chosen !== undefined ? chosen : tier[0] ?? [child ? cast.defaults["sub-agent"] : undefined, cast.defaults[program?.key], cast.defaults.shell].find((v) => v !== undefined);
+  const own = slug && cast.operators[slug] ? slug : null;
+  const pool = own ? [...new Set([...(tier.length ? tier : [own]), ...(pinned === undefined ? cast.spares : [])])] : [`program:${program?.key}`];
+  return { slug: own, pinned: pinned !== undefined, pool };
 }
+
+const slot = ({ slug, n }) => `${slug}·${n}`;
+
+/** The first of `pool` that `taken` doesn't hold: each once, then each again as ·2, and so on. -> {slug, n} */
+export function draw(pool, taken) {
+  for (let n = 1; ; n++) for (const slug of pool) if (!taken.has(slot({ slug, n }))) return { slug, n };
+}
+
+// ident: identity.resolve(...), whose pool[0] it draws as; d: the drawn slot.
+const named = (identity, ident, program, d) => {
+  const got = d.slug === ident.pool[0] ? ident : identity.as(d.slug, program);
+  return { ...got, callsign: `${got.name.toUpperCase()}${d.n > 1 ? `·${d.n}` : ""}`, drawn: d };
+};
+
+/** Draws one agent around `taken` (and adds it there): identity.resolve(...) + { callsign, drawn }. */
+export function cast(identity, ident, program, taken) {
+  const d = draw(ident.pool, taken);
+  taken.add(slot(d));
+  return named(identity, ident, program, d);
+}
+
+/**
+ * A Claude Code session's own sub-agents: each keeps what it drew while it stays shown; newcomers,
+ * in start order, draw around `taken`, so siblings differ and a number appears only once a pool is
+ * spent: ARDELIA·2, never ARDELIA·30. prev: Map<id, ident> from the last render;
+ * crew: [{id, startedAt, ident}] -> Map<id, ident + { callsign, drawn }>
+ */
+export function castCrew(identity, prev, crew, program, taken) {
+  const out = new Map();
+  for (const k of crew) {
+    const d = prev?.get(k.id)?.drawn;
+    if (d && k.ident.pool.includes(d.slug)) { taken.add(slot(d)); out.set(k.id, named(identity, k.ident, program, d)); }
+  }
+  for (const k of [...crew].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0))) if (!out.has(k.id)) out.set(k.id, cast(identity, k.ident, program, taken));
+  return out;
+}
+
+/** The slots `idents` hold, for draws that must not repeat them. */
+export const held = (idents) => idents.flatMap((i) => (i?.drawn ? [slot(i.drawn)] : []));
 
 // A sub-agent's transcript shows in one pane per tab, docked right of its parent.
 export const TRANSCRIPT = "endfield-transcript";

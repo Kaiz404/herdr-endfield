@@ -3,9 +3,10 @@
 // per space, members in tree order (a parent, then its children). The rules are fleet.js; the
 // squad sidebar, the report, Dispatch, pane headers and the toast all read this.
 
-import { agents, terminals, spaces } from "herdr";
+import { agents, terminals, spaces, shared } from "herdr";
 import { IDENTITY } from "./kit.js";
 import { buildRoster, BY } from "./fleet.js";
 
-/** See buildRoster() in fleet.js. `sort` orders siblings (BY.priority or BY.order). */
-export const roster = (sort = BY.priority) => buildRoster({ listed: agents(), terms: terminals(), spaces: spaces(), identity: IDENTITY, sort });
+/** See buildRoster() in fleet.js. `sort` orders siblings (BY.priority or BY.order). Models: the agents list's session poller publishes them. */
+export const roster = (sort = BY.priority) =>
+  buildRoster({ listed: agents(), terms: terminals(), spaces: spaces(), identity: IDENTITY, models: shared("endfield.models") ?? {}, sort });
