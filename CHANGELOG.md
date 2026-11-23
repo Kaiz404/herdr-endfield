@@ -9,6 +9,8 @@
 ### Changed
 
 - **One transcript pane per tab.** Clicking a Claude Code sub-agent in Squads opens its transcript right of its parent, as before. Clicking another sub-agent now replaces that pane instead of splitting the tab again, and clicking the one shown focuses it. The shown sub-agent's row is marked as selected.
+- **Claude Code sub-agents.** Squads used to show at most four sub-agents under a parent, picked in no useful order. Now it shows every working sub-agent, newest first. A row under them, **+N earlier**, lists the finished ones too, newest first. **Show less** folds them away again. Each parent remembers its choice until Herdr reloads the skin. A long list scrolls.
+- **One motion per working agent.** A generating row in Squads no longer has a blue segment sliding along its floor. The status glyph still animates, so a sidebar full of working agents is calmer.
 
 ## 0.2.0
 

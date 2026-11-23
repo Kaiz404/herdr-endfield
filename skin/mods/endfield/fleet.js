@@ -7,7 +7,7 @@ export const STATUS = {
   blocked: { word: "Needs input", kind: "pill", bar: "signal", edge: "hazard", rank: 4 },
   error: { word: "Error", kind: "text", glyph: "×", hue: "error", bar: "red", rank: 4 },
   done: { word: "Claimed", kind: "disc", glyph: "✓", bar: "lime", fresh: true, enter: ["flash", "pop"], rank: 3 },
-  working: { word: "Generating", kind: "march", hue: "flow", bar: "flowInv", conveyor: true, rank: 2 },
+  working: { word: "Generating", kind: "march", hue: "flow", bar: "flowInv", rank: 2 },
   idle: { word: "Idle", kind: "mono", glyph: "zZ", bar: "hairStrong", quiet: true, rank: 1 },
 };
 export const statusOf = (s) => STATUS[s] ?? null;
@@ -107,6 +107,17 @@ export function buildRoster({ listed, terms, spaces, identity, sort = BY.priorit
     if (mine.length) squads.push(squad(sp.id, String(i + 1).padStart(2, "0"), sp.name, sp.machine ?? null, mine));
   });
   return { all, squads, flat: squads.flatMap((q) => q.members) };
+}
+
+// A Claude Code session's own sub-agents under its row: the working ones, or all of them while
+// `open`, newest started first (by start, not last write, so a busy one doesn't hop past a newer
+// one). `earlier` counts the ones not working, which a toggle row offers.
+// subs: [{status, startedAt | null, lastAt}] -> {shown: subs, earlier: number}
+export function subagentView(subs, open) {
+  const at = (k) => k.startedAt ?? k.lastAt ?? 0;
+  const newest = [...subs].sort((a, b) => at(b) - at(a));
+  const working = newest.filter((k) => k.status === "working");
+  return { shown: open ? newest : working, earlier: newest.length - working.length };
 }
 
 // A Claude Code session's own sub-agents share one operator, so each one shown takes the lowest

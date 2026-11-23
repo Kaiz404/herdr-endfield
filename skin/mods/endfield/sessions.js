@@ -13,7 +13,7 @@
 // Session = {sessionId, terminal, cwd, transcriptPath, approx, model:{id, display, short} | null,
 //   ctx:{used, total, pct} | null, tokens:{total, delta} | null, tools, turns, effort, mode,
 //   lastAction:{tool, arg} | null, lastAt, startedAt, question, subagents: Sub[]}
-// Sub = {id, path, title, model, tools, status: working | done | idle, lastAt, lastAction}
+// Sub = {id, path, title, model, tools, status: working | done | idle, lastAt, startedAt, lastAction}, in no order (fleet.js subagentView orders them)
 
 import * as fs from "fs/promises";
 import { exec, appHome, watchFolder, checking } from "herdr";
@@ -58,7 +58,7 @@ function shape(t, raw, parentStatus) {
     lastAt: s.mtime,
     startedAt: s.firstAt ?? null,
     lastAction: s.last,
-  })).sort((a, b) => b.lastAt - a.lastAt);
+  }));
   return {
     sessionId: sidecar?.session_id ?? raw?.sessionId ?? null,
     terminal: t.terminal,
