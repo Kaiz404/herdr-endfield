@@ -140,7 +140,18 @@ rendered at 4x. It is a schematic, not a screenshot.
   chip; hc notes are a grey square.
 - **HUD footer, 44px**: ink with a faint 45° grain. The number of active
   agents on a 22px odometer, `// space / tab`, then `▶▶ 14 GENERATING` and
-  `✓ 01 FINISHED` on odometers; at the right the focused agent's context (used /
+  `✓ 01 FINISHED` on odometers; the account's Claude usage limits in the
+  free width, each window a block of two rows on one left edge, `5-HOUR
+  54% USED` over `▰▰▰▰▱▱▱▱ RESETS 1H 40M`, the percent column shared by both
+  rows, the blocks 12px either side of a hairline, no dots or pipes (label
+  and `USED` in the 10px mono label voice, the percent 13px bold; the kit's
+  8-block gauge, filled by percent used; countdown `<1m`, `42m`, `5h 00m`,
+  `2d 5h`; the newest any statusline sidecar carries; from 80% a red `▲`
+  before the label, a red gauge and a red percent; a window whose reset time
+  has passed reads `5-HOUR RESET` over an empty gauge; when the width runs
+  short the gauges go first, then the second window's `USED`; the rows keep
+  their 13px and 10px heights at every width; absent with no Claude
+  statusline data; the countdown repaints once a minute); at the right the focused agent's context (used /
   total over a 3px bar, red past 75%), its model, the branch and the machine;
   and a 176px yellow block, `04 NEEDS INPUT ▶`, that opens (300ms) while
   anyone needs input; click goes to the first.
