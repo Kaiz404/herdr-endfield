@@ -56,21 +56,21 @@ rendered at 4x. It is a schematic, not a screenshot.
     count, three rows, then "+N more · Report ▶") sits above every squad. The
     list scrolls and says "▾ N more agents below". Without the art pack every
     chip shows its program's tile instead.
-  - Session card, 330px, beside the sidebar while an agent row is hovered:
-    white slab, 1px hairline, radius 4, large shadow, a 3px status-colour edge.
-    `// Session · T1` and the session's age; the title (15px semibold); a
-    status chip and `space / tab`; Model (name and id) | Effort · Mode;
-    Context: the % in the wide face at 22px, `used / total`, and 20 blocks
-    (10x8, 3px apart, lit in ink, red past 75%); Tool calls | Tokens (▲ last
-    turn) | Turns; Flow (`folder ▶▶ N sub-agents`, or the last target) and
-    `● Tool · arg · 8s ago`; a mono question block with a yellow left edge
-    when blocked; yellow Answer/Focus ▶▶, ghost Peek and Pin, and the
-    sub-agent count. Unknown fields (any non-Claude agent) read `—`.
+  - Session panel, 368px, beside the sidebar while a squad row is hovered,
+    laid out like an AIC machine panel: the operator's bust in a dotted frame
+    with a range ring and an accent foot, an ink `// SESSION T3` chip and a
+    barcode, the task, `CALLSIGN · program · where`; three cells (Input on a
+    dot field: the folder and model as item tiles; the state with its march,
+    a tick ruler and `elapsed · turn`; Output: tokens in the wide face);
+    context reserves (20 blocks); Comms (the last two messages in and out,
+    `Log ▶`); the question in brackets when blocked; an ink footer with the
+    Current formula (`folder ▶▶ last action`), Peek, Pin, Dispatch + and
+    Answer/Focus ▶. Unknown fields (any non-Claude agent) read `—`.
   - Footer, 40px: settings (with an orange diamond when an update is ready),
     add machine, fold sidebar, and the palette key in mono.
 - **Tab strip, 36px**, drags the window: tabs run full height, separated by
   hairlines; each shows a mono index `01`, the agent icon, the label and its
-  status. The active tab sits on one yellow block that slides between tabs,
+  status. The active tab sits on a yellow plate that snaps to it while a 3px ink marker slides along its foot,
   with ink text and a close ×. Then an ink "+ New" button (radius 3, a 3px
   yellow tab on its left edge), the Files and Changes pills (ghost; ink when
   open; which show is shared `workspace.panels`), and on Windows and Linux
@@ -87,10 +87,12 @@ rendered at 4x. It is a schematic, not a screenshot.
   under it and the pill turns ink with yellow text; no toast is made.
   Files and Changes open in a
   368px panel on the right (min 280, max 900), paper, radius 4.
-- **Status bar, 28px**: ink with a faint 45° grain. `// space / tab`, then the
-  counts in the wide face: `02 WORKING`, `01 NEEDS INPUT` (a yellow pill when
-  above zero), `03 DONE`; at the right the branch, the machine and the palette
-  key.
+- **HUD footer, 44px**: ink with a faint 45° grain. The number of active
+  agents on a 22px odometer, `// space / tab`, then `▶▶ 14 GENERATING` and
+  `✓ 01 CLAIMED` on odometers; at the right the focused agent's context (used /
+  total over a 3px bar, red past 75%), its model, the branch and the machine;
+  and a 176px yellow block, `04 NEEDS INPUT ▶`, that opens (300ms) while
+  anyone needs input; click goes to the first.
 - **Toasts**: a white slab with a 3px edge and a round glyph in the level's
   colour, title, body, `// space` top right, a yellow "Open ▶" pill and a 2px
   countdown. An agent that finished gets the Claimed slip: its chip flashes
@@ -118,9 +120,11 @@ rendered at 4x. It is a schematic, not a screenshot.
   blocked waits.
 - **Done:** the lime disc grows from 0 (200ms); it turns idle when looked at.
 - **Idle:** `zZ Idle` in muted text, still.
-- **Start:** an ink screen over faint contour lines, a 10px yellow gauge fills
-  the left edge, a yellow wipe crosses, then the screen fades (1.5s; a click
-  skips it). The regions build in placeholder-first, each fading in (120ms) 100ms apart: brand, spaces and tabs,
+- **Start:** an ink screen with range rings and four registration crosses, a
+  10px yellow bar fills the left edge (650ms from 100ms), `HERDR//` types on
+  glyph by glyph (50ms apart from 200ms), a yellow rule retracts to the right
+  (150ms from 760ms) under `// FIELD OPS · ESTABLISHING LINK`, then the screen
+  fades (225ms from 1275ms; a click skips it). The regions build in placeholder-first, each fading in (120ms) 100ms apart: brand, spaces and tabs,
   agents and panes, status. The mark's bars rise 80ms apart and the
   tri-colour bar wipes in.
 - **Spaces:** click selects (the ink fill wipes in, the yellow edge grows

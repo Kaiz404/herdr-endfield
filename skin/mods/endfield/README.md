@@ -21,9 +21,10 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   order so it never hops), its parent and depth, and squads (one per space) in
   tree order.
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
-  `card.js` (the session card), `tabs.js`, `pane.js` (the name plate), `status.js`,
+  `card.js` (the session panel), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),
   `toast.js` (notifications; it decides between the cut-in, the Claimed slip and
-  the plain slab), `cutin.js` (the needs-input skill caption).
+  the plain slab), `cutin.js` (the needs-input skill caption), `comms.js` (the
+  message log Dispatch writes).
 - `sessions.js` is the data layer for Claude Code sessions: one parsed shape per
   agent terminal (model, context, tokens, tools, turns, last action, pending
   question, sub-agents). Sources, first wins: a statusline sidecar in
@@ -50,7 +51,13 @@ python mods/endfield/tools/make_art.py
 - Tinted with the text colour (`svg()`): `diamond`, `plus`, `close`,
   `chevron-down`, `chevron-right`, `settings`, `server`, `monitor`,
   `sidebar`, `pin`, `pin-off`, `clock`, `layers`, `split-right`, `split-down`,
-  `zoom`, `unzoom`, `win-min`, `win-max`, `win-restore`, `win-close`, `contour`.
+  `zoom`, `unzoom`, `win-min`, `win-max`, `win-restore`, `win-close`, and the
+  geometric layer: `dots` (6px dot field), `grid` (48px), `barcode`, `cross`
+  (registration), `ticks` / `vticks` (rulers, major every 20px), `rings` (range
+  rings). Each has one helper in `kit.js` (`dots()`, `grid()`, `barcode()`,
+  `cross()`, `ticks()`, `rings()`); the patterns are SVG `<pattern>` fills drawn
+  large and clipped by their parent. The cut-in's diagonal band is a native path
+  (`band()`).
 - Hazard stripes are drawn natively (`hazard()` in `kit.js`, a 45° pattern), not an asset.
 - The brand mark in the sidebar is drawn from divs (its bars rise).
 - `layouts/endfield.svg` is the settings preview, drawn by hand.

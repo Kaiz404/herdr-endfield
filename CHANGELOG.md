@@ -13,6 +13,7 @@
 - **Needs input, as a skill caption.** An agent that needs input while you look elsewhere gets a cut-in: its operator's portrait, a yellow block that sweeps across its callsign, the question from its screen, Answer and Later. If its pane already has focus, there is no toast: the pane's name plate pulses yellow instead. Finished agents get a Claimed slip with a one-beat flash.
 - **Name-plate pane headers.** Wide-caps titles, the program's square tile, and the operator's chip on agent panes.
 - **Original sounds.** A needs-input alert, a Claimed chime and quiet UI ticks, synthesised for the skin. They never double Herdr's own sounds; see the mod README.
+- **Session panel, HUD footer, boot.** Hovering a squad row opens a session panel laid out like an AIC machine panel (bust portrait, input, state and output cells, context reserves, comms, the current formula). The status bar is now a 44px HUD with odometers and a Needs-input block. The start screen types HERDR// on over range rings. Actions are game pills with a knob that nudges on hover; geometric texture (dots, rings, crosses, rulers, barcodes) frames empty space and titles, never text.
 - **Demo fleet.** `node scripts/demo-fleet.mjs up --agents 30` fills Herdr with stand-in agents (Node processes that only report a status) for screenshots and checks at scale; `down` removes them.
 
 - **First public layout.** The Endfield layout, its light and night themes, the `endfield`, `endfield-toast` and `endfield-transcript` mods, and a settings preview.

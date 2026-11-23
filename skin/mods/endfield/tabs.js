@@ -5,7 +5,7 @@
 import { div, svg, image } from "gpui-kit";
 import { h_flex, ScrollHandle } from "gpui-base";
 import { spaces, panes, run, openOverlay, window as appWindow, shared, layout, settings } from "herdr";
-import { palette, root, find, stop, statusOf, glyph, freshDot, micro, icon, pad2, telling, growDisc, Entrance, MOTION, ASSETS } from "./kit.js";
+import { palette, root, find, stop, statusOf, glyph, freshDot, micro, icon, pad2, telling, growDisc, pill, cue, Entrance, MOTION } from "./kit.js";
 
 // A tab Herdr named follows its agent's live title, as the agents list does; a name the person gave stays.
 function label(tab, lead) {
@@ -135,21 +135,6 @@ export default class Tabs {
     };
   }
 
-  /**
-   * An ink button: a 3px yellow side tab that, on hover, turns into a ▶ sliding 9px in
-   * while the label nudges 5px. The tab fades out as the arrow fades in.
-   */
-  ink(C, id, label, action) {
-    const hot = this.hot === id;
-    return h_flex().id(id).relative().h(24).pl(14).pr(12).flex_none().items_center().rounded(3).overflow_hidden()
-      .bg(C.pillBg).text_color(C.pillText).text_size(12).font_medium()
-      .on_hover(this.hover(id)).on_mouse_down("left", stop).on_click(action)
-      .child(div().id(`${id}-tab`).absolute().left(0).top(0).bottom(0).w(3).bg(C.signal).opacity(hot ? 0 : 1).transition("opacity", MOTION.row.wipe))
-      .child(svg(`${ASSETS}/tri.svg`).id(`${id}-tri`).absolute().top(8).w(6).h(8).text_color(C.signal)
-        .left(hot ? 9 : 2).opacity(hot ? 1 : 0).transition("left", MOTION.row.nudge).transition("opacity", MOTION.row.wipe))
-      .child(h_flex().id(`${id}-label`).relative().left(hot ? 5 : 0).transition("left", MOTION.row.nudge).gap(6).items_center().children(label));
-  }
-
   render() {
     const C = palette();
     const space = spaces().find((p) => p.active);
@@ -168,10 +153,8 @@ export default class Tabs {
     const panel = find(rootNode, "panel"), body = find(rootNode, "panel-body");
     const enabled = shared("workspace.panels") ?? ["files", "changes"];
     this.syncPanel(space, panel, body, enabled);
-    const pill = (id, label, on, action) => on ? this.ink(C, id, [label], action)
-      : h_flex().id(id).h(24).px(12).flex_none().items_center().rounded_full().text_size(12).font_medium().border_1()
-        .border_color(C.hairStrong).text_color(C.text).hover((s) => s.bg(C.raised))
-        .on_mouse_down("left", stop).on_click(action).child(label);
+    // Game pills: an open panel's pill is ink, a closed one an outline.
+    const toggle = (id, label, on, action) => pill(C, id, label, { kind: on ? "ink" : "ghost", knob: null, action: () => { if (!on) cue("tick"); action(); } });
     // The active tab's yellow block slides between tabs over their measured widths.
     const lefts = shown.reduce((xs, c) => [...xs, xs.at(-1) + (this.widths[c.id] ?? 0)], [0]);
     const at = lefts[Math.max(0, active)], width = active >= 0 ? this.widths[shown[active].id] ?? 0 : 0;
@@ -194,12 +177,13 @@ export default class Tabs {
         .children(shown.map((c, i) => this.item(C, space, shown, active, c, i)))
         .child(mark))
       .child(h_flex().h_full().px(10).flex_none().items_center()
-        .child(this.ink(C, "tab-new", [icon("plus", 10), "New"], () => openOverlay({ mod: "new-menu", kind: "popup", width: 250, height: 512 }))))
+        .child(pill(C, "tab-new", "New tab", { knob: "+", hot: this.hot === "tab-new", on_hover: this.hover("tab-new"),
+          action: () => openOverlay({ mod: "new-menu", kind: "popup", width: 250, height: 512 }) })))
       .child(div().flex_1().h_full())
       .child(h_flex().h_full().px(12).gap(6).flex_none().items_center()
         .children(PANELS.filter((p) => enabled.includes(p.id)).map((p) => {
           const on = Boolean(panel) && !panel.hidden && body?.active === p.id;
-          return pill(`panel-${p.id}`, p.label, on, () => {
+          return toggle(`panel-${p.id}`, p.label, on, () => {
             if (on) run("layout.hide", { id: "panel" });
             else { run("layout.select", { stack: "panel-body", child: p.id }); run("layout.show", { id: "panel" }); }
           });

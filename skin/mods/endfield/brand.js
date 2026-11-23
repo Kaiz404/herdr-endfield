@@ -4,7 +4,7 @@
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { run, updates, setShared, openOverlay, closeOverlay, props, checking, window as appWindow } from "herdr";
-import { palette, root, narrow, toggleSidebar, stop, icon, micro, wide, glyph, freshDot, binding, contour, growDisc, Entrance, MOTION } from "./kit.js";
+import { palette, root, narrow, toggleSidebar, stop, icon, micro, wide, freshDot, binding, rings, cross, growDisc, Entrance, MOTION } from "./kit.js";
 
 // The mark: an ink tile whose bars rise in turn (height, 80ms apart), the last a ramp at half strength.
 const BARS = [
@@ -95,8 +95,10 @@ export class Footer {
   }
 }
 
-// The boot: ink over faint contour lines, a 10px yellow gauge filling up the left edge,
-// a yellow wipe across, then a fade. Click skips it.
+// The boot, the one loud moment (release PV end card): ink, range rings and registration crosses,
+// a 10px yellow bar filling the left edge, HERDR// typed on glyph by glyph (each glyph its own
+// opacity transition: .frames would loop), a yellow rule that retracts to the right, the subline,
+// then the whole screen fades and the regions build in. Click skips it.
 export class Boot {
   init() {
     this.size = null;
@@ -112,6 +114,8 @@ export class Boot {
     const C = palette();
     const s = this.size;
     const go = Boolean(s);
+    const W = 220;
+    const corner = (x, y) => cross("#FFFFFF4D").absolute().left(x).top(y);
     return h_flex().id("boot").relative().size_full().bg("#141414").items_center().justify_center().overflow_hidden().cursor_pointer()
       .on_size_change((size, cx) => {
         if (this.size) return;
@@ -122,17 +126,20 @@ export class Boot {
       .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); this.close(); })
       .opacity(go ? 0 : 1)
       .transition("opacity", MOTION.boot.exit)
-      .when(go, (el) => el.child(contour(s.width, s.height, "#FFFFFF")))
-      .child(v_flex().gap(18).items_center()
-        .child(wide("Herdr", "#F2F2F2", 22))
-        .child(h_flex().gap(6).items_center()
-          .child(micro("// Field ops · establishing link", "#A9A9A3"))
-          .child(glyph({ ...C, flow: C.signal }, "working", { size: 10 }))))
+      .when(go, (el) => el
+        .child(rings("#FFFFFF24", 460).absolute().left(s.width / 2 - 230).top(s.height / 2 - 230))
+        .child(corner(60, 53)).child(corner(s.width - 69, 53)).child(corner(60, s.height - 67)).child(corner(s.width - 69, s.height - 67)))
+      .child(v_flex().relative().gap(18).items_center()
+        .child(h_flex().children([..."HERDR//"].map((g, i) => div().id(`boot-g-${i}`).opacity(go ? 1 : 0)
+          .transition("opacity", { ...MOTION.boot.type, delay: MOTION.boot.type.delay + i * MOTION.boot.glyph.delay })
+          .child(wide(g, "#F2F2F2", 28)))))
+        .child(div().relative().w(W).h(14).flex().justify_center()
+          .child(div().id("boot-sub").absolute().top(4).opacity(go ? 1 : 0).transition("opacity", MOTION.boot.sub)
+            .child(micro("// Field ops · establishing link", "#A9A9A3")))
+          .child(div().id("boot-rule").absolute().top(0).h(2).bg(C.signal).left(go ? W : 0).w(go ? 0 : W)
+            .transition("left", MOTION.boot.rule).transition("width", MOTION.boot.rule))))
       .child(div().absolute().left(0).top(0).bottom(0).w(10).bg("#2C2C2C")
-        .child(div().id("boot-gauge").absolute().left(0).right(0).bottom(0).h(go ? s.height : 0).bg(C.signal)
-          .transition("height", MOTION.boot.bar)))
-      // The wipe: slow start, slam finish (ease-in is the nearest native curve to the site's cubic-bezier(1,0,.7,1)).
-      .child(div().id("boot-wipe").absolute().left(0).top(0).bottom(0).w(go ? s.width : 0).bg(C.signal)
-        .transition("width", MOTION.boot.rule));
+        .child(div().id("boot-bar").absolute().left(0).right(0).bottom(0).h(go ? s.height : 0).bg(C.signal)
+          .transition("height", MOTION.boot.bar)));
   }
 }

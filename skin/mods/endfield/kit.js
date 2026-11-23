@@ -62,6 +62,11 @@ const PALETTE = {
     error: "#C42126",
     errorInv: "#FF5A5E",
     glow: "#00000024",
+    // The geometric layer: rings, crosses, tick rulers, dot fields, the blueprint grid.
+    geo: "#1919192E",
+    cross: "#8F8F8F",
+    tick: "#A9A9A9",
+    dot: "#19191929",
   },
   night: {
     ground: "#141414",
@@ -85,6 +90,10 @@ const PALETTE = {
     error: "#FF5A5E",
     errorInv: "#C42126",
     glow: "#00000080",
+    geo: "#FFFFFF29",
+    cross: "#5A5A5A",
+    tick: "#4A4A4A",
+    dot: "#FFFFFF1F",
   },
 };
 
@@ -529,6 +538,35 @@ export function growDisc(id, w, h, d, on, color) {
     .transition("left", MOTION.done.check).transition("top", MOTION.done.check);
 }
 
+// ---- pills: actions are full-radius pills with a round knob at their right end that nudges 3px
+// on hover. primary: yellow (the one action that matters here); paper: raised with a grey left
+// edge; ink: an ink pill; ghost: an outline with no knob. The caller owns the hover state.
+const PILL = {
+  primary: (C) => ({ bg: C.signal, fg: C.ink, knobBg: C.ink, knobFg: C.signal }),
+  paper: (C) => ({ bg: C.raised, fg: C.text, knobBg: C.selBg, knobFg: C.selText, edge: C.hairStrong }),
+  ink: (C) => ({ bg: C.pillBg, fg: C.pillText, knobBg: C.pillText, knobFg: C.pillBg }),
+  dark: (C) => ({ bg: "#FFFFFF", fg: C.ink, knobBg: C.ink, knobFg: "#F2F2F2", edge: "#BDBDBD" }),
+};
+
+/** A game pill. opts: { kind, knob (glyph, or null for a ghost), hot, on_hover, action, h, tip, extra } */
+export function pill(C, id, label, { kind = "paper", knob = "▶", hot = false, on_hover = null, action = null, h = 26, tip = null, extra = null } = {}) {
+  const k = kind === "ghost" ? null : PILL[kind](C);
+  return h_flex().id(id).h(h).flex_none().items_center().rounded_full().gap(8).cursor_pointer()
+    .pl(12).pr(k && knob ? 3 : 12)
+    .when(Boolean(k), (el) => el.bg(k.bg).text_color(k.fg))
+    .when(Boolean(k?.edge), (el) => el.border_l(2).border_color(k.edge))
+    .when(!k, (el) => el.border_1().border_color(C.hairStrong).text_color(C.text).hover((s) => s.bg(C.raised)))
+    .when(Boolean(tip), (el) => el.tooltip(tip))
+    .when(Boolean(on_hover), (el) => el.on_hover(on_hover))
+    .on_mouse_down("left", stop)
+    .when(Boolean(action), (el) => el.on_click(action))
+    .child(div().text_size(12).font_semibold().child(label))
+    .when(Boolean(extra), (el) => el.child(extra))
+    .when(Boolean(k && knob), (el) => el.child(div().id(`${id}-knob`).relative().left(hot ? 3 : 0).transition("left", MOTION.row.nudge)
+      .size(h - 6).rounded_full().bg(k.knobBg).text_color(k.knobFg).flex().items_center().justify_center()
+      .text_size(knob === "+" ? 11 : 8).child(knob)));
+}
+
 // ---- the geometric layer: generated SVGs, tinted, drawn large and clipped by their parent.
 
 /** A field of dots (6px pitch) filling a relative, overflow-hidden parent. */
@@ -555,7 +593,3 @@ export function band(color, h = 240) {
   return window.paint_path(path, color).absolute().left(0).top(0).w(140).h(h);
 }
 
-/** Topographic lines, tinted (6% in the art): the boot's ground, and empty states. */
-export function contour(w, h, color) {
-  return svg(`${ASSETS}/contour.svg`).absolute().left(0).top(0).w(w).h(h).text_color(color);
-}

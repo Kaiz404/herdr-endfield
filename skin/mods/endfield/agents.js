@@ -9,7 +9,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, panes, focused, spaces, layout, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
-import { palette, root, narrow, find, toggleSidebar, statusOf, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, duration, telling, wipe, marker, nudge, contour, Entrance, StatusFx, MOTION, IDENTITY, FONT } from "./kit.js";
+import { palette, root, narrow, find, toggleSidebar, statusOf, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, duration, telling, wipe, marker, nudge, rings, cross, ticks, pill, Entrance, StatusFx, MOTION, IDENTITY, FONT } from "./kit.js";
 import { roster, BY, DENSE_AT } from "./roster.js";
 import { Sessions, isClaude } from "./sessions.js";
 import { CARD, cardHeight } from "./card.js";
@@ -328,6 +328,15 @@ export class Agents {
         .child(micro(`+${blocked.length - PIN.max} more need input`, C.muted)).child(div().flex_1()).child(micro("Report ▶", C.text))));
   }
 
+  // The HUD footer shows the focused agent's context; this list owns the one session poller.
+  shareFocus(R) {
+    const f = R.flat.find((m) => m.focused);
+    const s = f ? this.sessions.get(f.address) : null;
+    const v = f ? { ctx: s?.ctx ?? null, model: s?.model?.short ?? f.program?.name ?? null } : null;
+    const text = JSON.stringify(v);
+    if (text !== this.focusText) { this.focusText = text; setShared("endfield.focus", v); }
+  }
+
   render(cx) {
     const C = palette();
     const hot = shared("endfield.card.hot") ?? null;
@@ -398,8 +407,16 @@ export class Agents {
     this.scrollY = Math.min(this.scrollY, maxY);
     const below = this.viewH ? sections.reduce((n, s) => n + (s.folded ? 0 : s.rows.filter((r) => !r.native && s.start + r.top >= this.scrollY + this.viewH).length), 0) : 0;
     const active = R.flat.filter((m) => !statusOf(m.status)?.quiet).length;
+    this.shareFocus(R);
+    // The geometric layer fills the list's empty foot, never behind a row.
+    const room = this.viewH - y > 170;
 
-    return root(C, this.entrance.apply(v_flex().size_full().min_h(0).bg(C.ground).border_t(1).border_color(C.hair)
+    return root(C, this.entrance.apply(v_flex().relative().size_full().min_h(0).bg(C.ground).border_t(1).border_color(C.hair).overflow_hidden()
+      .when(room && R.flat.length > 0, (el) => el
+        .child(rings(C.geo, 260).absolute().right(-70).bottom(-60))
+        .child(cross(C.cross).absolute().left(14).bottom(14))
+        .child(micro("Grid 04 · 1:240", C.muted, 9).absolute().left(30).bottom(15))
+        .child(ticks(C.tick, 81).absolute().left(16).bottom(34)))
       .child(h_flex().flex_none().h(44).pt(6).pl(16).pr(12).gap(8).items_center()
         .child(div().text_size(13).font_semibold().child("// Squads"))
         .child(div().flex_1())
@@ -408,13 +425,12 @@ export class Agents {
           .hover((h) => h.bg(C.raised)).tooltip("Sort within each squad")
           .on_click(() => openOverlay({ mod: "endfield", kind: "popup", width: 210, height: 112, props: { role: "sortmenu" } }))
           .child(micro(`${sort.label} ▾`, C.text))))
-      .when(R.flat.length === 0, (el) => el.child(v_flex().relative().h(170).flex_none().items_center().justify_center().gap(8).overflow_hidden()
-        .child(contour(this.width || 248, 170, C.text))
-        .child(div().text_size(13).font_medium().child("No squad deployed"))
-        .child(div().w(180).text_size(12).line_height(1.4).text_color(C.muted).text_center().child("Agents you start show here, grouped by project."))
-        .child(h_flex().id("ag-empty-dispatch").mt(6).h(26).pl(12).pr(3).gap(8).items_center().rounded_full().bg(C.raised).border_l(2).border_color(C.hairStrong)
-          .text_size(12).font_semibold().on_click(() => openDispatch({ mode: "new" }))
-          .child("Dispatch").child(div().size(20).rounded_full().bg(C.selBg).text_color(C.selText).flex().items_center().justify_center().child("+")))))
+      .when(R.flat.length === 0, (el) => el.child(v_flex().relative().h(210).flex_none().items_center().justify_center().gap(8).overflow_hidden()
+        .child(rings(C.geo, 164).absolute().left((this.width || 248) / 2 - 82).top(23))
+        .child(div().relative().text_size(13).font_medium().child("No squad deployed"))
+        .child(div().relative().w(170).text_size(12).line_height(1.4).text_color(C.muted).text_center().child("Agents you start show here, grouped by project."))
+        .child(div().relative().mt(6).child(pill(C, "ag-empty-dispatch", "Dispatch", { knob: "+", hot: this.hovered === "ag-empty-dispatch",
+          on_hover: (over, cx) => { this.hovered = over ? "ag-empty-dispatch" : null; cx.notify(); }, action: () => openDispatch({ mode: "new" }) })))))
       .when(dense && blocked.length > 0, (el) => el.child(this.pinned(C, blocked, num)))
       .child(v_flex().id("ag-list").relative().flex_1().min_h(0).pb(8).overflow_y_scrollbar()
         .on_size_change((size, cx) => { this.width = size.width; this.viewH = size.height; cx.notify(); })

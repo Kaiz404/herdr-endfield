@@ -15,8 +15,6 @@ def fill(body, w=16, h=16):
 
 ICONS = {
     "diamond": fill('<path d="M8 1.5L14.5 8L8 14.5L1.5 8z"/>'),
-    # The ink button's hover arrow: what its yellow side tab turns into.
-    "tri": fill('<path d="M0 0L6 4L0 8z"/>', 6, 8),
     "plus": stroke('<path d="M8 2.5v11M2.5 8h11"/>', width=1.5),
     "close": stroke('<path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/>', width=1.4),
     "chevron-down": stroke('<path d="M3.5 6l4.5 4.5L12.5 6"/>', width=1.5),
@@ -38,22 +36,6 @@ ICONS = {
     "win-restore": stroke('<rect x=".5" y="2.5" width="7" height="7"/><path d="M2.5 2.5V.5h7v7h-2"/>', size=10, width=1),
     "win-close": stroke('<path d="M0 0l10 10M10 0L0 10"/>', size=10, width=1),
 }
-
-# Original topographic lines: two nested ridge systems and a knoll, white at 6%.
-def contour():
-    paths = []
-    for i in range(5):
-        y = 120 + i * 34
-        paths.append(f'<path d="M0 {y} C 260 {y + 70} 470 {y - 60} 760 {y + 10} S 1180 {y + 90} 1440 {y + 20}"/>')
-    for i in range(4):
-        y = 620 + i * 38
-        paths.append(f'<path d="M0 {y + 30} C 210 {y - 40} 520 {y + 80} 800 {y} S 1250 {y - 70} 1440 {y + 10}"/>')
-    for r in (0, 18, 36):
-        paths.append(f'<ellipse cx="1120" cy="430" rx="{110 - r}" ry="{64 - r * 0.6:.0f}" transform="rotate(-12 1120 430)"/>')
-    return ('<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" preserveAspectRatio="none" '
-            'fill="none" stroke="#FFFFFF" stroke-opacity="0.06" stroke-width="1">' + "".join(paths) + "</svg>\n")
-
-ICONS["contour"] = contour()
 
 # The geometric layer, all tinted with the text colour and drawn large, then clipped by their
 # parent: a field of dots (6px pitch), a 48px grid, a catalogue barcode, a registration cross,
