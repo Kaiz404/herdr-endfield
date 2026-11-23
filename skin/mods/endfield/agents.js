@@ -1,52 +1,43 @@
-// agents: every agent, most urgent first (or by space), parents carrying their
-// sub-agents as a production chain. Behaviour ported from the shipped `agents`
-// mod: setAgentOrder, sort modes, pins, peek for sub-agents, title cleaning,
-// time since the last state change. Claude Code agents also show their model and
-// context (sessions.js), their own sub-agents read from the transcript, and a
-// session card while hovered (card.js).
+// agents: the squad sidebar. Every agent grouped by its space (a squad), each squad in tree order
+// (a lead, then the agents it started, joined by right-angle connectors whatever their vendor),
+// each agent a party chip with its operator's callsign. Past 12 agents the rows go compact and the
+// agents that need input are also pinned above every squad. Behaviour kept from the shipped
+// `agents` mod: setAgentOrder, sort modes, pins, peek for sub-agents, title cleaning, time since the
+// last state change. Claude Code agents also show their model and context (sessions.js), their
+// own sub-agents read from the transcript, and a session card while hovered (card.js).
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, terminals, panes, focused, spaces, layout, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
-import { palette, root, narrow, find, toggleSidebar, rank, statusOf, statusMark, glyph, hazardTick, tile, micro, icon, pad2, duration, telling, wipe, slide, nudge, flicker, contour, Entrance, StatusFx, MOTION, IDENTITY } from "./kit.js";
+import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
+import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, duration, telling, wipe, marker, nudge, rings, cross, ticks, pill, Entrance, StatusFx, MOTION, IDENTITY, FONT } from "./kit.js";
+import { roster } from "./roster.js";
+import { BY, DENSE_AT, statusOf, subNumbers } from "./fleet.js";
+import { toggleReport, goTo } from "./report.js";
+import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
 import { CARD, cardHeight } from "./card.js";
 
-// Fixed heights, so the selection block knows where the selected row starts.
-const H = { row: 50, sub: 40, head: 28 };
+// Fixed heights, so the selection marker knows where the selected row starts (the row's own ink plate snaps).
+// Compact (DENSE_AT agents and up): 34px rows that keep the chip, badge and callsign over the task.
+const H = {
+  full: { lead: 56, child: 50, head: 28, chip: [36, 28], pad: [16, 46] },
+  dense: { lead: 34, child: 34, head: 26, chip: [24, 20], pad: [14, 34] },
+};
+const PIN = { max: 3, row: 34, more: 22 };
 // Claude Code sub-agents shown under a parent: every working one, else the newest few.
 const NATIVE_SHOWN = 4;
+// A wheel notch in lines, as pixels, for the "N below" estimate (the scroll area reports no offset).
+const LINE_PX = 20;
 
-const cwdOf = (a) => panes().find((p) => p.terminal === a.address)?.cwd ?? terminals().find((t) => t.address === a.address)?.cwd ?? null;
-
-// Right-angle hairlines from the parent: a production chain, one column per depth.
-function chain(lines, line) {
-  return lines.map((l, d) => div().absolute().left(28 + 16 * d).top(-6).w(10).flex_none()
-    .when(l === "│", (el) => el.bottom(0).border_l(1).border_color(line))
-    .when(l === "├", (el) => el.bottom(0).border_l(1).border_color(line).child(div().absolute().left(0).top(26).w(10).h(1).bg(line)))
-    .when(l === "└", (el) => el.h(26).border_l(1).border_b(1).border_color(line)));
-}
-
-/** Five 5x6 blocks: how full the context is, at a glance. */
-function miniGauge(C, ctx, inv) {
-  const on = Math.round((Math.min(100, ctx.pct) / 100) * 5);
-  const lit = inv ? C.selText : ctx.pct >= 75 ? C.error : C.text;
-  return h_flex().gap(2).flex_none().children(Array.from({ length: 5 }, (_, k) => div().w(5).h(6).bg(k < on ? lit : inv ? C.selMuted : C.hairStrong)));
-}
-
-// A sub-agent without a pane isn't in agents(): error counts as blocked, and it's
-// never done (it reports to its parent, whose done is the news).
-const kidStatus = (k, listed) => {
-  const s = listed.get(k.address) ?? k.status;
-  return s === "error" ? "blocked" : s === "done" ? "idle" : s;
-};
+const cwdOf = (a) => panes().find((p) => p.terminal === a.address)?.cwd ?? null;
 
 const SORTS = [
-  { id: "priority", label: "Priority", icon: "clock" },
-  { id: "grouped", label: "Grouped by space", icon: "layers" },
+  { id: "priority", label: "Priority", icon: "clock", by: BY.priority },
+  { id: "order", label: "Tab order", icon: "layers", by: BY.order },
 ];
 const sortOf = () => SORTS.find((s) => s.id === shared("agents.sort")) ?? SORTS[0];
 
+// A tab nobody named (or named after its program) reads as its agent's live title.
 function leadPanes(all) {
   const leads = new Map();
   for (const p of all) {
@@ -57,10 +48,16 @@ function leadPanes(all) {
   return leads;
 }
 
-// A tab nobody named (or named after its program) reads as its agent's live title.
 function title(tab, lead) {
   const live = telling(lead);
   return (tab.name === lead?.program?.name || !tab.named) && live ? live : tab.name;
+}
+
+/** Five 5x6 blocks: how full the context is, at a glance. */
+function miniGauge(C, ctx, inv) {
+  const on = Math.round((Math.min(100, ctx.pct) / 100) * 5);
+  const lit = inv ? C.selText : ctx.pct >= 75 ? C.error : C.text;
+  return h_flex().gap(2).flex_none().children(Array.from({ length: 5 }, (_, k) => div().w(5).h(6).bg(k < on ? lit : inv ? C.selMuted : C.hairStrong)));
 }
 
 export class SortMenu {
@@ -68,7 +65,7 @@ export class SortMenu {
     const C = palette();
     const on = sortOf().id;
     return root(C, v_flex().w_full().p(6).bg(C.raised)
-      .child(div().px(8).pt(4).pb(8).child(micro("Sort agents", C.muted)))
+      .child(div().px(8).pt(4).pb(8).child(micro("Sort within squads", C.muted)))
       .children(SORTS.map((s) => h_flex().id(`sort-${s.id}`).h(30).px(8).gap(10).rounded(3).items_center()
         .text_size(12.5).font_medium()
         .when(s.id === on, (el) => el.bg(C.selBg).text_color(C.selText))
@@ -82,9 +79,13 @@ export class SortMenu {
 
 export class Agents {
   init(_props, cx) {
-    this.folded = new Set();
+    try { this.folded = new Set(JSON.parse(localStorage.getItem("squads.folded") ?? "[]")); } catch { this.folded = new Set(); }
     this.width = 0;
+    this.viewH = 0;
+    this.scrollY = 0;
     this.fx = new StatusFx();
+    this.fresh = new Set();
+    this.seen = null;
     this.entrance = new Entrance(2);
     this.entrance.start(cx);
     try { this.changed = JSON.parse(localStorage.getItem("changed") ?? "{}"); } catch { this.changed = {}; }
@@ -94,13 +95,13 @@ export class Agents {
     cx.timer.every(30000, (cx) => { IDENTITY.refresh(); cx.notify(); });
     this.bounds = {};
     this.info = {};
+    this.subNums = new Map();
     this.card = { open: null, hot: null, seq: 0 };
     // The one card this list owns; a card that isn't it (left from a reload) closes itself.
     setShared("endfield.card.open", null);
+    // Polled whether the sidebar is wide, a rail or hidden: the HUD footer, the report and the card read it.
     this.sessions = new Sessions("agents");
-    this.sessions.start(cx,
-      () => agents().filter(isClaude).map((a) => ({ terminal: a.address, cwd: cwdOf(a), status: a.status })),
-      () => !narrow() && !find(layout(), "sidebar")?.hidden);
+    this.sessions.start(cx, () => agents().filter(isClaude).map((a) => ({ terminal: a.address, cwd: cwdOf(a), status: a.status })));
   }
 
   close() {
@@ -115,9 +116,9 @@ export class Agents {
    */
   cardTick(cx) {
     const seq = ++this.card.seq;
-    const rowOf = () => (agents().some((a) => a.address === this.hovered) ? this.hovered : null);
+    const rowOf = () => (agents().some((a) => `ag-${a.address}` === this.hovered) ? this.hovered.slice(3) : null);
     const row = rowOf();
-    cx.timer.after((row && row !== this.card.open?.address ? MOTION.cardOpen : MOTION.cardClose).delay, () => {
+    cx.timer.after((row && row !== this.card.open?.address ? MOTION.card.open : MOTION.card.close).delay, () => {
       if (seq !== this.card.seq) return;
       const open = this.card.open;
       const want = rowOf() ?? (open && this.card.hot === open.id ? open.address : null);
@@ -130,7 +131,7 @@ export class Agents {
 
   // Beside the row, its top 12px above the row's (or its bottom 12px below, near the window's foot).
   openCard(address) {
-    const b = this.bounds[address];
+    const b = this.bounds[`ag-${address}`];
     const a = agents().find((x) => x.address === address);
     if (!b || !a) return null;
     const s = this.sessions.get(address);
@@ -144,6 +145,7 @@ export class Agents {
       at: { x: Math.round(b.x + b.width - 12 - CARD.pad), y: Math.round(Math.max(0, y)) },
       width: CARD.width + CARD.slide + 2 * CARD.pad,
       height: tall,
+      props: { role: "card", terminal: address, ...this.info[address], snap: s ?? null },
     });
     return { id, address };
   }
@@ -163,75 +165,34 @@ export class Agents {
     localStorage.setItem("changed", JSON.stringify(this.changed));
   }
 
-  hover(address) {
+  // Keys seen for the first time draw once at their start (a connector at height 0, a pinned row
+  // closed, a squad's stack transparent), then transition to rest.
+  arrive(keys, cx) {
+    const first = this.seen === null;
+    if (!first) for (const k of keys) if (!this.seen.has(k)) this.fresh.add(k);
+    this.seen = new Set(keys);
+    if (this.fresh.size && !this.settling) {
+      this.settling = true;
+      cx.timer.after(MOTION.settle.delay, (cx) => { this.fresh.clear(); this.settling = false; cx.notify(); });
+    }
+  }
+
+  hover(key) {
     return (over, cx) => {
-      if (over) this.hovered = address;
-      else if (this.hovered === address) this.hovered = null;
+      if (over) this.hovered = key;
+      else if (this.hovered === key) this.hovered = null;
       this.cardTick(cx);
       cx.notify();
     };
   }
 
-  since(a) {
-    return this.changed[a.address]?.at ?? 0;
+  natives(m) {
+    const all = this.sessions.get(m.address)?.subagents ?? [];
+    const working = all.filter((k) => k.status === "working").length;
+    return all.slice(0, Math.max(NATIVE_SHOWN, working));
   }
 
-  tree(all, addr, lead = []) {
-    const kids = all.filter((k) => k.parent === addr && k.state === "live");
-    return kids.flatMap((k, i) => {
-      const last = i === kids.length - 1;
-      return [{ t: k, lines: [...lead, last ? "└" : "├"] }, ...this.tree(all, k.address, [...lead, last ? "" : "│"])];
-    });
-  }
-
-  subRow(C, s, shown) {
-    const k = s.t;
-    const st = kidStatus(k, this.listed);
-    const on = k.address === shown;
-    const fg = on ? C.selText : C.text;
-    const line = on ? C.selMuted : C.hairStrong;
-    const hot = this.hovered === k.address;
-    return h_flex()
-      .id(`sub-${k.address}`)
-      .relative()
-      .h(H.sub)
-      .flex_none()
-      .pl(28 + 16 * (s.lines.length - 1))
-      .pr(14)
-      .gap(10)
-      .items_center()
-      .on_hover(this.hover(k.address))
-      .child(wipe(`sub-hover-${k.address}`, C.sunken, this.width, hot && !on))
-      .on_click(() => (this.listed.has(k.address) ? run("pane.focus", { terminal: k.address }) : run("terminal.peek", { terminal: k.address })))
-      .children(chain(s.lines, line))
-      .child(div().w(12).flex_none())
-      .child(tile(C, k.program, st, { size: 22, inv: on, id: `sub-tile-${k.address}`, hot }))
-      .child(nudge(v_flex(), `sub-label-${k.address}`, hot).flex_1().min_w(0).gap(4)
-        .child(div().truncate().text_size(12.5).font_medium().text_color(fg).child(k.name || k.template || k.program?.name || k.address))
-        .child(h_flex().gap(8).items_center().child(statusMark(C, st, { inv: on, size: 10.5 }) ?? div())
-          .child(micro(`Sub-agent · ${k.address}`, on ? C.selMuted : C.muted).truncate())));
-  }
-
-  /** A Claude Code sub-agent, read from its transcript: click opens that transcript beside its parent. */
-  nativeRow(C, parent, k, lines) {
-    const key = `sa-${k.id}`;
-    const hot = this.hovered === key;
-    return h_flex().id(key).relative().h(H.sub).flex_none().pl(28 + 16 * (lines.length - 1)).pr(14).gap(10).items_center().cursor_pointer()
-      .on_hover(this.hover(key))
-      .child(wipe(`${key}-hover`, C.sunken, this.width, hot))
-      .on_click(() => this.openTranscript(parent, k))
-      .tooltip("Open the transcript beside it")
-      .children(chain(lines, C.hairStrong))
-      .child(div().w(12).flex_none())
-      .child(tile(C, parent.program, k.status, { size: 22, id: `${key}-tile`, hot }))
-      .child(nudge(v_flex(), `${key}-label`, hot).flex_1().min_w(0).gap(4)
-        .child(div().truncate().text_size(12.5).font_medium().child(k.title))
-        .child(h_flex().gap(8).items_center().child(statusMark(C, k.status, { size: 10.5 }) ?? div())
-          .child(micro([k.model?.short, `${pad2(k.tools)} tools`].filter(Boolean).join(" · "), C.muted).truncate())));
-  }
-
-  // One split per click: a double-click or a quick second press would stack two panes (or two
-  // failure toasts if the split can't happen).
+  // One split per click: a double-click or a quick second press would stack two panes.
   openTranscript(parent, k) {
     const now = Date.now();
     if (now - (this.splitAt ?? 0) < 1000) return;
@@ -239,180 +200,303 @@ export class Agents {
     run("pane.split", { direction: "right", pane: parent.pane, mod: "endfield-transcript", props: { path: k.path, title: k.title } });
   }
 
-  natives(a) {
-    const all = this.sessions.get(a.address)?.subagents ?? [];
-    const working = all.filter((k) => k.status === "working").length;
-    const shown = all.slice(0, Math.max(NATIVE_SHOWN, working));
-    return { shown, hidden: all.length - shown.length };
+  focus(m) { goTo(m); }
+
+  fold(id, cx) {
+    this.folded.has(id) ? this.folded.delete(id) : this.folded.add(id);
+    localStorage.setItem("squads.folded", JSON.stringify([...this.folded]));
+    cx.notify();
+  }
+
+  /** A pinned agent's row shows the pin; hovering any agent's row offers pin or unpin. */
+  pinButton(C, r, hot, on) {
+    const pinned = Boolean(r.m.agent?.pinned);
+    if (r.native || !r.m.agent || !(pinned || hot)) return null;
+    const id = `${r.key}-pin`;
+    return div().id(id).size(18).flex_none().flex().items_center().justify_center().rounded_full()
+      .text_color(on ? C.selText : pinned ? C.text : C.muted).hover((s) => s.bg(on ? C.selMuted : C.raised))
+      .tooltip(pinned ? "Unpin" : "Pin to the top")
+      .on_click((_e, cx) => { cx.stop_propagation(); run("terminal.pin", { terminal: r.m.address, pinned: !pinned }); })
+      .child(icon(pinned && hot ? "pin-off" : "pin", 11));
+  }
+
+  /** One agent row. r: { key, m, depth, h, top, on, title, meta, native, parentTop, parentDepth, click }, tops relative to its squad. */
+  row(C, D, r) {
+    const { m, depth } = r;
+    const dense = D === H.dense;
+    const on = r.on;
+    const hot = this.hovered === r.key;
+    const fg = on ? C.selText : C.text;
+    const sub = on ? C.selMuted : C.muted;
+    const size = D.chip[depth ? 1 : 0];
+    const pad = D.pad[depth ? 1 : 0];
+    const st = statusOf(m.status);
+    const session = r.native ? null : this.sessions.get(m.address);
+    const when = r.native ? 0 : this.changed[m.address]?.at ?? 0;
+    const fx = this.fx.of(m.address);
+    const pin = this.pinButton(C, r, hot, on);
+    // The connector: a 1px right angle from the parent chip's foot to this chip's side, drawn top-down when the child arrives.
+    let link = null;
+    if (r.parentTop != null) {
+      const ps = D.chip[r.parentDepth ? 1 : 0], pp = D.pad[r.parentDepth ? 1 : 0];
+      const left = pp + ps / 2;
+      const foot = r.parentTop + D[r.parentDepth ? "child" : "lead"] / 2 + ps / 2;
+      link = div().id(`${r.key}-link`).absolute().left(left).top(foot - r.top).w(Math.max(4, pad - left - 3))
+        .h(this.fresh.has(r.key) ? 0 : r.top + r.h / 2 - foot).border_l(1).border_b(1).border_color(on ? C.selMuted : C.hairStrong)
+        .transition("height", MOTION.link.draw);
+    }
+    const right = dense
+      ? h_flex().h(12).flex_none().items_center().tooltip(st?.word ?? m.status).child(glyph(C, m.status, { inv: on, size: 11, id: `${r.key}-disc`, pop: fx.pop }) ?? div())
+      : v_flex().flex_none().items_end().gap(7)
+        .child(statusMark(C, m.status, { inv: on, size: 11, id: `${r.key}-disc`, pop: fx.pop }) ?? div())
+        .child(h_flex().gap(6).items_center()
+          .when(Boolean(when), (el) => el.child(micro(duration(Date.now() - when), sub)))
+          .when(Boolean(session?.ctx), (el) => el.child(miniGauge(C, session.ctx, on))));
+    return h_flex()
+      .id(r.key)
+      .relative()
+      .h(r.h)
+      .flex_none()
+      .pl(pad)
+      .pr(12)
+      .gap(dense ? 8 : 10)
+      .items_center()
+      .cursor_pointer()
+      .text_color(fg)
+      .when(on, (el) => el.bg(C.selBg))
+      .on_hover(this.hover(r.key))
+      .on_mouse_move((e) => { this.bounds[r.key] = e.bounds; })
+      .on_click(r.click)
+      .child(wipe(`${r.key}-wipe`, C.sunken, this.width, hot && !on))
+      .when(st?.edge === "hazard", (el) => el.child(div().absolute().left(0).top(6).flex().child(hazard(C, 4, r.h - 12))))
+      // Only while generating: a 28px segment scans the row's floor.
+      .when(Boolean(st?.conveyor), (el) => el.child(div().absolute().left(14).right(14).bottom(0).h(1).overflow_hidden()
+        .child(div().absolute().top(0).h(1).w(28).bg(C[on ? "flowInv" : "flow"]).loop("left", { from: -28, to: this.width, ...MOTION.status.scan }))))
+      .when(Boolean(link), (el) => el.child(link))
+      .child(chip(C, m.ident, m.status, { size, on, id: r.key, flash: fx.flash ? fx : null }))
+      .child(nudge(v_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(dense ? 4 : 6)
+        .child(h_flex().min_w(0).gap(6).items_center()
+          .child(wide(m.ident.callsign, fg, dense ? 9 : 10).flex_none())
+          .child(micro(r.meta, sub).min_w(0).truncate()))
+        .child(div().min_w(0).truncate().font_medium().text_size(dense ? 11.5 : 13).child(r.title)))
+      .when(Boolean(pin), (el) => el.child(pin))
+      .child(right);
+  }
+
+  /** A squad's header: formation number, name, (folded) a stack of its operators, its ! and count, + and the chevron. */
+  head(C, D, s) {
+    const { q, folded, blocked } = s;
+    const id = `sq-${q.id}`;
+    const hot = this.hovered === id;
+    return h_flex().id(id).relative().h(D.head).flex_none().pl(14).pr(10).gap(8).items_center().cursor_pointer()
+      .on_hover((over, cx) => { if (over) this.hovered = id; else if (this.hovered === id) this.hovered = null; cx.notify(); })
+      .on_click((_e, cx) => this.fold(q.id, cx))
+      .tooltip(q.pinned ? "Pinned agents, from every space · click to fold" : `Squad ${q.num} · ${q.name} · click to fold`)
+      .child(wipe(`${id}-wipe`, C.sunken, this.width, hot))
+      .child(div().relative().w(22).h(16).flex_none().flex().items_center().justify_center().rounded(3).bg(C.selBg)
+        .font_family(FONT.mono).text_size(9).text_color(C.selText).child(q.pinned ? icon("pin", 10).text_color(C.selText) : q.num))
+      .child(wide(q.name, C.text, 10).relative().flex_shrink(1).min_w(0).truncate())
+      .when(folded, (el) => el.child(h_flex().id(`${id}-stack`).relative().flex_none().pl(4)
+        .opacity(this.fresh.has(`${id}-stack`) ? 0 : 1).transition("opacity", MOTION.squad.stack)
+        .children(q.members.slice(0, 6).map((m, i) => div().ml(i ? -5 : 0).child(chip(C, { ...m.ident, badge: null }, m.status, { size: 16 }))))))
+      .child(div().relative().flex_1().min_w(6).h(1).bg(C.hair))
+      .when(blocked > 0, (el) => el.child(div().relative().w(14).h(12).flex_none().flex().items_center().justify_center().bg(C.signal)
+        .text_size(9).font_weight(700).text_color(C.ink).tooltip(`${blocked} need input`).child("!")))
+      .child(micro(pad2(q.members.length), C.muted).relative().flex_none())
+      .when(!q.pinned, (el) => el.child(div().id(`${id}-add`).relative().size(18).flex_none().flex().items_center().justify_center().rounded_full().border_1().border_color(C.hairStrong)
+        .hover((h) => h.bg(C.raised)).tooltip(`Dispatch a new agent to ${q.name}`)
+        .on_click((_e, cx) => { cx.stop_propagation(); openDispatch({ mode: "new", space: q.id }); })
+        .child(icon("plus", 10))))
+      .child(micro(folded ? "▸" : "▾", C.muted).relative().w(8).flex_none());
+  }
+
+  /** Past 12 agents: the agents that need input, pinned above every squad (three, then "+N more"). */
+  pinned(C, blocked, num) {
+    return v_flex().mx(12).mb(10).flex_none().rounded(3).border_1().border_color(C.hairStrong).bg(C.raised).overflow_hidden()
+      .child(h_flex().h(26).pr(10).gap(8).items_center().border_b(1).border_color(C.hair)
+        .child(hazard(C, 6, 26))
+        .child(wide(pad2(blocked.length), C.text, 13))
+        .child(micro("Needs input", C.text))
+        .child(div().flex_1().h(1).bg(C.hair))
+        .child(micro("Pinned", C.muted, 9)))
+      .children(blocked.slice(0, PIN.max).map((m) => {
+        const key = `pin-${m.address}`;
+        const on = m.focused;
+        const hot = this.hovered === key;
+        const fg = on ? C.selText : C.text;
+        return h_flex().id(key).relative().h(PIN.row).flex_none().overflow_hidden().pl(10).pr(8).gap(9).items_center().cursor_pointer()
+          // A height grown from 0 here stalls part way (native limit seen in r4), so a new pin fades in instead.
+          .opacity(this.fresh.has(key) ? 0 : 1).transition("opacity", MOTION.pin.content)
+          .when(on, (el) => el.bg(C.selBg))
+          .on_hover((over, cx) => { if (over) this.hovered = key; else if (this.hovered === key) this.hovered = null; cx.notify(); })
+          .on_click((_e, cx) => { this.folded.delete(m.space); this.focus(m); cx.notify(); })
+          .tooltip(`${m.ident.callsign} · ${m.title} · squad ${num.get(m.space)}`)
+          .child(wipe(`${key}-wipe`, C.sunken, this.width, hot && !on))
+          .child(chip(C, m.ident, "blocked", { size: 22, on, ground: on ? C.selBg : C.raised }))
+          .child(nudge(v_flex(), `${key}-label`, hot).flex_1().min_w(0).gap(4)
+            .child(wide(m.ident.callsign, fg, 9))
+            .child(div().min_w(0).truncate().text_size(11.5).font_medium().text_color(fg).child(m.title)))
+          .child(div().relative().w(20).h(16).flex_none().flex().items_center().justify_center().rounded(3).border_1()
+            .border_color(on ? C.selMuted : C.hairStrong).font_family(FONT.mono).text_size(8.5).text_color(fg).child(num.get(m.space)))
+          .child(div().relative().size(18).flex_none().rounded_full().bg(C.signal).flex().items_center().justify_center().text_size(7).text_color(C.ink).child("▶"));
+      }))
+      .when(blocked.length > PIN.max, (el) => el.child(h_flex().id("pin-more").h(PIN.more).px(10).gap(6).items_center().border_t(1).border_color(C.hair).cursor_pointer()
+        .on_click(() => toggleReport(true))
+        .child(micro(`+${blocked.length - PIN.max} more need input`, C.muted)).child(div().flex_1()).child(micro("Report ▶", C.text))));
+  }
+
+  // This list owns the one session poller: the HUD footer gets the focused agent's context, the
+  // report every Claude Code agent's context, tokens and turns. Published only when they change.
+  share(R) {
+    const f = R.flat.find((m) => m.focused);
+    const s = f ? this.sessions.get(f.address) : null;
+    const focus = f ? { ctx: s?.ctx ?? null, model: s?.model?.short ?? f.program?.name ?? null } : null;
+    const all = Object.fromEntries(R.flat.flatMap((m) => {
+      const x = this.sessions.get(m.address);
+      return x ? [[m.address, { ctx: x.ctx ?? null, tokens: x.tokens?.total ?? null, turns: x.turns ?? null }]] : [];
+    }));
+    // The open card's whole session: the card draws it and runs no poller of its own.
+    const card = this.card.open ? this.sessions.get(this.card.open.address) : null;
+    for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all], ["endfield.card.session", card]]) {
+      const text = JSON.stringify(value);
+      if (text !== this.published?.[key]) { (this.published ??= {})[key] = text; setShared(key, value); }
+    }
   }
 
   render(cx) {
     const C = palette();
-    const collapsed = narrow();
     const hot = shared("endfield.card.hot") ?? null;
     if (hot !== this.card.hot) { this.card.hot = hot; this.cardTick(cx); }
     const sort = sortOf();
-    const byPriority = sort.id === "priority";
-    let list = agents();
-    this.listed = new Map(list.map((a) => [a.address, a.status]));
-    const all = terminals();
-    const shown = focused()?.agent;
-    const now = Date.now();
-    this.track(list, now);
-    for (const a of list) this.fx.track(a.address, a.status, cx);
-    // A kept sub-agent (one with a pane) is in agents() too: under its parent's tree it gets no row of its own unless pinned.
-    const nested = new Set(collapsed ? [] : list.flatMap((a) => this.tree(all, a.address).map((s) => s.t.address)));
-    list = list.filter((a) => a.pinned || !nested.has(a.address));
-    const urgency = new Map(list.map((a) => [a.address, Math.max(rank(a.status), ...this.tree(all, a.address).map((s) => rank(kidStatus(s.t, this.listed))))]));
-    if (byPriority) list = [...list].sort((x, y) => urgency.get(y.address) - urgency.get(x.address) || this.since(y) - this.since(x) || y.seq - x.seq);
-    list = [...list.filter((a) => a.pinned), ...list.filter((a) => !a.pinned)];
-    setAgentOrder(list.map((a) => a.address));
+    const R = roster(sort.by);
+    const list = agents();
+    this.track(list, Date.now());
+    for (const m of R.all.values()) this.fx.track(m.address, m.status, cx);
+    setAgentOrder(R.flat.filter((m) => m.agent).map((m) => m.address));
+    this.share(R);
+    if (narrow()) return this.rail(C, R);
 
+    const shown = focused()?.agent;
     const leads = leadPanes(panes());
     const tabs = new Map(spaces().flatMap((s) => s.tabs).map((tab) => [tab.id, tab]));
     const tabCounts = new Map();
     for (const a of list) tabCounts.set(a.tab, (tabCounts.get(a.tab) ?? 0) + 1);
-    const label = (a) => {
-      const tab = tabs.get(a.tab);
+    const label = (m) => {
+      if (!m.agent) return m.title;
+      const a = m.agent, tab = tabs.get(a.tab);
       const many = tabCounts.get(a.tab) > 1;
       const l = tab ? title(many ? { ...tab, named: false } : tab, many ? a : leads.get(a.tab)) : (a.title || "");
       return /^\d+$/.test(l) ? a.program?.name || l : l;
     };
 
-    if (collapsed) return this.rail(C, list);
+    const D = R.all.size >= DENSE_AT ? H.dense : H.full;
+    const dense = D === H.dense;
+    const num = new Map(R.squads.map((q) => [q.id, q.num]));
+    const blocked = R.flat.filter((m) => m.status === "blocked");
 
-    const row = (a, subs, native) => {
-      const on = a.focused;
-      const session = this.sessions.get(a.address);
-      const kids = subs.length + native.shown.length;
-      const fg = on ? C.selText : C.text;
-      const sub = on ? C.selMuted : C.muted;
-      const when = this.since(a);
-      const machine = a.address.includes("/") ? a.address.split("/")[0] : null;
-      const where = [machine, a.space_name, a.tab_name && !/^\d+$/.test(a.tab_name) ? a.tab_name : pad2(a.tab_index)].filter(Boolean).join(" / ");
-      const hovered = this.hovered === a.address;
-      const fx = this.fx.of(a.address);
-      const st = statusOf(a.status);
-      this.info[a.address] = { title: label(a), where };
-      return flicker(h_flex()
-        .id(`ag-${a.address}`)
-        .relative()
-        .h(H.row)
-        .flex_none()
-        .pl(14)
-        .pr(14)
-        .gap(10)
-        .items_center()
-        .cursor_pointer()
-        .on_hover(this.hover(a.address))
-        .on_mouse_move((e) => { this.bounds[a.address] = e.bounds; })
-        .on_click(() => run("pane.focus", { pane: a.pane }))
-        .child(wipe(`ag-hover-${a.address}`, C.sunken, this.width, hovered && !on))
-        // Only while working: a 1px segment rides the row's floor like a conveyor.
-        .when(Boolean(st?.conveyor), (el) => el.child(div().absolute().left(0).right(0).bottom(0).h(1).overflow_hidden()
-          .child(div().absolute().top(0).h(1).w(28).bg(C[on ? "flowInv" : "flow"]).loop("left", { from: -28, to: this.width, ...MOTION.conveyor }))))
-        .when(statusOf(a.status)?.edge === "hazard", (el) => el.child(div().absolute().left(0).top(8).bottom(8).flex().child(hazardTick(34))))
-        .child(div().relative().id(`agent-fold-${a.address}`)
-          .when(kids > 0, (el) => el.tooltip(this.folded.has(a.address) ? `Show ${kids} sub-agents` : "Fold sub-agents").on_click((_e, cx) => {
-            cx.stop_propagation();
-            this.folded.has(a.address) ? this.folded.delete(a.address) : this.folded.add(a.address);
-            cx.notify();
-          }))
-          .child(tile(C, a.program, a.status, { size: 26, inv: on, id: `ag-tile-${a.address}`, hot: hovered })))
-        .child(nudge(v_flex(), `ag-label-${a.address}`, hovered).flex_1().min_w(0).gap(5)
-          .child(h_flex().min_w(0).gap(6).items_center()
-            .child(div().min_w(0).truncate().font_medium().text_color(fg).child(label(a)))
-            .when(a.pinned, (el) => el.child(icon("pin", 11).text_color(sub)))
-            .when(kids + native.hidden > 0 && (this.folded.has(a.address) || native.hidden > 0),
-              (el) => el.child(micro(`+${this.folded.has(a.address) ? kids + native.hidden : native.hidden}`, sub))))
-          .child(h_flex().min_w(0).gap(8).items_center()
-            .child(statusMark(C, a.status, { inv: on, size: 11, id: `ag-disc-${a.address}`, pop: fx.pop }) ?? div())
-            .when(Boolean(session?.model?.short), (el) => el.child(micro(session.model.short, sub).flex_none()))
-            .child(micro(where, sub).min_w(0).truncate())))
-        .child(v_flex().relative().self_start().pt(10).flex_none().items_end().gap(8)
-          .when(hovered, (el) => el.child(div().id(`pin-${a.address}`).mt(-4).size(20).flex().items_center().justify_center().rounded(3)
-            .text_color(sub).hover((h) => h.bg(on ? C.selMuted : C.hair).text_color(fg))
-            .tooltip(a.pinned ? "Unpin" : "Pin to the top")
-            .on_click((_e, cx) => {
-              cx.stop_propagation();
-              run("terminal.pin", { terminal: a.address, pinned: !a.pinned });
-              // The row moves out from under the pointer, and no hover-out comes.
-              this.hovered = null;
-              cx.notify();
-            })
-            .child(icon(a.pinned ? "pin-off" : "pin", 12))))
-          .when(!hovered && Boolean(when), (el) => el.child(micro(duration(now - when), sub)))
-          .when(Boolean(session?.ctx), (el) => el.child(miniGauge(C, session.ctx, on)))), fx.flicker);
-    };
+    // Each squad: its rows with tops inside the squad, and where the squad starts in the list.
+    let y = 0;
+    const nextNums = new Map();
+    const sections = R.squads.map((q) => {
+      const folded = this.folded.has(q.id);
+      const start = y + D.head;
+      const tops = new Map();
+      const rows = [];
+      let inner = 0;
+      const push = (r) => { rows.push(r); inner += r.h; };
+      for (const m of q.members) {
+        const parent = m.parent ? R.all.get(m.parent) : null;
+        const meta = m.depth ? `◀ ${parent.address.toUpperCase()}` : dense ? m.address.toUpperCase() : this.sessions.get(m.address)?.model?.short ?? m.program?.name ?? "";
+        const r = { key: `ag-${m.address}`, m, depth: m.depth, h: m.depth ? D.child : D.lead, top: inner, on: m.agent ? m.focused : m.address === shown,
+          title: label(m), meta, parentTop: parent ? tops.get(parent.address) : null, parentDepth: parent?.depth ?? 0, click: () => this.focus(m) };
+        tops.set(m.address, r.top);
+        if (m.agent) {
+          const where = [m.address.includes("/") ? m.address.split("/")[0] : null, m.spaceName, m.agent.tab_name && !/^\d+$/.test(m.agent.tab_name) ? m.agent.tab_name : pad2(m.tabIndex)].filter(Boolean).join(" / ");
+          this.info[m.address] = { title: r.title, where, callsign: m.ident.callsign };
+        }
+        push(r);
+        // Claude Code's own sub-agents, read from its transcript, hang under it like any child.
+        const shownSubs = m.agent && isClaude(m.agent) ? this.natives(m) : [];
+        const nums = subNumbers(this.subNums.get(m.address) ?? new Map(), [...shownSubs].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0)).map((k) => k.id));
+        if (shownSubs.length) nextNums.set(m.address, nums);
+        for (const k of shownSubs) {
+          const ident = IDENTITY.resolve(m.program, null, { parent: m.program });
+          const n = nums.get(k.id);
+          push({ key: `sa-${k.id}`, m: { address: `sa-${k.id}`, status: k.status, ident: { ...ident, callsign: `${ident.name.toUpperCase()}${n > 1 ? `·${n}` : ""}` } }, depth: m.depth + 1,
+            h: D.child, top: inner, on: false, title: k.title, native: true, meta: [`◀ ${m.address.toUpperCase()}`, k.model?.short, `${pad2(k.tools)} tools`].filter(Boolean).join(" · "),
+            parentTop: r.top, parentDepth: m.depth, click: () => this.openTranscript(m, k) });
+        }
+      }
+      y = start + (folded ? 0 : inner);
+      return { q, folded, start, rows, inner, blocked: q.members.filter((m) => m.status === "blocked").length };
+    });
+    this.subNums = nextNums;
+    this.arrive([...sections.flatMap((s) => [...s.rows.map((r) => r.key), ...(s.folded ? [`sq-${s.q.id}-stack`] : [])]), ...blocked.map((m) => `pin-${m.address}`)], cx);
 
-    // Each entry carries its height and whether it is the selected one, for the selection block.
-    // Claude Code's own sub-agents come first under the parent, then the ones it started with hc.
-    const withKids = (a) => {
-      const subs = this.tree(all, a.address);
-      const native = this.natives(a);
-      const count = subs.length + native.shown.length;
-      const kids = this.folded.has(a.address) ? [] : [
-        ...native.shown.map((k, i) => ({ el: this.nativeRow(C, a, k, [i === count - 1 ? "└" : "├"]), h: H.sub, on: false })),
-        ...subs.map((s) => ({ el: this.subRow(C, s, shown), h: H.sub, on: s.t.address === shown })),
-      ];
-      return [{ el: row(a, subs, native), h: H.row, on: a.focused }, ...kids];
-    };
+    const selIn = sections.find((s) => !s.folded && s.rows.some((r) => r.on));
+    const selRow = selIn?.rows.find((r) => r.on);
+    const sel = selRow ? { top: selIn.start + selRow.top, h: selRow.h } : null;
+    const maxY = Math.max(0, y - this.viewH);
+    this.scrollY = Math.min(this.scrollY, maxY);
+    const below = this.viewH ? sections.reduce((n, s) => n + (s.folded ? 0 : s.rows.filter((r) => !r.native && s.start + r.top >= this.scrollY + this.viewH).length), 0) : 0;
+    const active = R.flat.filter((m) => !statusOf(m.status)?.quiet).length;
+    // The geometric layer fills the list's empty foot, never behind a row.
+    const room = this.viewH - y > 170;
 
-    // Grouped mode: a `// space` header per run of neighbours; priority mode: the rows say their own status.
-    const groups = [];
-    for (const a of list) {
-      const id = a.pinned ? "pinned" : byPriority ? "all" : `sp-${a.space}`;
-      if (groups.at(-1)?.id === id) groups.at(-1).members.push(a);
-      else groups.push({ id, label: a.pinned ? "Pinned" : byPriority ? null : a.space_name || "", members: [a] });
-    }
-    const header = (g) => {
-      const open = !this.folded.has(g.id);
-      const top = g.members.reduce((m, a) => (rank(a.status) > rank(m) ? a.status : m), null);
-      return h_flex().id(g.id).h(H.head).pt(6).px(16).gap(8).flex_none().items_center().cursor_pointer()
-        .on_click((_e, cx) => { open ? this.folded.add(g.id) : this.folded.delete(g.id); cx.notify(); })
-        .child(micro(g.label, C.muted).min_w(0).truncate())
-        .child(div().flex_1().h(1).bg(C.hair))
-        .child(micro(pad2(g.members.length), C.muted))
-        .when(!open && Boolean(top) && !statusOf(top)?.quiet, (el) => el.child(glyph(C, top, { size: 10 })))
-        .child(icon(open ? "chevron-down" : "chevron-right", 10).text_color(C.muted));
-    };
-    const rows = groups.flatMap((g) => [...(g.label ? [{ el: header(g), h: H.head, on: false }] : []), ...(this.folded.has(g.id) ? [] : g.members.flatMap(withKids))]);
-    const at = rows.findIndex((r) => r.on);
-    const top = rows.slice(0, Math.max(0, at)).reduce((y, r) => y + r.h, 0);
-    const active = list.filter((a) => !statusOf(a.status)?.quiet).length;
-
-    return root(C, this.entrance.apply(v_flex().size_full().min_h(0).bg(C.ground).border_t(1).border_color(C.hair)
-      .child(h_flex().flex_none().h(44).pt(10).pl(16).pr(12).gap(10).items_center()
-        .child(div().text_size(13).font_semibold().child("// Agents"))
+    return root(C, this.entrance.apply(v_flex().relative().size_full().min_h(0).bg(C.ground).border_t(1).border_color(C.hair).overflow_hidden()
+      .when(room && R.flat.length > 0, (el) => el
+        .child(rings(C.geo, 260).absolute().right(-70).bottom(-60))
+        .child(cross(C.cross).absolute().left(14).bottom(14))
+        .child(micro("Grid 04 · 1:240", C.muted, 9).absolute().left(30).bottom(15))
+        .child(ticks(C.tick, 81).absolute().left(16).bottom(34)))
+      .child(h_flex().flex_none().h(44).pt(6).pl(16).pr(12).gap(8).items_center()
+        .child(div().text_size(13).font_semibold().child("// Squads"))
         .child(div().flex_1())
-        .child(micro(`${pad2(active)}/${pad2(list.length)} active`, C.muted))
-        .child(div().id("ag-sort").h(20).w(28).flex_none().flex().items_center().justify_center().rounded_full().border_1().border_color(C.hairStrong)
-          .text_color(C.text).hover((h) => h.bg(C.raised)).tooltip(`Sort agents: ${sort.label}`)
+        .child(micro(`${pad2(active)}/${pad2(R.flat.length)} active`, C.muted))
+        .child(h_flex().id("ag-sort").h(20).px(8).flex_none().items_center().rounded_full().border_1().border_color(C.hairStrong)
+          .hover((h) => h.bg(C.raised)).tooltip("Sort within each squad")
           .on_click(() => openOverlay({ mod: "endfield", kind: "popup", width: 210, height: 112, props: { role: "sortmenu" } }))
-          .child(icon(sort.icon, 12))))
-      .when(list.length === 0, (el) => el.child(v_flex().relative().h(120).flex_none().px(16).pt(8).gap(6).overflow_hidden()
-        .child(contour(this.width || 248, 160, C.text))
-        .child(micro("No agents reporting", C.muted))
-        .child(div().text_size(12).line_height(1.45).text_color(C.muted)
-          .child("Agents show up here when they report their status. Older versions and agents inside tmux may not."))))
-      .child(v_flex().id("ag-list").flex_1().min_h(0).pb(8).overflow_y_scrollbar()
-        .on_size_change((size, cx) => { this.width = size.width; cx.notify(); })
-        .child(slide("ag-slide", C, top, rows[at]?.h ?? H.row).when(at < 0, (el) => el.opacity(0)))
-        .children(rows.map((r) => r.el)))));
+          .child(micro(`${sort.label} ▾`, C.text))))
+      .when(R.flat.length === 0, (el) => el.child(v_flex().relative().h(210).flex_none().items_center().justify_center().gap(8).overflow_hidden()
+        .child(rings(C.geo, 164).absolute().left((this.width || 248) / 2 - 82).top(23))
+        .child(div().relative().text_size(13).font_medium().child("No squad deployed"))
+        .child(div().relative().w(170).text_size(12).line_height(1.4).text_color(C.muted).text_center().child("Agents you start show here, grouped by project."))
+        .child(div().relative().mt(6).child(pill(C, "ag-empty-dispatch", "Dispatch", { knob: "+", hot: this.hovered === "ag-empty-dispatch",
+          on_hover: (over, cx) => { this.hovered = over ? "ag-empty-dispatch" : null; cx.notify(); }, action: () => openDispatch({ mode: "new" }) })))))
+      .when(dense && blocked.length > 0, (el) => el.child(this.pinned(C, blocked, num)))
+      .child(v_flex().id("ag-list").relative().flex_1().min_h(0).pb(8).overflow_y_scrollbar()
+        .on_size_change((size, cx) => { this.width = size.width; this.viewH = size.height; cx.notify(); })
+        .on_scroll_wheel((e, cx) => {
+          const dy = e.delta_lines ? -e.delta_lines.y * LINE_PX : -e.delta.y;
+          const next = Math.max(0, Math.min(maxY, this.scrollY + dy));
+          if (next !== this.scrollY) { this.scrollY = next; cx.notify(); }
+        })
+        .children(sections.flatMap((s) => [
+          this.head(C, D, s),
+          v_flex().id(`sq-${s.q.id}-rows`).relative().flex_none().overflow_hidden().h(s.folded ? 0 : s.inner)
+            .transition("height", MOTION.squad.fold)
+            .children(s.rows.map((r) => this.row(C, D, r))),
+        ]))
+        .child(marker("ag-mark", C, sel?.top ?? 0, sel?.h ?? 0).when(!sel, (el) => el.opacity(0))))
+      .when(below > 0, (el) => el.child(h_flex().h(28).flex_none().pl(16).pr(12).gap(8).items_center().border_t(1).border_color(C.hairStrong)
+        .child(micro(`▾ ${below} more agent${below === 1 ? "" : "s"} below`, C.muted)).child(div().flex_1().h(1).bg(C.hair)).child(micro("Scroll", C.muted))))));
   }
 
-  rail(C, list) {
+  rail(C, R) {
     return root(C, this.entrance.apply(v_flex().size_full().min_h(0).bg(C.ground).border_t(1).border_color(C.hair)
-      .child(v_flex().id("ag-list").flex_1().min_h(0).pt(6).gap(2).items_center().overflow_y_scrollbar()
-        .children(list.map((a, i) => {
-          const st = statusOf(a.status);
-          return h_flex().id(`ag-${a.address}`).relative().w(28).h(28).flex_none().items_center().justify_center().rounded(2)
-            .when(a.focused, (el) => el.bg(C.selBg))
-            .when(!a.focused, (el) => el.hover((h) => h.bg(C.sunken)))
-            .tooltip(`${a.space_name} · ${st?.word ?? a.status}`)
-            .on_click(() => run("pane.focus", { pane: a.pane }))
-            .child(st?.kind === "pill" ? div().size(16).rounded_full().bg(C.signal).flex().items_center().justify_center().text_size(10).font_bold().text_color(C.ink).child("!") : micro(pad2(i + 1), a.focused ? C.selText : C.muted, 9.5))
-            .child(div().absolute().left(3).right(3).bottom(1).h(2).bg(C[st?.bar ?? "hairStrong"]));
+      .child(div().pt(10).pb(6).flex().justify_center().child(micro("AG", C.muted, 9)))
+      .child(v_flex().id("ag-list").flex_1().min_h(0).gap(2).items_center().overflow_y_scrollbar()
+        .children(R.flat.map((m) => {
+          const st = statusOf(m.status);
+          const on = m.agent ? m.focused : false;
+          return v_flex().id(`ag-${m.address}`).relative().w(44).h(48).flex_none().items_center().justify_center().gap(4)
+            .when(on, (el) => el.bg(C.selBg))
+            .when(!on, (el) => el.hover((h) => h.bg(C.sunken)))
+            .tooltip(`${m.ident.callsign} · ${m.title} · ${st?.word ?? m.status}`)
+            .on_click(() => this.focus(m))
+            .when(st?.edge === "hazard", (el) => el.child(div().absolute().left(0).top(8).flex().child(hazard(C, 3, 32))))
+            .child(chip(C, m.ident, m.status, { size: 26, on }))
+            .child(h_flex().h(9).items_center().child(glyph(C, m.status, { inv: on, size: 9 }) ?? div()));
         })))
       .child(h_flex().h(30).flex_none().items_center().justify_center()
         .child(div().id("collapse").size(24).flex().items_center().justify_center().rounded(3).text_color(C.muted)

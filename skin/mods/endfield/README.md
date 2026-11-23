@@ -1,20 +1,40 @@
 # Endfield
 
 The chrome of the `endfield` layout: one mod in roles (`props.role`), routed by
-`ROLES` in `main.js`, plus `mods/endfield-toast` for notifications. Paper chrome,
-ink terminal cards, one acid yellow that means "you, here, now".
+`ROLES` in `main.js`. Notifications are a role too: the layout names this mod as its
+`toast`, and Herdr opens it with notification props and no role, which `main.js`
+routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
+"you, here, now".
 
 ## Files
 
 - `main.js` routes a role to its class: `boot`, `brand`, `footer`, `spaces`,
-  `agents`, `sortmenu`, `card`, `tabs`, `pane`, `status`.
+  `agents`, `sortmenu`, `card`, `tabs`, `pane`, `status`, `toast`, `cutin`,
+  `report`, `dispatch`, `comms`.
 - `kit.js` owns the registries every role reads: `PALETTE` (keyed `paper` /
-  `night`, picked by `settings().dark`), `STATUS` (agent status to word, glyph
-  kind, bar colour, entrance effect, rank), `IDENTITY` (who an agent is drawn as)
+  `night`, picked by `settings().dark`), `IDENTITY` (who an agent is drawn as)
   and `MOTION` (every timing). It also holds the shared shapes (tiles, brackets,
-  hatch, odometer, wipes) and the motion helpers (`Entrance`, `StatusFx`, `flicker`).
-- `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (agents, sort menu),
-  `card.js` (the session card), `tabs.js`, `pane.js`, `status.js`.
+  hatch, odometer, wipes, the selection plate and marker) and the motion helpers
+  (`Entrance`, `StatusFx`).
+- `roster.js` is the fleet every surface reads, built by `fleet.js` from Herdr's
+  live lists: each agent's identity and callsign (a repeated operator takes a
+  spare, then a number, `PERLICA·2`, in creation order so it never hops), its
+  parent and depth, and squads in tree order: pinned agents first (they also lead
+  `agent.next`), then one per space. Priority ranks an agent by the most urgent
+  status in its tree.
+- Three modules hold the rules with no Herdr import, so `tests/` runs them under
+  `node --test` (CI and `verify.mjs --static` too): `fleet.js` (the `STATUS`
+  table, agent status to word, glyph kind, bar colour, entrance effect and rank,
+  and the roster), `orders.js` (Dispatch's argv, the command line it shows, and
+  what became of a run) and `messages.js` (which Comms screen tags count, how
+  many are kept, the log's size cap).
+- `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
+  `card.js` (the session panel), `dispatch.js` (the Dispatch dialog), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),
+  `toast.js` (notifications; it decides between the cut-in, the Claimed slip and
+  the plain slab), `cutin.js` (the needs-input skill caption), `comms.js` (the
+  message log Dispatch writes and the Comms pane), `report.js` (the oversight screen: a block in the
+  layout's `work-stack`, beside `main`, so it covers the work area at any size;
+  `toggleReport()` selects it).
 - `sessions.js` is the data layer for Claude Code sessions: one parsed shape per
   agent terminal (model, context, tokens, tools, turns, last action, pending
   question, sub-agents). Sources, first wins: a statusline sidecar in
@@ -41,17 +61,26 @@ python mods/endfield/tools/make_art.py
 - Tinted with the text colour (`svg()`): `diamond`, `plus`, `close`,
   `chevron-down`, `chevron-right`, `settings`, `server`, `monitor`,
   `sidebar`, `pin`, `pin-off`, `clock`, `layers`, `split-right`, `split-down`,
-  `zoom`, `unzoom`, `win-min`, `win-max`, `win-restore`, `win-close`, `contour`.
-- Full colour (`image()`): `hazard` (the yellow and ink tick on a blocked agent row).
+  `zoom`, `unzoom`, `win-min`, `win-max`, `win-restore`, `win-close`, and the
+  geometric layer: `dots` (6px dot field), `barcode`, `cross` (registration),
+  `ticks` (a ruler, major every 20px), `rings` (range rings). Each has one helper
+  in `kit.js` (`dots()`, `barcode()`, `cross()`, `ticks()`, `rings()`); the dot
+  field is an SVG `<pattern>` fill drawn large and clipped by its parent. The
+  cut-in's diagonal band is a native path (`band()`).
+- Full colour: `grid` (the 48px blueprint grid, mid grey at 14%), the `work-body`
+  node's background image in the layout, so it shows in the gutters between panes.
+- Hazard stripes are drawn natively (`hazard()` in `kit.js`, a 45° pattern), not an asset.
 - The brand mark in the sidebar is drawn from divs (its bars rise).
 - `layouts/endfield.svg` is the settings preview, drawn by hand.
 
 ## Operators
 
-`IDENTITY.resolve(program, terminal, { sub })` in `kit.js` is the one place that
-decides an agent's operator. It returns `{ operator, name, accent, avatar, fallbackIcon }`,
-where `avatar` holds the paths `32`, `64`, `128`, `round` and `signal`, and
-`fallbackIcon` is the program, drawn as its usual tile when `avatar` is null.
+`IDENTITY.resolve(program, terminal, { parent })` in `kit.js` is the one place that
+decides an agent's operator. It returns `{ operator, name, accent, avatar, badge, fallbackIcon }`,
+where `avatar` holds the paths `32`, `64`, `128`, `round`, `bust` and `signal`, `badge`
+is the class badge (`C`, `X`, `Cu`, `O`, `G`), and `fallbackIcon` is the program, drawn
+as its tile inside the chip when `avatar` is null. `chip()` draws every party chip;
+`roster.js` adds the callsign.
 
 Two files feed it, both optional:
 
@@ -67,6 +96,8 @@ Two files feed it, both optional:
   }
   ```
 
+  An optional `"spares": ["laevatain"]` lists the operators a repeat takes before
+  callsigns get numbers (default: the manifest's `unassigned`).
   `programs` maps a program key (`program.key`: `claude`, `codex`, ...) to an
   operator slug. `sub-agent` is used for sub-agents and `shell` for any agent
   with no entry of its own. `terminals` maps one terminal address to a slug and
@@ -74,12 +105,96 @@ Two files feed it, both optional:
   tile. Unknown slugs also fall back to the tile.
 
 Resolution order: `terminals[address]`, then `programs["sub-agent"]` for a
-sub-agent, then `programs[program.key]`, then `programs.shell`; overrides replace
+child of the same program (a cross-vendor child keeps its own program's
+operator), then `programs[program.key]`, then `programs.shell`; overrides replace
 the manifest's `default_assignment` key by key. An operator whose avatar files
 are missing is dropped, so deleting `art/operators/` leaves every surface as it
 was. The agents list rereads both files on start and every 30 s; the table is
 rebuilt, and every copy redrawn, only when their text changed (mods have no
 file `stat`, so the cache is keyed by content, not mtime).
+
+## Orchestration: what hc really offers
+
+Dispatch and Comms are UI over herdr-core's `hc`; the skin adds no engine of its
+own. Checked against hc on this machine (`hc --help`, `hc --skill`, `hc <cmd> --help`,
+and harmless runs in a throwaway `ef-*` space whose terminal was a plain PowerShell):
+
+- `hc send <t> <text>` pastes the text and presses Enter. It waits for an unfinished
+  draft the person is typing (up to `draft_wait`, 60s by default). `--if idle|working`
+  is a check, not a queue: on any other status it types nothing and fails
+  (`status_mismatch`, exit 10; a plain shell reports "is silent, not idle").
+  `--wait` then waits for the turn the send started (`--timeout`, default 180s).
+  A blocked agent is refused unless `--force`; Dispatch never forces. Verified:
+  plain send and the `--if idle` refusal.
+- `hc run [--bg] [--keep] [--parent <t> | --no-parent] [--outlive-parent] [--no-notify]
+  [--cwd <dir>] [--on <machine>] [--label k=v]... -- <argv> [task]` starts a terminal.
+  Run from a terminal, the parent defaults to that terminal. With
+  `--label herdr.space=<id> --label herdr.tab=<id>` it appears in Herdr; a tab id
+  Herdr doesn't know becomes a new tab in that space. Verified: a new tab appeared in
+  the `ef-*` space running the command.
+- `hc read <t> [--lines N]` prints the screen plus N lines of history (`--json` too).
+- `hc wait <t>` / `hc wait --children any|all` block until something stops working.
+- `hc events [--terminal t] [--children-of t] [--label k=v]` streams fact changes as
+  JSON lines. A mod can't hold a stream open (`exec` returns at exit, at most 10
+  minutes), so Comms doesn't use it.
+- Reports: an agent that receives a child's `hc send` sees it tagged
+  `<hc from="t7 name">...</hc>`, and hc types notes into a parent when a child blocks,
+  errors or exits (unless `notes = false`). A plain shell receives sends untagged
+  (verified: a child's `hc send` to its shell parent arrived as plain text), so the
+  tag path is implemented from the documented format and not verified here.
+- `hc templates` is empty on this machine; Dispatch passes the program's own argv
+  (`knownAgents()` `run`) and the task as its last argument.
+
+The design board's "When idle" meant "queued until the turn ends". hc has no queue,
+so the option is "Only if idle" and the dialog says what happens when it isn't.
+
+Dispatch runs an order once. When hc exits 0 the order is sent: the Comms log is
+written in its own step, and a failure there is shown but never re-enables
+Dispatch (the action becomes Close). hc's refusals (exit 2, 3, 7, 9, 10) typed
+nothing, so the person may fix and Dispatch again; any other failure may come
+after the text was pasted, so it also ends in Close. Send text always follows
+`--`. The command line under the dialog is the exact argv, quoted for Windows
+PowerShell 5.1 (on Windows) or sh, and wrapped rather than cut.
+
+Comms reads `<hc from>` tags off screens, which any program there could print. A
+tag counts only when its sender is a live terminal other than the recipient
+(never "you" or "hc"), each is marked Unverified, its text is cut at 280
+characters, and the pane keeps the newest 200. With "Now, wait for reply" the
+log records the last screen line after the turn as a "Screen line", not a
+reply: it may be a prompt, a spinner or a draft.
+
+## Native limits
+
+What the design boards draw that Herdr's mod API can't, and what stands in:
+
+- Corner brackets on the focused pane (`gw-brk`): the terminal body is native, and a
+  mod draws only the pane header. The header's yellow focus bar stands in.
+- "When idle" as a queue: hc has none (above). The option is "Only if idle".
+- The toast slot's place and size are Herdr's. The needs-input cut-in is an overlay
+  window of its own, opened above the slot so a toast never covers it.
+- Files can't be stat'ed from a mod, so `tools/probe.mjs` (node) reads transcripts
+  and sidecars and prunes by mtime.
+- Without the art pack, agents keep their program tiles and program callsigns; the
+  board's accent ring with initials is not drawn.
+
+## Sounds
+
+Three original cues in `sounds/`, synthesised by `tools/make_sounds.py` with
+ffmpeg (sines, no samples): `needs-input.mp3`, `claimed.mp3` and `tick.mp3`.
+`cue(name)` in `kit.js` is the one place that plays them. The two alerts play
+when the toast role meets an agent that needs input (with its cut-in) or has
+finished, and only when Herdr's own attention sounds are off
+(`settings.json` `sounds.enabled: false`), so one event never sounds twice. To
+hear them with Herdr's sounds on, point Herdr at them instead:
+
+```json
+{ "sounds": { "enabled": true, "blocked": "mods/endfield/sounds/needs-input.mp3", "done": "mods/endfield/sounds/claimed.mp3" } }
+```
+
+`data/endfield/settings.json` (installed from `settings.example.json`, never
+overwritten) holds the skin's own switches: `sounds.alerts` (default `true`)
+and `sounds.ticks` (default `false`: very quiet clicks when Dispatch sends and
+when a panel opens).
 
 ## Fonts and licences
 
@@ -100,23 +215,33 @@ Geist, Geist Mono and JetBrains Mono ship with Herdr.
 
 ## Motion
 
-Every timing is a row of `MOTION` in `kit.js` (`colour`, `move`, `flicker`,
-`breathe`, `boot`, ...), shaped as the native policy it feeds, so a surface
-writes `.transition("width", MOTION.move)` and never a number. The trailer rows
-(`typeOn`, `revealGrow` / `revealHold` / `revealRetract`, `flash`) carry the
-timings measured off the official trailers. `mods/endfield-toast` cannot import
-`kit.js`, so its few timings stay local to it.
+Every timing is a row of `MOTION` in `kit.js`, named as on the design's motion
+board (`select.edge`, `row.wipe`, `pane.pulse`, `cut.grow`, `boot.rule`, ...) and
+shaped as the native policy it feeds, so a surface writes
+`.transition("top", MOTION.select.edge)` and never a number.
 
 Only native motion: `.transition` on opacity, width, height, left and top,
-`.loop`, and `.frames`. One-shot `cx.timer.after` calls end a transient state
-(the boot, a flicker, a pop, the card's open delay). The repeating timers are
-for data only: the agents list's 30s age labels, the spaces list's git and
-machine checks, and the 3s session poll, which runs only when a transcript or
-sidecar changed (`watchFolder`) or a sub-agent may have gone quiet, and only
-while the sidebar is shown.
+`.loop`, and `.frames`. No colour ever transitions. One-shot `cx.timer.after`
+calls end a transient state (the boot, a Claimed flash, the card's open delay).
+The repeating timers are for data only: the agents list's 30s age labels, the
+spaces list's git and machine checks, Comms' 15s screen scan (one at a time, six
+reads at once, 5s each), and the 3s session poll. That poll runs only when a
+watched folder changed (`watchFolder` on the sidecars and on the target agents'
+own project folders, the ones `probe.mjs` reports), a sub-agent may have gone
+quiet, or, every 15s, when a folder can't be watched (refused, or not created
+yet). It runs whether the sidebar is wide, a rail or hidden, since the HUD
+footer, the report and the session card read it. A glyph whose state has
+nothing in it draws still (`glyph(..., { still })`): an idle fleet repaints
+nothing.
 
-Selection is one block per list (`slide()` in `kit.js`) whose `top` moves to the
-selected row. That needs every row's height to be fixed: the `H` tables in
-`spaces.js` and `agents.js`. The tab strip's yellow block moves `left` and
-`width` over the widths each tab reports. Each block is child 0 of its scroll
-area, so `scroll_to_item` indexes there are one higher than the row index.
+Plates snap; only the yellow marker travels. A list's selection is a plate
+(`plate()`, child 0 of its scroll area, under the rows) that jumps to the
+selected row with no transition, and a 2px yellow marker (`marker()`, the last
+child, over the rows) whose `top` moves there. That needs every row's height to
+be fixed: the `H` tables in `spaces.js` and `agents.js`. The tab strip does the
+same: its yellow plate jumps, and a 3px ink marker along its foot slides over the
+widths each tab reports. Scroll indexes (`scroll_to_item`) are one higher than
+the row index because of the plate.
+
+Regions build in placeholder-first after the boot (`Entrance`): drawn at
+opacity 0, then each fades in (`build.in`), `build.stagger` apart.

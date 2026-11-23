@@ -10,7 +10,7 @@ export const home = () => process.env.HERDR_APP_HOME || join(homedir(), ".config
 export const posix = (p) => p.split(sep).join("/");
 
 // A seed is the person's to edit once installed: written only when absent, never overwritten.
-const SEEDS = { "data/endfield/operators.example.json": "data/endfield/operators.json" };
+const SEEDS = { "data/endfield/operators.example.json": "data/endfield/operators.json", "data/endfield/settings.example.json": "data/endfield/settings.json" };
 
 // The only paths in a Herdr home this project may write or delete.
 export const owned = (rel) => /^(layouts|themes)\/endfield[\w-]*\.\w+$|^mods\/endfield[\w-]*\/|^data\/endfield\//.test(rel);
@@ -35,6 +35,10 @@ export function entries() {
     })
     .sort((a, b) => RANK(a.rel) - RANK(b.rel) || a.rel.localeCompare(b.rel));
 }
+
+// Folders earlier versions installed and this one no longer has (endfield-toast is now the endfield
+// mod's toast role). sync and install delete them from the home; nothing else would.
+export const RETIRED = ["mods/endfield-toast"];
 
 export const modDirs = () => [...new Set(entries().filter((e) => e.rel.startsWith("mods/")).map((e) => e.rel.split("/").slice(0, 2).join("/")))];
 

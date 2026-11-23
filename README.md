@@ -1,80 +1,46 @@
 # Endfield for Herdr
 
-A layout and theme for the [Herdr](https://herdr.dev) desktop app, styled after the wayfinding of a well-run factory. Paper chrome, ink terminal cards, and one acid yellow that means "you, here, now". Every agent's status is a word plus a glyph, and things move only where work happens.
+A layout for the [Herdr](https://herdr.dev) desktop app in the style of Arknights: Endfield's interface. Your coding agents become a squad of operators. Each has a portrait, a callsign and a status you can read at a glance. Paper chrome, ink terminal cards, and one acid yellow that means "you, here, now".
 
-![Endfield](preview.png)
+> **Unofficial fan project.** Inspired by the visual language of Arknights: Endfield. Not affiliated with, endorsed by or sponsored by Hypergryph, Gryphline or the Herdr project. This repo contains no official art, logos or assets. The optional operator portraits are downloaded by a script onto your own machine, for your personal use. See [THIRD_PARTY.md](THIRD_PARTY.md) and the [fan content guidelines](https://endfield.gryphline.com/en-us/news/4497).
 
-> **Unofficial fan project.** Inspired by the visual language of Arknights: Endfield. Not affiliated with, endorsed by or sponsored by Hypergryph, Gryphline or the Herdr project. It contains no official art, logos or assets. See [THIRD_PARTY.md](THIRD_PARTY.md).
+![A schematic of the Endfield layout: the squad sidebar on the left, the tab strip on top, ink terminal cards in the work area](preview.png)
+
+The image is a schematic of the layout, not a screenshot.
 
 ## What you get
 
-- A sidebar with your spaces (repo, branch, ahead/behind) and your agents, each with its status, model, elapsed time and a context gauge. Sub-agents hang under their parent.
-- A session card when you hover an agent: model, context use, tool calls, tokens, turns, its last action and any question it is waiting on.
-- A tab strip with one sliding yellow block, ink pane cards with headers, an ink status bar with live counts, and toasts in the same style.
-- Light (paper) and dark (night) appearances that follow your system.
-- Claude Code sub-agent transcripts, readable in a pane with one click.
+- **Squads.** The sidebar groups your agents by project. Each agent shows its operator, a callsign such as `PERLICA`, its task, a status word (Generating, Needs input, Claimed or Idle), its model, its elapsed time and a context gauge. Sub-agents hang under the agent that started them.
+- **A banner when an agent needs you.** It shows the agent's question, with **Answer** and **Later**. A finished agent gets a short **Claimed** slip.
+- **A session panel** when you hover an agent: model, context, tokens, turns, its last action and any question it is waiting on.
+- **Report**, one screen with every squad, sortable by status, rate, context and turn.
+- **Dispatch**, to send a task to a running agent or start a new one, after it shows you the exact command. **Comms** shows what you sent and what agents told each other.
+- **Light and night appearances** that follow your system, and original sounds.
+- **Optional extras.** Official operator portraits, a Claude Code statusline, and a PowerShell prompt.
 
-## Requirements
+Model, context and sub-agent details are for Claude Code. Other agents show their status, program and task.
 
-- The Herdr desktop app.
-- [Node.js](https://nodejs.org) 18 or newer on your `PATH`. The install scripts need it, and so does the skin's session data: model, context and sub-agents for Claude Code. Without Node the layout still works and those fields read `—`.
-- Optional: Python 3 with Pillow, only to build an art pack.
+## Quick start
 
-## Install
+You need Herdr, Node.js 18 or newer, and Git. The portraits also need Python 3 with Pillow.
 
 ```sh
 git clone https://github.com/Kaiz404/herdr-endfield
 cd herdr-endfield
 node scripts/install.mjs
-```
-
-Then switch layouts in Herdr with `ctrl-shift-l` until Endfield shows, or run `herdr-app do layout.switch --name endfield`.
-
-The installer copies `skin/` into your Herdr home (`~/.config/herdr-app`, or `HERDR_APP_HOME` if you set it). It writes only files whose names start with `endfield`. If an Endfield file is already there, it backs it up first to `.endfield-install/backup/`. Running it again changes nothing.
-
-To update, `git pull` and run `node scripts/install.mjs` again.
-
-## Uninstall
-
-```sh
-herdr-app do layout.switch --name main
-node scripts/uninstall.mjs
-```
-
-This removes what the installer added and restores anything it backed up. It leaves `data/endfield/` (cached session data and your operator settings) for you to delete by hand.
-
-## Opt-in extras
-
-Neither is installed by `install.mjs`. Each folder's README says what it changes and how to undo it.
-
-- [`extras/claude-statusline/`](extras/claude-statusline/README.md): a Claude Code statusline in the same style. It also writes a small file per session, so the skin matches each agent to its exact session instead of guessing from the newest transcript.
-- [`extras/powershell-prompt/`](extras/powershell-prompt/README.md): a one-line PowerShell prompt, `// folder  branch ›`, that also tells Herdr which folder you are in.
-
-## Operator art (optional)
-
-The skin can give each agent an Arknights: Endfield operator. This repo contains no official images. If you want them, one script downloads the official renders onto your own machine and builds the pack the skin reads:
-
-```sh
-node scripts/fetch-operators.mjs --list
+herdr-app do layout.switch --name endfield
 node scripts/fetch-operators.mjs --accept
 ```
 
-> The character art is © Hypergryph / Gryphline. The script downloads it from the official site for your personal, local use only. Do not redistribute the files: no commits, forks, packs or uploads. See the [fan content guidelines](https://endfield.gryphline.com/en-us/news/4497).
+The last command downloads the official operator art onto your machine. Leave it out to use the layout with program icons instead.
 
-It needs Python 3 with Pillow (`python -m pip install Pillow`). It writes only to `art/operators/` in your Herdr home, and a second run does nothing. `--dry-run` shows what it would do. To use your own art instead, see [`art-pack/`](art-pack/README.md).
-
-The skin works the same without it: every agent keeps its program icon. Drawing the portraits on screen is on the [roadmap](ROADMAP.md).
-
-## Screenshots
-
-<!-- Add screenshots of a demo session here: light, dark, the session card, a blocked agent. No personal folders or terminal contents. -->
-
-Coming soon.
+The full guide is [docs/SETUP.md](docs/SETUP.md). It covers each piece with a check and an undo step: the layout, the portraits, which operator each agent gets, sounds, the Claude Code statusline and theme, the PowerShell prompt, Dispatch and Comms, uninstall, troubleshooting, and what data the skin keeps.
 
 ## More
 
-- [RECIPE.md](RECIPE.md): the full design brief, region by region, in Herdr's recipe format.
+- [docs/SETUP.md](docs/SETUP.md): install, configure, uninstall and troubleshoot.
 - [CONTRIBUTING.md](CONTRIBUTING.md): the dev loop and the design rules.
-- [ROADMAP.md](ROADMAP.md), [CHANGELOG.md](CHANGELOG.md).
+- [ROADMAP.md](ROADMAP.md) and [CHANGELOG.md](CHANGELOG.md).
+- [RECIPE.md](RECIPE.md): the full design brief, region by region.
 
 Code is MIT-licensed. The bundled font is under the SIL Open Font License. See [LICENSE](LICENSE) and [THIRD_PARTY.md](THIRD_PARTY.md).

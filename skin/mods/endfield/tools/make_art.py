@@ -13,15 +13,8 @@ def stroke(body, size=16, width=1.3):
 def fill(body, w=16, h=16):
     return f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" fill="currentColor">{body}</svg>\n'
 
-hazard = ['<rect width="3" height="34" fill="#191919"/>']
-for y in range(-6, 40, 6):
-    hazard.append(f'<polygon points="0,{y} 3,{y - 3} 3,{y} 0,{y + 3}" fill="#FFFA00"/>')
-
 ICONS = {
-    "hazard": '<svg xmlns="http://www.w3.org/2000/svg" width="3" height="34" viewBox="0 0 3 34">' + "".join(hazard) + "</svg>\n",
     "diamond": fill('<path d="M8 1.5L14.5 8L8 14.5L1.5 8z"/>'),
-    # The ink button's hover arrow: what its yellow side tab turns into.
-    "tri": fill('<path d="M0 0L6 4L0 8z"/>', 6, 8),
     "plus": stroke('<path d="M8 2.5v11M2.5 8h11"/>', width=1.5),
     "close": stroke('<path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/>', width=1.4),
     "chevron-down": stroke('<path d="M3.5 6l4.5 4.5L12.5 6"/>', width=1.5),
@@ -42,23 +35,31 @@ ICONS = {
     "win-max": stroke('<rect x=".5" y=".5" width="9" height="9"/>', size=10, width=1),
     "win-restore": stroke('<rect x=".5" y="2.5" width="7" height="7"/><path d="M2.5 2.5V.5h7v7h-2"/>', size=10, width=1),
     "win-close": stroke('<path d="M0 0l10 10M10 0L0 10"/>', size=10, width=1),
+    "search": stroke('<circle cx="7" cy="7" r="4.5"/><path d="M10.4 10.4L14 14"/>'),
 }
 
-# Original topographic lines: two nested ridge systems and a knoll, white at 6%.
-def contour():
-    paths = []
-    for i in range(5):
-        y = 120 + i * 34
-        paths.append(f'<path d="M0 {y} C 260 {y + 70} 470 {y - 60} 760 {y + 10} S 1180 {y + 90} 1440 {y + 20}"/>')
-    for i in range(4):
-        y = 620 + i * 38
-        paths.append(f'<path d="M0 {y + 30} C 210 {y - 40} 520 {y + 80} 800 {y} S 1250 {y - 70} 1440 {y + 10}"/>')
-    for r in (0, 18, 36):
-        paths.append(f'<ellipse cx="1120" cy="430" rx="{110 - r}" ry="{64 - r * 0.6:.0f}" transform="rotate(-12 1120 430)"/>')
-    return ('<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" preserveAspectRatio="none" '
-            'fill="none" stroke="#FFFFFF" stroke-opacity="0.06" stroke-width="1">' + "".join(paths) + "</svg>\n")
+# The geometric layer, all tinted with the text colour and drawn large, then clipped by their
+# parent: a field of dots (6px pitch), a 48px grid, a catalogue barcode, a registration cross,
+# a tick ruler (major every 20px, minor every 4px), and range rings (dotted outer, solid inner,
+# four ticks) that frame empty space.
+def pattern(pid, w, h, body, size):
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{size[0]}" height="{size[1]}" viewBox="0 0 {size[0]} {size[1]}" fill="currentColor">'
+            f'<defs><pattern id="{pid}" width="{w}" height="{h}" patternUnits="userSpaceOnUse">{body}</pattern></defs>'
+            f'<rect width="{size[0]}" height="{size[1]}" fill="url(#{pid})"/></svg>\n')
 
-ICONS["contour"] = contour()
+ICONS["dots"] = pattern("d", 6, 6, '<circle cx="3" cy="3" r="0.8"/>', (1440, 960))
+# The blueprint grid is the work area's layout background, an image (not tinted): mid grey at 14% reads on paper and night.
+ICONS["grid"] = pattern("g", 48, 48, '<rect width="48" height="1" fill="#7F7F7F" fill-opacity="0.14"/><rect width="1" height="48" fill="#7F7F7F" fill-opacity="0.14"/>', (2400, 1600))
+ICONS["barcode"] = ('<svg xmlns="http://www.w3.org/2000/svg" width="36" height="8" viewBox="0 0 36 8" fill="currentColor">'
+                    + "".join(f'<rect x="{x + o}" width="{w}" height="8"/>' for x in range(0, 36, 9) for o, w in ((0, 1), (3, 2), (6, 1)))
+                    + "</svg>\n")
+ICONS["cross"] = '<svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 9 9" fill="currentColor"><rect x="4" width="1" height="9"/><rect y="4" width="9" height="1"/></svg>\n'
+ICONS["ticks"] = ('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="6" viewBox="0 0 400 6" fill="currentColor">'
+                  + "".join(f'<rect x="{x}" y="{0 if x % 20 == 0 else 3}" width="1" height="{6 if x % 20 == 0 else 3}"/>' for x in range(0, 400, 4))
+                  + "</svg>\n")
+ICONS["rings"] = ('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300" fill="none" stroke="currentColor">'
+                  '<circle cx="150" cy="150" r="148" stroke-dasharray="1 5" stroke-linecap="round"/><circle cx="150" cy="150" r="104"/>'
+                  '<path d="M150 0v26M150 274v26M0 150h26M274 150h26"/></svg>\n')
 
 for name, svg in ICONS.items():
     (ART / f"{name}.svg").write_text(svg, encoding="utf-8")

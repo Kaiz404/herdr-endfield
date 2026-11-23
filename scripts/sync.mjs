@@ -4,7 +4,7 @@
 // No backups: run install.mjs first on a home whose endfield files you want to keep.
 import { mkdirSync, copyFileSync, existsSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { entries, home, owned, same, walk, posix, herdrWritten, modDirs } from "./skin.mjs";
+import { entries, home, owned, same, walk, posix, herdrWritten, modDirs, RETIRED } from "./skin.mjs";
 
 const DRY = process.argv.includes("--dry-run");
 const HOME = home();
@@ -26,11 +26,14 @@ for (const m of modDirs()) {
   }
 }
 
+for (const rel of RETIRED) if (existsSync(join(HOME, rel))) plan.push(["retire", rel]);
+
 for (const [op, rel, src] of plan) {
   console.log(`${DRY ? "would " : ""}${op}  ${rel}`);
   if (DRY || op.startsWith("differs")) continue;
   const dest = join(HOME, rel);
   if (op === "remove") rmSync(dest);
+  else if (op === "retire") rmSync(dest, { recursive: true, force: true });
   else { mkdirSync(dirname(dest), { recursive: true }); copyFileSync(src, dest); }
 }
 console.log(`\n${plan.length} difference${plan.length === 1 ? "" : "s"} between skin/ and ${HOME} (${skin.length} skin files)${DRY ? ", dry run" : ""}`);

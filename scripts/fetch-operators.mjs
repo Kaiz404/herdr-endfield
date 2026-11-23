@@ -18,7 +18,7 @@ const CATALOGUE = join(ROOT, "art-pack", "operators.json");
 const BUILD = join(ROOT, "art-pack", "build_pack.py");
 const MAX_BYTES = 8 * 1024 * 1024;
 const TIMEOUT_MS = 30_000;
-const FILES = { avatar32: "avatar-32.png", avatar64: "avatar-64.png", avatar128: "avatar-128.png", avatar64round: "avatar-64-round.png", signal: "signal.png" };
+const FILES = { avatar32: "avatar-32.png", avatar64: "avatar-64.png", avatar128: "avatar-128.png", avatar64round: "avatar-64-round.png", bust480: "bust-480.png", signal: "signal.png" };
 const STATE = ".fetch-operators.json";
 
 const catalogue = JSON.parse(readFileSync(CATALOGUE, "utf8"));

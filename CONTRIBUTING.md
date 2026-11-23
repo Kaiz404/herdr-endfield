@@ -36,7 +36,7 @@ These keep the skin coherent. A change that breaks one needs a reason in its PR.
 - **One decision, one place.** Colours live in `PALETTE`, agent statuses in `STATUS`, timings in `MOTION`, and who an agent is drawn as in `IDENTITY`, all in `kit.js`. A new status, colour, timing or operator is a new row in a table. It is not a new `if` in a surface, and not a number in a surface.
 - **Smallest change that delivers the experience.** Delete what your change makes dead: unused exports, SVGs, helpers, stale comments. Prefer a flat call path; any question about the code should be answerable within three files.
 - **Only native motion.** Use `.transition`, `.loop` and `.frames`. Mods have no `setTimeout` or `setInterval`, and a fast `cx.timer.every` repaints the whole window, so timers are for data (a clock, a poll) and never under one second for animation. `verify.mjs` fails on both.
-- **The skin never starts an agent.** It shows and focuses agents; it does not spawn them. `verify.mjs` checks this too.
+- **The skin never starts an agent on its own.** It shows and focuses agents. The one exception is Dispatch, which runs the `hc` command it shows, on the person's click; nothing runs from a timer, a status change or a load. `verify.mjs` checks that no source names an agent program next to an `hc run`.
 - **Generated art stays generated.** SVGs in `art/` come from `tools/make_art.py`. Edit the script and rerun it.
 - **Comments say why, not what.** Keep a comment only when the code can't show the reason.
 

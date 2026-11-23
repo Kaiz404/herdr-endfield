@@ -6,7 +6,9 @@
 //      terminal is matched to its folder's most recently written transcript: approximate, since
 //      two sessions in one folder can't be told apart (`approx`).
 // Transcripts run to tens of MB and readTextFile stops at 1 MiB, so tools/probe.mjs (node)
-// reads them, folding only the lines appended since its last run.
+// reads them, folding only the lines appended since its last run, and the sidecars too (it can
+// skip stale ones by mtime, which a mod can't see). The squad list owns the one poller; the
+// card, the HUD footer and the report read what it publishes.
 //
 // Session = {sessionId, terminal, cwd, transcriptPath, approx, model:{id, display, short} | null,
 //   ctx:{used, total, pct} | null, tokens:{total, delta} | null, tools, turns, effort, mode,
@@ -14,7 +16,7 @@
 // Sub = {id, path, title, model, tools, status: working | done | idle, lastAt, lastAction}
 
 import * as fs from "fs/promises";
-import { exec, readTextFile, appHome, watchFolder, home, checking } from "herdr";
+import { exec, appHome, watchFolder, checking } from "herdr";
 
 const DATA = () => `${appHome()}/data/endfield`;
 const SIDECARS = () => `${DATA()}/sessions`;
@@ -22,6 +24,7 @@ const PROBE = () => `${appHome()}/mods/endfield/tools/probe.mjs`;
 // A sub-agent counts as working while its transcript was written this recently.
 const LIVE_MS = 20000;
 const POLL_MS = 3000;
+const BLIND_EVERY = 5;
 
 export const isClaude = (a) => a?.program?.key === "claude" || a?.app === "claude-code";
 
@@ -37,7 +40,8 @@ function contextWindow(id, used) {
   return /\[1m\]/i.test(id ?? "") || used > 200000 ? 1000000 : 200000;
 }
 
-function shape(t, raw, sidecar, parentStatus) {
+function shape(t, raw, parentStatus) {
+  const sidecar = raw?.sidecar ?? null;
   const id = sidecar?.model?.id ?? raw?.model ?? null;
   const model = id ? modelName(id, sidecar?.model?.display_name ?? null) : null;
   const used = sidecar?.context?.used ?? raw?.used ?? null;
@@ -52,6 +56,7 @@ function shape(t, raw, sidecar, parentStatus) {
     tools: s.tools ?? 0,
     status: now - s.mtime < LIVE_MS && (s.pending || !s.final) ? "working" : parentStatus === "idle" ? "idle" : "done",
     lastAt: s.mtime,
+    startedAt: s.firstAt ?? null,
     lastAction: s.last,
   })).sort((a, b) => b.lastAt - a.lastAt);
   return {
@@ -75,23 +80,8 @@ function shape(t, raw, sidecar, parentStatus) {
   };
 }
 
-async function sidecars() {
-  let names = [];
-  try { names = await fs.readdir(SIDECARS()); } catch { return new Map(); }
-  const byTerminal = new Map();
-  for (const n of names.filter((n) => n.endsWith(".json"))) {
-    try {
-      const s = JSON.parse(await readTextFile(`${SIDECARS()}/${n}`) ?? "null");
-      if (!s?.terminal) continue;
-      const had = byTerminal.get(s.terminal);
-      if (!had || String(s.updated_at ?? "") > String(had.updated_at ?? "")) byTerminal.set(s.terminal, s);
-    } catch {}
-  }
-  return byTerminal;
-}
-
 /**
- * One owner's view of the sessions. `name` keeps each mod copy's probe request file its own.
+ * One owner's view of the sessions (the squad list's). `name` keeps its probe request file its own.
  * Targets: [{terminal, cwd, status}] for Claude agents only.
  */
 export class Sessions {
@@ -101,39 +91,52 @@ export class Sessions {
     this.dirty = true;
     this.busy = false;
     this.key = "";
-    this.watches = [];
+    // Folder -> its pending watch; the folders are the ones the last probe said its answer reads.
+    this.watches = new Map();
+    // Folders whose watch was refused: polled every BLIND_EVERY ticks instead, and watched again then.
+    // A project folder that doesn't exist yet (no session has run there) is polled the same way.
+    this.blind = new Set();
+    this.missing = false;
+    this.ticks = 0;
     this.failed = false;
   }
 
   get(terminal) { return this.map.get(terminal) ?? null; }
 
-  /** Seeds from a snapshot another copy already has (the card gets its row's). */
-  seed(session) { if (session?.terminal) this.map.set(session.terminal, session); }
-
   /**
-   * Polls at most every 3s, and only when `shown()` and something changed: a transcript or
-   * sidecar was written (watched), the targets changed, or a live sub-agent may have gone quiet.
+   * Polls at most every 3s, and only when something changed: a watched transcript or sidecar
+   * folder was written, the targets changed, a live sub-agent may have gone quiet, or a folder
+   * can't be watched and its turn came.
    */
-  start(cx, targets, shown) {
+  start(cx, targets) {
     if (checking()) return;
-    for (const dir of [`${home()}/.claude/projects`, SIDECARS()]) this.watch(cx, dir);
+    sweepCardRequests();
     cx.timer.every(POLL_MS, (cx) => {
       const ts = targets();
       const key = JSON.stringify(ts);
       const aging = [...this.map.values()].some((s) => s.subagents.some((k) => k.status === "working"));
-      if (!shown() || !(this.dirty || aging || key !== this.key)) return;
+      const blindTurn = (this.blind.size > 0 || this.missing) && ++this.ticks % BLIND_EVERY === 0;
+      if (blindTurn) { const again = [...this.blind]; this.blind.clear(); for (const dir of again) this.watch(cx, dir); }
+      if (!(this.dirty || aging || blindTurn || key !== this.key)) return;
       this.poll(cx, ts, key);
     });
     this.poll(cx, targets(), JSON.stringify(targets()));
+  }
+
+  /** Keeps one watch per folder in `dirs`, cancelling the rest. */
+  follow(cx, dirs) {
+    const want = new Set(dirs);
+    for (const [dir, w] of this.watches) if (!want.has(dir)) { w.cancel(); this.watches.delete(dir); }
+    for (const dir of want) if (!this.watches.has(dir) && !this.blind.has(dir)) this.watch(cx, dir);
   }
 
   watch(cx, dir) {
     cx.spawn(async () => {
       while (!this.stopped) {
         const w = watchFolder(dir);
-        this.watches.push(w);
-        try { await w; } catch { return; }
-        this.watches = this.watches.filter((x) => x !== w);
+        this.watches.set(dir, w);
+        try { await w; } catch { this.watches.delete(dir); this.blind.add(dir); this.dirty = true; return; }
+        if (this.watches.get(dir) !== w) return;
         this.dirty = true;
       }
     });
@@ -141,31 +144,33 @@ export class Sessions {
 
   stop() {
     this.stopped = true;
-    for (const w of this.watches) w.cancel();
-    this.watches = [];
+    for (const w of this.watches.values()) w.cancel();
+    this.watches.clear();
   }
 
   poll(cx, targets, key) {
-    if (this.busy || !targets.length) { if (!targets.length) this.map.clear(); return; }
+    if (this.busy || !targets.length) { if (!targets.length) { this.map.clear(); this.follow(cx, []); } return; }
     this.busy = true;
     this.dirty = false;
     this.key = key;
     cx.spawn(async (cx) => {
       try {
-        const side = await sidecars();
         const req = `${DATA()}/probe-${this.name}.json`;
         await fs.mkdir(DATA(), { recursive: true });
         await fs.writeFile(req, JSON.stringify({
           cmd: "sessions",
           cache: `${DATA()}/probe-cache.json`,
-          targets: targets.map((t) => ({ terminal: t.terminal, cwd: t.cwd, transcript: side.get(t.terminal)?.transcript_path ?? null })),
+          sidecars: SIDECARS(),
+          targets: targets.map((t) => ({ terminal: t.terminal, cwd: t.cwd })),
         }));
         const r = await exec("node", [PROBE(), req], { timeout: 20000 });
-        const raw = r.code === 0 ? JSON.parse(r.stdout).sessions ?? {} : {};
+        const out = r.code === 0 ? JSON.parse(r.stdout) : {};
         this.failed = r.code !== 0;
         const next = new Map();
-        for (const t of targets) next.set(t.terminal, shape(t, raw[t.terminal], side.get(t.terminal), t.status));
+        for (const t of targets) next.set(t.terminal, shape(t, out.sessions?.[t.terminal], t.status));
         this.map = next;
+        this.missing = (out.missing ?? []).length > 0;
+        if (!this.stopped && out.watch) this.follow(cx, out.watch);
       } catch {
         this.failed = true;
       }
@@ -173,6 +178,14 @@ export class Sessions {
       cx.notify();
     });
   }
+}
+
+// Earlier cards each ran a poller with a request file of their own (probe-card-o<N>.json); none
+// does now, so the ones left behind go.
+async function sweepCardRequests() {
+  try {
+    for (const n of await fs.readdir(DATA())) if (/^probe-card-.+\.json$/.test(n)) await fs.unlink(`${DATA()}/${n}`);
+  } catch {}
 }
 
 // ---- formatting the card and rows share

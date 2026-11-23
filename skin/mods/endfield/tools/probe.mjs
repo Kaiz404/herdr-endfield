@@ -1,12 +1,15 @@
 // Reads Claude Code transcripts for the endfield mods, which can't: readTextFile stops at
 // 1 MiB and transcripts run to tens of MB. Run as `node probe.mjs <request.json>`; prints JSON.
 //
-//   {cmd: "sessions", cache, targets: [{terminal, cwd, transcript?}]}
-//     -> {sessions: {terminal: Parsed}}
+//   {cmd: "sessions", cache, sidecars, targets: [{terminal, cwd}]}
+//     -> {sessions: {terminal: Parsed & {sidecar}}, watch: [the folders whose writes change this answer],
+//         missing: [project folders that don't exist yet, so can't be watched]}
 //   {cmd: "render", path, from}  -> {to, size, entries: [{kind, text, tool?, arg?}]}
 //
 // Each transcript is folded once: the fold (a small summary) and the byte offset it reached
-// are kept in `cache`, so a poll reads only the lines appended since.
+// are kept in `cache`, so a poll reads only the lines appended since. Entries whose file is gone,
+// or that no request touched for a week, are dropped. Sidecars a statusline wrote more than a day
+// ago are not read.
 
 import fs from "node:fs";
 import os from "node:os";
@@ -14,6 +17,8 @@ import path from "node:path";
 
 const PROJECTS = path.join(os.homedir(), ".claude", "projects");
 const CHUNK = 4 << 20;
+const DAY = 86400000;
+const CACHE_DAYS = 7;
 // Lines Claude Code writes that never matter here, and can be megabytes each.
 const SKIP = /"type":"(api-request|api-request-blob|data-flow-records|file-history-snapshot|queue-operation|attachment)"/;
 
@@ -119,6 +124,7 @@ function summary(cache, p) {
   }
   c.mtime = s.mtime;
   c.size = s.size;
+  c.used = Date.now();
   return { ...c.fold, mtime: s.mtime };
 }
 
@@ -137,11 +143,35 @@ function subagents(cache, transcript) {
   });
 }
 
+/** The newest sidecar per terminal, from those written in the last day. */
+function sidecars(dir) {
+  const byTerminal = new Map();
+  let names = [];
+  try { names = fs.readdirSync(dir).filter((n) => n.endsWith(".json")); } catch { return byTerminal; }
+  const now = Date.now();
+  for (const n of names) {
+    const p = path.join(dir, n);
+    if (now - (stat(p)?.mtime ?? 0) > DAY) continue;
+    const s = readJson(p);
+    if (!s?.terminal) continue;
+    const had = byTerminal.get(s.terminal);
+    if (!had || String(s.updated_at ?? "") > String(had.updated_at ?? "")) byTerminal.set(s.terminal, s);
+  }
+  return byTerminal;
+}
+
 function sessions(req) {
   const cache = readJson(req.cache) ?? {};
+  const side = req.sidecars ? sidecars(req.sidecars) : new Map();
   const out = {};
+  const watch = new Set(req.sidecars ? [req.sidecars] : []);
+  const missing = new Set();
   for (const t of req.targets) {
-    let transcript = t.transcript, approx = false;
+    const sidecar = side.get(t.terminal) ?? null;
+    let transcript = sidecar?.transcript_path ?? null, approx = false;
+    const project = t.cwd ? path.join(PROJECTS, slug(t.cwd)) : null;
+    if (project) (stat(project) ? watch : missing).add(project);
+    if (transcript) watch.add(path.dirname(transcript));
     if (!transcript && t.cwd) {
       // No sidecar names the session: take the project's most recently written transcript.
       const dir = path.join(PROJECTS, slug(t.cwd));
@@ -158,12 +188,14 @@ function sessions(req) {
     }
     const main = transcript ? summary(cache, transcript) : null;
     if (!main) continue;
-    out[t.terminal] = { transcript, approx, sessionId: path.basename(transcript, ".jsonl"), ...main, subagents: subagents(cache, transcript) };
+    out[t.terminal] = { transcript, approx, sessionId: path.basename(transcript, ".jsonl"), ...main, subagents: subagents(cache, transcript), sidecar };
   }
+  const now = Date.now();
+  for (const [p, c] of Object.entries(cache)) if (now - (c.used ?? 0) > CACHE_DAYS * DAY || !stat(p)) delete cache[p];
   // Atomic replace: several mod copies may probe at once; the loser's work is only redone later.
   const tmp = `${req.cache}.${process.pid}.tmp`;
   try { fs.writeFileSync(tmp, JSON.stringify(cache)); fs.renameSync(tmp, req.cache); } catch { try { fs.unlinkSync(tmp); } catch {} }
-  return { sessions: out };
+  return { sessions: out, watch: [...watch], missing: [...missing] };
 }
 
 // ---- render: a transcript as a tidy list for the transcript pane

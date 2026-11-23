@@ -99,36 +99,53 @@
           "type": "row",
           "children": [
             {
-              "id": "main",
-              "type": "block",
-              "content": {
-                "tab": "active",
-                "pane": {
-                  "header": {
-                    "content": {
-                      "mod": "endfield",
-                      "props": {
-                        "role": "pane"
-                      }
-                    },
-                    "reveal": "always",
-                    "height": 30,
-                    "position": "top"
-                  },
-                  "background": "#191919",
-                  "border": {
-                    "width": 1,
-                    "color": "input"
-                  },
-                  "focus": {
-                    "width": 1,
-                    "color": "solid"
-                  },
-                  "radius": 4,
-                  "gap": 8,
-                  "lone": true
+              "id": "work-stack",
+              "type": "stack",
+              "active": "main",
+              "children": [
+                {
+                  "id": "main",
+                  "type": "block",
+                  "content": {
+                    "tab": "active",
+                    "pane": {
+                      "header": {
+                        "content": {
+                          "mod": "endfield",
+                          "props": {
+                            "role": "pane"
+                          }
+                        },
+                        "reveal": "always",
+                        "height": 34,
+                        "position": "top"
+                      },
+                      "background": "#191919",
+                      "border": {
+                        "width": 1,
+                        "color": "input"
+                      },
+                      "focus": {
+                        "width": 1,
+                        "color": "solid"
+                      },
+                      "radius": 4,
+                      "gap": 8,
+                      "lone": true
+                    }
+                  }
+                },
+                {
+                  "id": "report",
+                  "type": "block",
+                  "content": {
+                    "mod": "endfield",
+                    "props": {
+                      "role": "report"
+                    }
+                  }
                 }
-              }
+              ]
             },
             {
               "id": "panel",
@@ -171,7 +188,11 @@
             }
           ],
           "padding": 8,
-          "gap": 8
+          "gap": 8,
+          "background": {
+            "image": "mods/endfield/art/grid.svg",
+            "fit": "cover"
+          }
         },
         {
           "id": "status",
@@ -183,7 +204,7 @@
             }
           },
           "size": {
-            "px": 28
+            "px": 44
           }
         }
       ],
@@ -214,5 +235,5 @@
     16
   ],
   "preview": "layouts/endfield.svg",
-  "toast": "endfield-toast"
+  "toast": "endfield"
 }

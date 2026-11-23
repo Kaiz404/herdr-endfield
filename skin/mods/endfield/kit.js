@@ -1,10 +1,11 @@
 // Endfield's drawing kit: the palette and status registries every role reads,
-// plus the few shapes they share (tiles, brackets, hatch, status marks).
+// plus the few shapes they share (chips, pills, hatch, status marks, the geometric layer).
 
 import { div, svg, image, PathBuilder, Background } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { settings, layout, shared, setShared, run, keys, home, appHome, readTextFile, fonts, checking, window as appWindow } from "herdr";
+import { settings, layout, shared, setShared, run, keys, home, appHome, readTextFile, fonts, checking, playSound, window as appWindow } from "herdr";
 import * as fs from "fs/promises";
+import { statusOf } from "./fleet.js";
 
 export const ASSETS = "mods/endfield/art";
 export const FONT = { ui: "Geist", mono: "Geist Mono" };
@@ -62,6 +63,11 @@ const PALETTE = {
     error: "#C42126",
     errorInv: "#FF5A5E",
     glow: "#00000024",
+    // The geometric layer: rings, crosses, tick rulers, dot fields, the blueprint grid.
+    geo: "#1919192E",
+    cross: "#8F8F8F",
+    tick: "#A9A9A9",
+    dot: "#19191929",
   },
   night: {
     ground: "#141414",
@@ -85,51 +91,46 @@ const PALETTE = {
     error: "#FF5A5E",
     errorInv: "#C42126",
     glow: "#00000080",
+    geo: "#FFFFFF29",
+    cross: "#5A5A5A",
+    tick: "#4A4A4A",
+    dot: "#FFFFFF1F",
   },
 };
 
 const variant = () => (settings()?.dark ? "night" : "paper");
 export const palette = () => ({ ...SIGNAL, ...PALETTE[variant()] });
 
-// ---- status: every role reads a status through these two tables
-
-const STATUS = {
-  blocked: { word: "Needs input", short: "Input", kind: "pill", bar: "signal", edge: "hazard", enter: ["flicker"], rank: 4 },
-  error: { word: "Error", kind: "text", glyph: "×", hue: "error", bar: "red", rank: 4 },
-  done: { word: "Done", kind: "disc", glyph: "✓", bar: "lime", fresh: true, enter: ["flicker", "pop"], rank: 3 },
-  working: { word: "Working", kind: "march", hue: "flow", bar: "flowInv", conveyor: true, rank: 2 },
-  idle: { word: "Idle", kind: "mono", glyph: "zZ", bar: "hairStrong", quiet: true, rank: 1 },
-};
-export const statusOf = (s) => STATUS[s] ?? null;
-export const rank = (s) => STATUS[s]?.rank ?? 0;
+// ---- status: every role reads a status through the STATUS table (fleet.js) and GLYPH below
 
 // Two triangles stepping through on the shared frame clock (each slot frames its own lit beat).
+// still: the same two triangles unlit, for a place that names the state while nothing is in it.
 const BEATS = [["▶", " ", " "], [" ", "▶", " "]];
-function march(color, size) {
+function march(color, size, still) {
   const slot = (beat) => div().relative().w(size * 0.8).h(size + 2).flex_none().font_family(FONT.ui).text_size(size).line_height(1)
     .child(div().absolute().top(0).left(0).opacity(0.25).text_color(color).child("▶"))
-    .child(div().absolute().top(0).left(0).text_color(color).frames(beat, MOTION.march.period));
+    .when(!still, (el) => el.child(div().absolute().top(0).left(0).text_color(color).frames(beat, MOTION.status.march.period)));
   return h_flex().flex_none().items_center().child(slot(BEATS[0])).child(slot(BEATS[1]));
 }
 
 // How each kind draws its glyph. ctx: { C, inv (on an inverted row), size }.
 const GLYPH = {
-  march: (st, { C, inv, size }) => march(C[inv ? `${st.hue}Inv` : st.hue], size - 2),
+  march: (st, { C, inv, size, still }) => march(C[inv ? `${st.hue}Inv` : st.hue], size - 2, still),
   // The disc pops: its size grows from 0 when an effect marks it new (needs a stable id).
   disc: (st, { C, size, id, pop }) => h_flex().w(size + 2).h(size + 2).flex_none().items_center().justify_center()
     .child(div().when(Boolean(id), (el) => el.id(id)).w(pop ? 0 : size + 2).h(pop ? 0 : size + 2)
-      .transition("width", MOTION.move).transition("height", MOTION.move)
+      .transition("width", MOTION.done.check).transition("height", MOTION.done.check)
       .flex_none().rounded_full().bg(C.lime).flex().items_center().justify_center().overflow_hidden()
       .text_size(size - 3).font_weight(700).text_color(C.ink).child(st.glyph)),
   mono: (st, { C, inv, size }) => div().flex_none().font_family(FONT.mono).text_size(size - 1.5).text_color(inv ? C.selMuted : C.muted).child(st.glyph),
   text: (st, { C, inv, size }) => div().flex_none().text_size(size + 1).font_medium().text_color(C[inv ? `${st.hue}Inv` : st.hue]).child(st.glyph),
-  pill: (st, { C }) => div().flex_none().h(16).px(7).flex().items_center().rounded_full().bg(C.signal).text_color(C.ink)
-    .text_size(10).font_semibold().child(st.short),
+  pill: (st, { C, size }) => div().flex_none().w(size + 5).h(size).flex().items_center().justify_center().bg(C.signal).text_color(C.ink)
+    .text_size(size - 2).font_weight(700).child("!"),
 };
 
-export function glyph(C, s, { inv = false, size = 11, id = null, pop = false } = {}) {
+export function glyph(C, s, { inv = false, size = 11, id = null, pop = false, still = false } = {}) {
   const st = statusOf(s);
-  return st ? GLYPH[st.kind](st, { C, inv, size, id, pop }) : null;
+  return st ? GLYPH[st.kind](st, { C, inv, size, id, pop, still }) : null;
 }
 
 /** Word plus glyph, never colour alone. The word keeps the row's text colour; only the glyph carries the hue. */
@@ -144,9 +145,9 @@ export function statusMark(C, s, { inv = false, size = 11, id = null, pop = fals
   return h_flex().flex_none().gap(5).items_center().child(glyph(C, s, { inv, size, id, pop })).child(div().text_size(size).font_medium().text_color(fg).child(st.word));
 }
 
-/** The blocked row's hazard tick: the one thing that breathes. */
-export function hazardTick(h = 34) {
-  return image(`${ASSETS}/hazard.svg`).w(3).h(h).flex_none().loop("opacity", { from: 0.55, to: 1, period: MOTION.breathe.period });
+/** Hazard stripes (yellow on ink, 45°): a blocked row's edge, the Needs-input strip, the pulse rule. Still: blocked waits. */
+export function hazard(C, w, h) {
+  return div().relative().w(w).h(h).flex_none().overflow_hidden().bg(C.ink).child(hatch(C.signal, 3, 6));
 }
 
 /** Unseen done: a small rotated-square dot. */
@@ -161,8 +162,13 @@ export function freshDot(C, size = 8) {
 
 const MANIFEST = "art/operators/manifest.json";
 const OVERRIDES = "data/endfield/operators.json";
-const AVATAR = { 32: "avatar32", 64: "avatar64", 128: "avatar128", round: "avatar64round", signal: "signal" };
-let cast = { text: null, programs: {}, terminals: {}, operators: {} };
+const PREFS = "data/endfield/settings.json";
+// The person's skin settings (data/endfield/settings.json, schema in README).
+let prefs = { sounds: { alerts: true, ticks: false } };
+const AVATAR = { 32: "avatar32", 64: "avatar64", 128: "avatar128", round: "avatar64round", bust: "bust480", signal: "signal" };
+// The class badge on a chip: the program, in one or two letters.
+const BADGE = { claude: "C", codex: "X", cursor: "Cu", opencode: "O", gemini: "G" };
+let cast = { text: null, programs: {}, terminals: {}, operators: {}, spares: [] };
 let reading = null;
 
 async function readJson(rel) {
@@ -173,6 +179,7 @@ async function readJson(rel) {
 }
 
 async function present(paths) {
+  if (!paths.every(Boolean)) return false;
   try { return (await Promise.all(paths.map((p) => fs.exists(`${appHome()}/${p}`)))).every(Boolean); } catch { return false; }
 }
 
@@ -180,7 +187,8 @@ export const IDENTITY = {
   /** Rereads both files; rebuilds the table, and redraws every copy, only when their text changed. */
   refresh() {
     reading ??= (async () => {
-      const [[mText, manifest], [oText, overrides]] = await Promise.all([readJson(MANIFEST), readJson(OVERRIDES)]);
+      const [[mText, manifest], [oText, overrides], [, own]] = await Promise.all([readJson(MANIFEST), readJson(OVERRIDES), readJson(PREFS)]);
+      prefs = { sounds: { ...prefs.sounds, ...(own?.sounds ?? {}) } };
       const text = JSON.stringify([mText, oText]);
       if (text !== cast.text) {
         const operators = {};
@@ -189,7 +197,8 @@ export const IDENTITY = {
           if (await present(Object.values(avatar))) operators[op.slug] = { operator: op.slug, name: op.name, accent: op.accent ?? null, avatar };
         }
         const defaults = Object.fromEntries(Object.entries(manifest?.default_assignment ?? {}).map(([k, v]) => [k, v?.operator ?? null]));
-        cast = { text, operators, programs: { ...defaults, ...(overrides?.programs ?? {}) }, terminals: { ...(overrides?.terminals ?? {}) } };
+        const spares = (overrides?.spares ?? manifest?.unassigned ?? []).filter((slug) => operators[slug]);
+        cast = { text, operators, spares, programs: { ...defaults, ...(overrides?.programs ?? {}) }, terminals: { ...(overrides?.terminals ?? {}) } };
         if (!checking()) setShared("endfield.identity", Date.now());
       }
       reading = null;
@@ -198,18 +207,46 @@ export const IDENTITY = {
   },
 
   /**
-   * An agent's identity: { operator, name, accent, avatar: {32, 64, 128, round, signal}, fallbackIcon }.
-   * First listed wins: the terminal's override, "sub-agent" for a sub-agent, the program's, "shell".
+   * An agent's identity: { operator, name, accent, avatar: {32, 64, 128, round, bust, signal}, badge,
+   * fallbackIcon, pinned }. First listed wins: the terminal's override, "sub-agent" for a child of the
+   * same program (a cross-vendor child keeps its own program's operator), the program's, "shell".
    * A null there means "no operator": operator, accent and avatar come back null, and fallbackIcon
-   * (the program) is what the surface draws.
+   * (the program) is what the surface draws. `pinned` says the terminal override chose it.
    */
-  resolve(program, terminal = null, { sub = false } = {}) {
-    const slug = [cast.terminals[terminal], sub ? cast.programs["sub-agent"] : undefined, cast.programs[program?.key], cast.programs.shell]
+  resolve(program, terminal = null, { parent = null } = {}) {
+    const pinned = cast.terminals[terminal];
+    const slug = [pinned, parent && parent.key === program?.key ? cast.programs["sub-agent"] : undefined, cast.programs[program?.key], cast.programs.shell]
       .find((v) => v !== undefined);
-    const op = cast.operators[slug] ?? null;
-    return { operator: op?.operator ?? null, name: op?.name ?? program?.name ?? "", accent: op?.accent ?? null, avatar: op?.avatar ?? null, fallbackIcon: program ?? null };
+    return this.as(slug, program, pinned !== undefined);
   },
+
+  /** The identity of a given operator slug (null: none), drawn for `program`. */
+  as(slug, program, pinned = false) {
+    const op = cast.operators[slug] ?? null;
+    const badge = BADGE[program?.key] ?? (program?.name ?? "?").slice(0, 1).toUpperCase();
+    return { operator: op?.operator ?? null, name: op?.name ?? program?.name ?? "", accent: op?.accent ?? null, avatar: op?.avatar ?? null, badge, fallbackIcon: program ?? null, pinned };
+  },
+
+  /** Operators held back for repeats (data/endfield/operators.json "spares", else the manifest's unassigned). */
+  spares() { return cast.spares; },
 };
+
+// ---- sound: original cues, synthesised by tools/make_sounds.py.
+// The two alerts play only when Herdr's own attention sounds are off, so one event never sounds
+// twice; to hear these with Herdr's on, point settings.json sounds.done / sounds.blocked at them.
+
+const SOUND = {
+  needs: { file: "mods/endfield/sounds/needs-input.mp3", alert: true },
+  claimed: { file: "mods/endfield/sounds/claimed.mp3", alert: true },
+  tick: { file: "mods/endfield/sounds/tick.mp3", alert: false },
+};
+
+export function cue(name) {
+  const s = SOUND[name];
+  if (!s || checking()) return;
+  if (s.alert ? !prefs.sounds.alerts || settings()?.sounds?.enabled !== false : !prefs.sounds.ticks) return;
+  playSound(s.file);
+}
 
 // ---- type
 
@@ -217,11 +254,21 @@ export function micro(text, color, size = 10) {
   return div().font_family(FONT.mono).text_size(size).line_height(1).text_color(color).child(String(text ?? "").toUpperCase());
 }
 
+// The wide face draws "~" as a flat wave at hyphen height, which reads as "-" at UI sizes (a home
+// space is named "~"), so a tilde is set in the mono face, as its own run.
 export function wide(text, color, size = 13) {
-  return div().font_family(wideFont()).text_size(size).line_height(1).text_color(color).child(String(text ?? "").toUpperCase());
+  const s = String(text ?? "").toUpperCase();
+  const el = div().font_family(wideFont()).text_size(size).line_height(1).text_color(color);
+  if (!s.includes("~")) return el.child(s);
+  return el.flex().items_center().children(s.split(/(~)/).filter(Boolean).map((part) => (part === "~"
+    ? div().flex_none().font_family(FONT.mono).text_size(size * 1.15).child("~")
+    : div().flex_shrink(1).min_w(0).truncate().child(part))));
 }
 
 export const pad2 = (n) => String(n).padStart(2, "0");
+
+/** A branch cut in the middle, so its prefix and its ticket number both stay readable. */
+export const midTrunc = (s, n = 24) => (!s || s.length <= n ? s ?? "" : `${s.slice(0, Math.ceil((n - 1) / 2))}…${s.slice(s.length - Math.floor((n - 1) / 2))}`);
 
 /** A `// title`: the path prefix in the muted voice, the words in the row's. */
 export function path(text, fg, slash, { size = 13, weight = 500 } = {}) {
@@ -233,18 +280,6 @@ export function path(text, fg, slash, { size = 13, weight = 500 } = {}) {
 // ---- shapes
 
 export const icon = (name, size = 14) => svg(`${ASSETS}/${name}.svg`).size(size).flex_none();
-
-const CORNER = {
-  tl: (el, i) => el.top(i).left(i).border_t(1.5).border_l(1.5),
-  tr: (el, i) => el.top(i).right(i).border_t(1.5).border_r(1.5),
-  bl: (el, i) => el.bottom(i).left(i).border_b(1.5).border_l(1.5),
-  br: (el, i) => el.bottom(i).right(i).border_b(1.5).border_r(1.5),
-};
-
-/** Corner L-brackets (absolute; the parent must be .relative()). Brackets, not boxes. */
-export function brackets(color, corners = ["tl", "tr", "bl", "br"], arm = 7, inset = 3) {
-  return corners.map((c) => CORNER[c](div().absolute().w(arm).h(arm).border_color(color), inset));
-}
 
 const RECT = () => PathBuilder.fill().move_to("0%", "0%").line_to("100%", "0%").line_to("100%", "100%").line_to("0%", "100%").close().build();
 
@@ -258,14 +293,29 @@ function programGlyph(program, size, color) {
   return program.tint ? svg(program.icon).size(size).text_color(color) : image(program.icon).w(size).h(size);
 }
 
-/** A program as a square thing: on a raised tile, a 2px status bar along its bottom that grows to 4px while its row is hot. */
-export function tile(C, program, status, { size = 26, inv = false, id = null, hot = false } = {}) {
-  const st = statusOf(status);
-  return div().relative().flex_none().size(size).rounded(3).border_1().border_color(inv ? C.selText : C.hair).bg(inv ? C.selText : C.raised)
-    .flex().items_center().justify_center().overflow_hidden()
-    .child(programGlyph(program, Math.round(size * 0.52), inv ? C.selBg : C.text))
-    .child(div().when(Boolean(id), (el) => el.id(`${id}-bar`)).absolute().left(0).right(0).bottom(0).h(hot ? 4 : 2).bg(C[st?.bar ?? "hairStrong"])
-      .transition("height", MOTION.colour));
+/**
+ * An agent as a game party chip: a round portrait in a ring (white; yellow when it needs input), a
+ * 1px halo in the operator's accent (the selection's ink when selected), and the class badge bottom
+ * right. Without art the circle holds the program's own tile, so a missing pack never moves a row.
+ * flash: the Claimed beat, a yellow disc drawn at .9 that fades (lit is its first frame).
+ */
+export function chip(C, ident, status, { size = 36, on = false, id = null, flash = null, ground = null } = {}) {
+  const ring = status === "blocked" ? C.signal : "#FFFFFF";
+  const ringW = size >= 30 ? 2 : 1.5;
+  const inner = size - 2;
+  const face = inner - 2 * ringW;
+  const program = ident.fallbackIcon;
+  const fill = ident.avatar ? ident.accent ?? C.hairStrong : program?.tile ?? C.selBg;
+  const badge = Math.round(size * (size >= 30 ? 0.42 : 0.5));
+  return div().relative().size(size).flex_none()
+    .child(div().absolute().left(0).top(0).size(size).rounded_full().bg(on ? C.selBg : ident.accent ?? C.hairStrong))
+    .child(div().absolute().left(1).top(1).size(inner).rounded_full().bg(ring))
+    .child(div().absolute().left(1 + ringW).top(1 + ringW).size(face).rounded_full().bg(fill).overflow_hidden().flex().items_center().justify_center()
+      .child(ident.avatar ? image(ident.avatar.round).size(face) : programGlyph(program, Math.round(face * 0.55), program?.color ?? C.selText)))
+    .when(Boolean(flash) && Boolean(id), (el) => el.child(div().id(`${id}-flash`).absolute().left(0).top(0).size(size).rounded_full().bg(C.signal)
+      .opacity(flash.lit ? 0.9 : 0).transition("opacity", MOTION.done.flash)))
+    .when(Boolean(ident.badge), (el) => el.child(div().absolute().right(-3).bottom(-3).size(badge).rounded_full().bg(C.ink).border(1.5).border_color(ground ?? (on ? C.selBg : C.ground))
+      .flex().items_center().justify_center().font_family(FONT.mono).text_size(Math.max(5.5, badge * 0.48)).text_color("#F2F2F2").child(ident.badge)));
 }
 
 /** The pane header's 16px program badge: the program's own tile colour, else ink. */
@@ -342,81 +392,65 @@ export function root(C, el) {
 }
 
 // ---- motion: every timing lives in MOTION; surfaces name a row, never a number.
-// Rows are native policies (TransitionPolicy or LoopPolicy fields), passed as they are.
-// The trailer rows were measured off the official trailers (research/game-ui-2.md, section 4).
+// Rows are native policies (TransitionPolicy or LoopPolicy fields), passed as they are. Names follow
+// the motion board's table (select.edge, cut.grow, ...). No colour ever transitions: plates snap and
+// a marker, a size or an opacity carries the motion.
 
+const ease = (duration, easing = "ease-out", delay) => (delay ? { duration, easing, delay } : { duration, easing });
 export const MOTION = {
-  colour: { duration: 200, easing: "ease-out" }, // hover fills, wipes, nudges, fades
-  move: { duration: 300, easing: "ease-out" }, // selection blocks, odometers, trays, the pane's yellow tab
-  fade: { duration: 200 }, // the default curve: growing discs, the pane bracket and tray fading
-  flicker: { period: 200, easing: "linear", count: 3 }, // a CRT powering on: three opacity pulses
-  breathe: { period: 1400 }, // the blocked row's hazard tick, the one thing that breathes
-  march: { period: 300 }, // the working triangles stepping (.frames)
-  conveyor: { period: 3200, easing: "linear" }, // the working row's floor segment
-  stagger: { delay: 40 }, // a control after the one before it (pane tray buttons)
-  rise: { delay: 80 }, // the brand mark's bars, one after another
-  segment: { delay: 18 }, // the card's context blocks lighting up in turn
-  settle: { delay: 30 }, // one frame drawn at rest before an entrance transition starts
-  stage: { delay: 200 }, // regions entering after the boot, in turn
-  cardOpen: { delay: 250 }, // hover rests this long on an agent row before its card opens
-  cardClose: { delay: 160 }, // grace after leaving both row and card
-  boot: { duration: 1500 }, // the whole start-up screen
-  bootGauge: { duration: 650, delay: 100, easing: "ease-out" },
-  bootWipe: { duration: 500, delay: 750, easing: "ease-in" }, // slow start, slam finish
-  bootFade: { duration: 300, easing: "ease-in" },
-  tri: { duration: 400, delay: 400, easing: "ease-out" }, // the brand's tri-colour bar wiping in
-  // Trailer pattern 1: per-glyph type-on (release PV end card, about 45 ms a glyph, stepped).
-  typeOn: { period: 45 },
-  // Trailer pattern 5: a yellow block grows over a caption, holds, retracts to a bar, revealing it.
-  revealGrow: { duration: 330, easing: "ease-out" },
-  revealHold: { delay: 300 },
-  revealRetract: { duration: 350, easing: "ease-in" },
-  // Trailer pattern 14: a silhouette flash, up and gone in one beat.
-  flash: { duration: 150 },
+  settle: { delay: 30 }, // one frame drawn at rest before a one-shot transition starts
+  select: { edge: ease(300) }, // the yellow marker travelling to the selected row, tab or space
+  row: { wipe: ease(200), nudge: ease(200) },
+  card: { reveal: ease(200, "ease-out", 250), slide: ease(300), open: { delay: 250 }, close: { delay: 160 }, segment: { delay: 18 } },
+  pane: { bar: ease(300), brackets: ease(300), fade: ease(200), actions: { delay: 40 }, pulse: { from: 0, to: 0.42, period: 1400, easing: "ease-in-out" } },
+  status: { march: { period: 300 }, scan: { period: 1600, easing: "linear" } },
+  done: { flash: ease(300), check: ease(200), clear: { delay: 300 } },
+  toast: { enter: ease(300), fade: ease(200), countdown: { duration: 6000, easing: "linear" } },
+  // The skill caption (trailer pattern 5): block grows, holds, retracts to its edge, revealing text.
+  cut: { portrait: ease(100, "linear", 83), late: ease(100, "linear", 166), grow: ease(330), retract: ease(350, "ease-in", 630), text: ease(100, "linear", 630) },
+  count: { roll: ease(300), needs: ease(300) },
+  squad: { fold: ease(300), stack: ease(120, "linear", 180) },
+  pin: { content: ease(100, "linear", 83) },
+  dispatch: { enter: ease(200) },
+  link: { draw: ease(240), land: ease(120, "linear", 240) },
+  comms: { enter: ease(200) },
+  boot: { total: 1500, bar: ease(650, "ease-out", 100), type: ease(1, "linear", 200), glyph: { delay: 50 }, rule: ease(150, "ease-in", 760), sub: ease(100, "linear", 760), exit: ease(225, "linear", 1275) },
+  // Placeholder-first build: regions draw their plates, then their content fades in, 100ms apart.
+  build: { in: ease(120, "linear"), stagger: { delay: 100 } },
+  brand: { rise: { delay: 80 }, tri: ease(400, "ease-out", 400) },
 };
-const FLICKER_MS = MOTION.flicker.period * MOTION.flicker.count;
-
-/** Three opacity pulses (a CRT powering on); a one-shot timer removes the loop afterwards. */
-export function flicker(el, on) {
-  return on ? el.loop("opacity", { from: 0, to: 1, period: MOTION.flicker.period, easing: MOTION.flicker.easing }) : el;
-}
 
 /**
- * A region's entrance: hidden until its slot after the boot, then flickers in.
- * stage: 0 brand, 1 spaces/tabs, 2 agents/panes, 3 status (200ms apart).
- * Copies made later (a new pane) flicker in at once.
+ * A region's build-in: drawn at opacity 0 until its slot after the boot, then fades in.
+ * stage: 0 brand, 1 spaces/tabs, 2 squads/panes, 3 status (build.stagger apart).
+ * Copies made later (a new pane) fade in at once.
  */
 export class Entrance {
   constructor(stage) {
     this.stage = stage;
-    this.state = "hidden";
+    this.shown = false;
   }
 
   start(cx) {
-    if (checking()) { this.state = "done"; return; }
+    if (checking()) { this.shown = true; return; }
     // The brand writes the boot time in its own init; give every copy's init a moment to land.
     cx.timer.after(2 * MOTION.settle.delay, (cx) => {
       const boot = Number(shared("endfield.boot")) || 0;
       const now = Date.now();
-      const at = now - boot < 4000 ? boot + MOTION.boot.duration + this.stage * MOTION.stage.delay : now;
-      cx.timer.after(Math.max(0, at - now), (cx) => {
-        this.state = "flicker";
-        cx.notify();
-        cx.timer.after(FLICKER_MS, (cx) => { this.state = "done"; cx.notify(); });
-      });
+      const at = now - boot < 4000 ? boot + MOTION.boot.total + this.stage * MOTION.build.stagger.delay : now;
+      cx.timer.after(Math.max(MOTION.settle.delay, at - now), (cx) => { this.shown = true; cx.notify(); });
     });
   }
 
-  get shown() { return this.state !== "hidden"; }
-
   apply(el) {
-    return this.state === "hidden" ? el.opacity(0) : flicker(el, this.state === "flicker");
+    return div().id(`build-${this.stage}`).size_full().opacity(this.shown ? 1 : 0).transition("opacity", MOTION.build.in).child(el);
   }
 }
 
 /**
- * One-shot effects on status transitions: keeps each key's previous status and,
- * when one enters a state whose table entry has `enter`, runs those effects once.
+ * One-shot effects on status transitions: keeps each key's previous status and, when one enters a
+ * state whose table entry has `enter`, runs those once. A Claimed agent's chip flashes yellow (drawn
+ * at .9, then fades) while its check grows from 0.
  */
 export class StatusFx {
   constructor() {
@@ -430,38 +464,41 @@ export class StatusFx {
     if (was === undefined || was === status) return;
     const enter = statusOf(status)?.enter;
     if (!enter) { this.live.delete(key); return; }
-    const fx = { flicker: enter.includes("flicker"), pop: enter.includes("pop") };
+    const fx = { flash: enter.includes("flash"), pop: enter.includes("pop"), lit: true };
     this.live.set(key, fx);
-    // The disc renders once at size 0, then grows on the next frame.
-    if (fx.pop) cx.timer.after(MOTION.settle.delay, (cx) => { fx.pop = false; cx.notify(); });
-    cx.timer.after(FLICKER_MS, (cx) => {
+    cx.timer.after(MOTION.settle.delay, (cx) => { fx.pop = false; fx.lit = false; cx.notify(); });
+    cx.timer.after(MOTION.settle.delay + MOTION.done.clear.delay, (cx) => {
       if (this.live.get(key) === fx) this.live.delete(key);
       cx.notify();
     });
   }
 
-  of(key) { return this.live.get(key) ?? { flicker: false, pop: false }; }
+  of(key) { return this.live.get(key) ?? { flash: false, pop: false, lit: false }; }
 }
 
-/** A full-height layer that wipes in from the left: hover, selection, the active tab. */
+/** A full-height layer that wipes in from the left: the hover fill of a row. */
 export function wipe(id, color, width, on) {
   return div().id(id).absolute().left(0).top(0).bottom(0).w(on ? width : 0).bg(color)
-    .transition("width", MOTION.colour);
+    .transition("width", MOTION.row.wipe);
 }
 
 /**
- * The one selection block of a list: it slides (top) to the selected row instead of each row
- * filling itself. First child of the list, so it paints under the rows; `edge` adds the 2px yellow edge.
+ * A list's selection, in two parts. The plate (first child, under the rows) snaps to the selected
+ * row with no transition: text colours swap in one frame, so a sliding ink plate would show paper
+ * text on paper. The marker (last child, over the rows) is the 2px yellow edge that travels.
  */
-export function slide(id, C, top, height, { edge = false } = {}) {
-  return div().id(id).absolute().left(0).right(0).top(top).h(height).bg(C.selBg)
-    .transition("top", MOTION.move).transition("height", MOTION.move)
-    .when(edge, (el) => el.child(div().absolute().left(0).top(0).bottom(0).w(2).bg(C.signal)));
+export function plate(C, top, height) {
+  return div().absolute().left(0).right(0).top(top).h(height).bg(C.selBg);
+}
+
+export function marker(id, C, top, height) {
+  return div().id(id).absolute().left(0).top(top).w(2).h(height).bg(C.signal)
+    .transition("top", MOTION.select.edge).transition("height", MOTION.select.edge);
 }
 
 /** A row's label column slides right by `px` while the row is hot. */
 export function nudge(el, id, on, px = 4) {
-  return el.id(id).relative().left(on ? px : 0).transition("left", MOTION.colour);
+  return el.id(id).relative().left(on ? px : 0).transition("left", MOTION.row.nudge);
 }
 
 /** A number as odometer wheels: each digit a column of 0-9 that rolls to its place. */
@@ -470,7 +507,7 @@ export function odometer(id, n, color, size = 13, digits = 2) {
   const text = String(Math.min(n, 10 ** digits - 1)).padStart(digits, "0");
   return h_flex().flex_none().children([...text].map((d, i) => div().relative().w(size * 0.78).h(line).overflow_hidden()
     .child(div().id(`${id}-${i}`).absolute().left(0).top(-Number(d) * line).flex().flex_col()
-      .transition("top", MOTION.move)
+      .transition("top", MOTION.count.roll)
       .children([..."0123456789"].map((k) => div().h(line).flex().items_center().font_family(wideFont()).text_size(size).line_height(1).text_color(color).child(k))))));
 }
 
@@ -478,11 +515,59 @@ export function odometer(id, n, color, size = 13, digits = 2) {
 export function growDisc(id, w, h, d, on, color) {
   const size = on ? d : 0;
   return div().id(id).absolute().left((w - size) / 2).top((h - size) / 2).w(size).h(size).rounded_full().bg(color)
-    .transition("width", MOTION.fade).transition("height", MOTION.fade)
-    .transition("left", MOTION.fade).transition("top", MOTION.fade);
+    .transition("width", MOTION.done.check).transition("height", MOTION.done.check)
+    .transition("left", MOTION.done.check).transition("top", MOTION.done.check);
 }
 
-/** Topographic lines, tinted (6% in the art): the boot's ground, and empty states. */
-export function contour(w, h, color) {
-  return svg(`${ASSETS}/contour.svg`).absolute().left(0).top(0).w(w).h(h).text_color(color);
+// ---- pills: actions are full-radius pills with a round knob at their right end that nudges 3px
+// on hover. primary: yellow (the one action that matters here); paper: raised with a grey left
+// edge; ink: an ink pill; ghost: an outline with no knob. The caller owns the hover state.
+const PILL = {
+  primary: (C) => ({ bg: C.signal, fg: C.ink, knobBg: C.ink, knobFg: C.signal }),
+  paper: (C) => ({ bg: C.raised, fg: C.text, knobBg: C.selBg, knobFg: C.selText, edge: C.hairStrong }),
+  ink: (C) => ({ bg: C.pillBg, fg: C.pillText, knobBg: C.pillText, knobFg: C.pillBg }),
+  dark: (C) => ({ bg: "#FFFFFF", fg: C.ink, knobBg: C.ink, knobFg: "#F2F2F2", edge: "#BDBDBD" }),
+};
+
+/** A game pill. opts: { kind, knob (glyph, or null for a ghost), hot, on_hover, action, h, tip, extra } */
+export function pill(C, id, label, { kind = "paper", knob = "▶", hot = false, on_hover = null, action = null, h = 26, tip = null, extra = null } = {}) {
+  const k = kind === "ghost" ? null : PILL[kind](C);
+  return h_flex().id(id).h(h).flex_none().items_center().rounded_full().gap(8).cursor_pointer()
+    .pl(12).pr(k && knob ? 3 : 12)
+    .when(Boolean(k), (el) => el.bg(k.bg).text_color(k.fg))
+    .when(Boolean(k?.edge), (el) => el.border_l(2).border_color(k.edge))
+    .when(!k, (el) => el.border_1().border_color(C.hairStrong).text_color(C.text).hover((s) => s.bg(C.raised)))
+    .when(Boolean(tip), (el) => el.tooltip(tip))
+    .when(Boolean(on_hover), (el) => el.on_hover(on_hover))
+    .on_mouse_down("left", stop)
+    .when(Boolean(action), (el) => el.on_click(action))
+    .child(div().text_size(12).font_semibold().child(label))
+    .when(Boolean(extra), (el) => el.child(extra))
+    .when(Boolean(k && knob), (el) => el.child(div().id(`${id}-knob`).relative().left(hot ? 3 : 0).transition("left", MOTION.row.nudge)
+      .size(h - 6).rounded_full().bg(k.knobBg).text_color(k.knobFg).flex().items_center().justify_center()
+      .text_size(knob === "+" ? 11 : 8).child(knob)));
 }
+
+// ---- the geometric layer: generated SVGs, tinted, drawn large and clipped by their parent.
+
+/** A field of dots (6px pitch) filling a relative, overflow-hidden parent. */
+export const dots = (color) => svg(`${ASSETS}/dots.svg`).absolute().left(0).top(0).w(1440).h(960).text_color(color);
+
+/** A catalogue barcode beside a title: texture, never content. */
+export const barcode = (color, w = 30) => div().w(w).h(8).flex_none().overflow_hidden().child(svg(`${ASSETS}/barcode.svg`).w(36).h(8).text_color(color));
+
+/** A 9px registration cross. */
+export const cross = (color) => svg(`${ASSETS}/cross.svg`).size(9).flex_none().text_color(color);
+
+/** A tick ruler, major every 20px, minor every 4px. */
+export const ticks = (color, w) => div().w(w).h(6).flex_none().overflow_hidden().child(svg(`${ASSETS}/ticks.svg`).w(400).h(6).text_color(color));
+
+/** Range rings framing empty space: a dotted ring, a solid ring, four ticks. */
+export const rings = (color, d = 300) => svg(`${ASSETS}/rings.svg`).size(d).flex_none().text_color(color);
+
+/** The skill caption's diagonal band: a yellow parallelogram at its final angle (no element rotation). */
+export function band(color, h = 240) {
+  const path = PathBuilder.fill().add_polygon([[104, 0], [126, 0], [126 - (112 * h) / 240, h], [104 - (112 * h) / 240, h]], true).build();
+  return window.paint_path(path, color).absolute().left(0).top(0).w(140).h(h);
+}
+

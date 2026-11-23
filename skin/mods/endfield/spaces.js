@@ -5,8 +5,10 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, watchFolder, window as appWindow } from "herdr";
-import { palette, root, narrow, statusOf, glyph, freshDot, micro, wide, icon, pad2, path, wipe, slide, nudge, Entrance, FONT } from "./kit.js";
+import { spaces, machines, panes, run, openOverlay, exec, hc, watchFolder, layout, shared, setShared, window as appWindow } from "herdr";
+import { palette, root, narrow, find, midTrunc, glyph, freshDot, micro, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT } from "./kit.js";
+import { roster } from "./roster.js";
+import { DENSE_AT, statusOf } from "./fleet.js";
 
 function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
@@ -15,8 +17,10 @@ function place(s, ps) {
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
 const base = (path) => path.replace(/\/+$/, "").split("/").pop();
 const RAIL = 28;
-// Fixed heights, so the selection block knows where the selected row starts.
-const H = { row: 38, head: 28, note: 30, guidance: 48 };
+// Fixed heights, so the selection block knows where the selected row starts. From DENSE_AT agents
+// the same list goes compact (one line a row, the squad number first) and its block shrinks to fit,
+// at most `denseRows` rows tall before it scrolls.
+const H = { row: 38, dense: 26, denseRows: 8, head: 28, note: 30, guidance: 48, top: 38 };
 // Changes made outside Herdr (an editor's save, a commit elsewhere) are looked for this often.
 const FALLBACK = 60000;
 // Places looked at together: all at once, hundreds of spaces exhaust open files or a core's execs.
@@ -305,14 +309,16 @@ export default class Spaces {
         || spaces().some((s) => (s.machine ?? null) === m && !this.shown.has(s.id));
     };
     const loadingRow = (m) => h_flex().id(`machine-loading-${m ?? "local"}`).h(H.note).flex_none().px(collapsed ? 0 : 16).items_center()
-      .when(collapsed, (el) => el.justify_center()).child(micro(collapsed ? "…" : "Loading…", C.dim));
+      .when(collapsed, (el) => el.justify_center()).child(micro(collapsed ? "…" : "Loading…", C.muted));
+    const RH = this.rh;
     if (!remote.length) {
-      if (loading(null) && !rows.length) return [loadingRow(null)];
+      if (loading(null) && !rows.length) { this.listPx = H.note; return [loadingRow(null)]; }
       this.activeAt = rows.findIndex((r) => r.w.active);
-      this.activeTop = this.activeAt * H.row;
+      this.activeTop = this.activeAt * RH;
+      this.listPx = rows.length * RH;
       return rows.map(draw);
     }
-    return [null, ...remote].flatMap((m) => {
+    const out = [null, ...remote].flatMap((m) => {
       const mine = rows.filter((r) => (r.w.machine ?? null) === m);
       const repair = this.reconnecting[m];
       const machine = this.machines.find((k) => k.name === m) ?? repair?.machine;
@@ -324,8 +330,8 @@ export default class Spaces {
       const lamp = div().size(5).flex_none().bg(connected ? C.lime : C.dim);
       const head = h_flex().id(`machine-${m ?? "local"}`).flex_none().items_center().cursor_pointer()
         .when(collapsed, (el) => el.mt(6).w(RAIL).h(24).justify_center().rounded(3).relative()
-          .tooltip(login ? `${m} needs a login: run ${login}. Click for Settings.` : m ? `${m} · ${state}` : "This computer")
-          .child(icon(m ? "server" : "monitor", 13).text_color(C.muted))
+          .tooltip(login ? `${m} needs a login: run ${login}. Click for Settings.` : m ? `${m} · ${state}${machine?.keeps_running_after_logout === false ? " · ⚠ agents stop when you disconnect" : ""}` : "This computer")
+          .child(icon(m ? "server" : "monitor", 13).text_color(machine?.keeps_running_after_logout === false ? C.error : C.muted))
           .when(Boolean(m), (el) => el.child(lamp.absolute().right(4).bottom(3))))
         .when(!collapsed, (el) => el.h(H.head).px(16).gap(8))
         .hover((s) => s.bg(C.sunken))
@@ -354,7 +360,7 @@ export default class Spaces {
             .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(icon("plus", 11))))
           .child(icon(folded ? "chevron-right" : "chevron-down", 10).text_color(C.muted)));
       const empty = h_flex().id(`machine-new-${m ?? "local"}`).h(H.note).flex_none().px(collapsed ? 0 : 16).gap(8).items_center().rounded(3)
-        .text_size(12).text_color(C.dim).hover((s) => s.bg(C.sunken).text_color(C.text))
+        .text_size(12).text_color(C.muted).hover((s) => s.bg(C.sunken).text_color(C.text))
         .on_click(() => run("space.new", { machine: m ?? "" }))
         .when(collapsed, (el) => el.w(RAIL).justify_center().tooltip(`New space on ${m ?? "this computer"}`).child(icon("plus", 11)))
         .when(!collapsed, (el) => el.child(icon("plus", 11)).child("New space there"));
@@ -372,12 +378,14 @@ export default class Spaces {
       const first = folded ? -1 : mine.findIndex((r) => r.w.active);
       if (first >= 0) {
         this.activeAt = before + 1 + guidance.length + first;
-        this.activeTop = beforePx + H.head + guidance.length * H.guidance + first * H.row;
+        this.activeTop = beforePx + H.head + guidance.length * H.guidance + first * RH;
       }
       before += items.length;
-      beforePx += H.head + guidance.length * H.guidance + (folded ? 0 : mine.length ? mine.length * H.row : H.note);
+      beforePx += H.head + guidance.length * H.guidance + (folded ? 0 : mine.length ? mine.length * RH : H.note);
       return items;
     });
+    this.listPx = beforePx;
+    return out;
   }
 
   // The micro-label: tabs, then only what git says that the name doesn't (repo, branch, ahead/behind).
@@ -387,7 +395,7 @@ export default class Spaces {
     if (!tree) parts.push(`${w.tabs.length} ${w.tabs.length === 1 ? "tab" : "tabs"}`);
     if (g) {
       if (!tree && !same(g.name)) parts.push(g.name);
-      if (!same(g.branch ?? "")) parts.push(g.branch ?? "detached");
+      if (!same(g.branch ?? "")) parts.push(midTrunc(g.branch ?? "detached"));
       const sync = [g.ahead > 0 ? `↑${g.ahead}` : "", g.behind > 0 ? `↓${g.behind}` : ""].filter(Boolean).join(" ");
       if (sync) parts.push(sync);
     }
@@ -410,10 +418,12 @@ export default class Spaces {
     const sub = on ? C.selMuted : C.muted;
     const line = on ? C.selMuted : C.hairStrong;
     const tail = this.tail(w, g, tree);
+    const RH = this.rh;
+    const dense = RH === H.dense;
     return h_flex()
       .relative()
       .id(`space-${w.id}`)
-      .h(H.row)
+      .h(RH)
       .flex_none()
       .pl(tree ? 36 : 14)
       .pr(14)
@@ -432,8 +442,8 @@ export default class Spaces {
           .when(fromIndex > i, (l) => l.top(0)),
       ))
       // A worktree hangs off its checkout with one right-angle hairline, production-chain style.
-      .when(Boolean(tree), (el) => el.child(div().absolute().left(22).top(0).w(8).h(19).border_l(1).border_b(1).border_color(line))
-        .when(tree === "mid", (el) => el.child(div().absolute().left(22).top(19).bottom(0).w(1).bg(line))))
+      .when(Boolean(tree), (el) => el.child(div().absolute().left(22).top(0).w(8).h(RH / 2).border_l(1).border_b(1).border_color(line))
+        .when(tree === "mid", (el) => el.child(div().absolute().left(22).top(RH / 2).bottom(0).w(1).bg(line))))
       .on_mouse_down("left", () => { this.pressed = w.id; this.over = w.id; })
       .on_mouse_move((_e, cx) => {
         const source = spaces().find((s) => s.id === this.pressed);
@@ -451,9 +461,15 @@ export default class Spaces {
         cx.notify();
       })
       .on_mouse_down("right", () => this.menu(w))
-      .child(nudge(v_flex(), `sp-label-${w.id}`, this.hover === w.id).flex_1().min_w(0).gap(4)
+      // Compact keeps one line: the squad number the agents list uses, the name, then the tail.
+      .when(dense, (el) => el.child(nudge(h_flex(), `sp-label-${w.id}`, this.hover === w.id).flex_1().min_w(0).gap(8).items_center()
+        .child(div().w(22).h(16).flex_none().flex().items_center().justify_center().rounded(3).border_1().border_color(on ? C.selMuted : C.hairStrong)
+          .font_family(FONT.mono).text_size(9).text_color(fg).child(pad2(i + 1)))
+        .child(div().flex_shrink(1).min_w(0).truncate().text_size(12.5).font_medium().text_color(fg).child(w.name))
+        .when(Boolean(tail), (el) => el.child(micro(tail, sub).flex_shrink(2).min_w(0).truncate()))))
+      .when(!dense, (el) => el.child(nudge(v_flex(), `sp-label-${w.id}`, this.hover === w.id).flex_1().min_w(0).gap(4)
         .child(path(w.name, fg, sub))
-        .when(Boolean(tail), (el) => el.child(micro(tail, sub).truncate())))
+        .when(Boolean(tail), (el) => el.child(micro(tail, sub).truncate()))))
       .child(div().relative().flex_none().child(this.signal(C, w.status, on) ?? div()));
   }
 
@@ -478,11 +494,46 @@ export default class Spaces {
       .when(Boolean(st) && !st.quiet, (el) => el.child(div().absolute().left(0).right(0).bottom(0).h(2).bg(C[st.bar]))));
   }
 
+  // While the fleet is compact the spaces block shrinks to its list (scrolling past H.denseRows rows)
+  // and gets its share back after.
+  fit(dense) {
+    const node = find(layout(), "spaces");
+    if (!node) return;
+    const want = dense ? { px: H.top + Math.min(this.listPx ?? 0, H.denseRows * H.dense + 2 * H.head) + 12 } : { weight: 1 };
+    const have = node.size ?? {};
+    if (have.px === want.px && (want.px || have.weight === want.weight)) return;
+    const key = JSON.stringify(want);
+    if (this.fitted === key) return;
+    this.fitted = key;
+    run("layout.resize", { id: "spaces", ...want });
+  }
+
+  // Ported from the shipped spaces mod: each space's avatar colour (a theme name) in shared
+  // "space.colors", which other mods read; the least used one for a new space, pruned when it goes.
+  keepColors(sp) {
+    const names = ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1"];
+    const had = shared("space.colors") ?? {};
+    const ids = new Set(sp.map((s) => s.id));
+    const kept = Object.fromEntries(Object.entries(had).filter(([id]) => ids.has(id)));
+    let changed = Object.keys(kept).length !== Object.keys(had).length;
+    for (const s of sp) {
+      if (kept[s.id] || s.name === "~") continue;
+      const uses = (c) => Object.values(kept).filter((v) => v === c).length;
+      kept[s.id] = names.reduce((best, c) => (uses(c) < uses(best) ? c : best));
+      changed = true;
+    }
+    if (changed) setShared("space.colors", kept);
+  }
+
   render() {
     const C = palette();
     const collapsed = narrow();
     const sp = spaces();
+    const dense = !collapsed && roster().all.size >= DENSE_AT;
+    this.rh = dense ? H.dense : H.row;
+    this.keepColors(sp);
     const list = this.grouped(C, collapsed);
+    this.fit(dense);
     const active = sp.find((p) => p.active)?.id;
     if (active !== this.revealed || this.activeAt !== this.revealedAt) {
       this.revealed = active;
@@ -502,7 +553,8 @@ export default class Spaces {
         .on_size_change((size, cx) => { this.width = size.width; if (this.activeAt >= 0) this.scroll.scroll_to_item(this.activeAt + 1); cx.notify(); })
         .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })
         // Child 0 is the selection block (scroll indexes above are +1 for it); hidden when the selected space is folded away.
-        .child(slide("sp-slide", C, Math.max(0, this.activeTop), H.row, { edge: true }).when(collapsed || this.activeTop < 0, (el) => el.opacity(0)))
-        .children(list))));
+        .child(plate(C, Math.max(0, this.activeTop), this.rh).when(collapsed || this.activeTop < 0, (el) => el.opacity(0)))
+        .children(list)
+        .child(marker("sp-mark", C, Math.max(0, this.activeTop), this.rh).when(collapsed || this.activeTop < 0, (el) => el.opacity(0))))));
   }
 }

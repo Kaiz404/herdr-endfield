@@ -19,7 +19,7 @@ const sh = (cmd, args) => {
 };
 
 const repoFiles = walk(ROOT).filter((p) => !/[\\/](\.git|node_modules)[\\/]/.test(p)).map((p) => ({ p, rel: posix(p.slice(ROOT.length + 1)) }));
-const BINARY = /\.(ttf|otf|png|jpe?g|webp|gif|bmp|ico)$/i;
+const BINARY = /\.(ttf|otf|png|jpe?g|webp|gif|bmp|ico|mp3)$/i;
 const text = (f) => readFileSync(f.p, "utf8");
 
 // ---- the skin's own rules (ported from the Endfield lever)
@@ -99,6 +99,12 @@ const syntax = repoFiles.filter((f) => /\.m?js$/.test(f.rel)).flatMap((f, i) => 
 });
 rmSync(tmp, { recursive: true, force: true });
 check(`node --check passes on ${repoFiles.filter((f) => /\.m?js$/.test(f.rel)).length} scripts`, ...syntax);
+
+// The skin's pure logic (the modules with no Herdr import) has node tests under tests/.
+const TESTS = join(ROOT, "tests");
+const testFiles = existsSync(TESTS) ? readdirSync(TESTS).filter((f) => f.endsWith(".test.mjs")).map((f) => join(TESTS, f)) : [];
+const tested = sh(process.execPath, ["--test", ...testFiles]);
+check(`node --test: ${testFiles.length} test files pass`, ...(testFiles.length && tested.code === 0 ? [] : [`node --test failed:\n${tested.out.split("\n").filter((l) => /^not ok|^# (pass|fail)|Error|expected|actual/.test(l.trim())).slice(0, 20).join("\n")}`]));
 
 // Personal data: this repo is published. Placeholders in angle brackets (C:\Users\<name>) are allowed.
 const PERSONAL = [

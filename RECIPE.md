@@ -25,57 +25,122 @@ rendered at 4x. It is a schematic, not a screenshot.
   - Spaces: header "// Spaces" (Geist 13 semibold), a mono count and a `+`.
     Rows are 38px: `// name` (Geist 13 medium, the `//` muted) over a mono
     10px label (tab count, repo, branch, ↑ahead ↓behind). The selected row is
-    inverted (ink, `#F2F2F2` text) with a 2px yellow left edge: one ink block
-    for the whole list that slides to the selected row. At the right:
-    marching `▶▶` for working, a yellow "Input" pill for blocked, a lime disc
+    inverted (ink, `#F2F2F2` text) in one frame; a 2px yellow marker travels
+    to it (300ms). At the right:
+    marching `▶▶` for working, a yellow block with an ink `!` for blocked, a lime disc
     with an ink ✓ plus an orange diamond for unseen done, nothing for idle.
     Machine groups (once a remote machine exists) get a wide-caps header, a
     hairline running to the right, a connection lamp and a chevron.
-  - Agents, 50px rows: header "// Agents", mono `03/05 ACTIVE`, a round sort
-    button. A 26px raised tile with the program icon and a 2px status bar on
-    its bottom edge; the title (the agent's live title or its tab's name);
-    under it the status word plus glyph, the model's short name (`OPUS 5.5`,
-    Claude Code only) and a mono `space / tab`; elapsed time top right (a pin
-    button on hover) over a 5-block context gauge (5x6px blocks, 2px apart;
-    lit blocks red `#C42126` from 75%). Blocked rows carry a 3px hazard tick on
-    the left edge. The focused agent's row sits on the list's sliding ink
-    block. Sub-agents hang below their parent with right-angle hairlines:
-    first Claude Code's own (read from its transcript: title, status, model,
-    tool count; every working one, else the newest 4, with `+N` on the parent
-    for the rest), then terminals the agent started with `hc run`.
-  - Session card, 330px, beside the sidebar while an agent row is hovered:
-    white slab, 1px hairline, radius 4, large shadow, a 3px status-colour edge.
-    `// Session · T1` and the session's age; the title (15px semibold); a
-    status chip and `space / tab`; Model (name and id) | Effort · Mode;
-    Context: the % in the wide face at 22px, `used / total`, and 20 blocks
-    (10x8, 3px apart, lit in ink, red past 75%); Tool calls | Tokens (▲ last
-    turn) | Turns; Flow (`folder ▶▶ N sub-agents`, or the last target) and
-    `● Tool · arg · 8s ago`; a mono question block with a yellow left edge
-    when blocked; yellow Answer/Focus ▶▶, ghost Peek and Pin, and the
-    sub-agent count. Unknown fields (any non-Claude agent) read `—`.
+  - Squads: header "// Squads", mono `03/05 ACTIVE`, a `Priority ▾` pill
+    (Priority or Tab order, within each squad). One squad per space, numbered
+    like its space: a 22x16 ink number box, the space name in wide caps, a
+    hairline, a yellow `!` box when someone needs input, the count, a round `+`
+    (Dispatch a new agent there) and `▾`. Clicking the header folds it (rows
+    close, 300ms) and a stack of its operators' 16px chips stands in for them.
+    Agent rows, 56px (children 50px): a party chip (36px, children 28px: the
+    operator's round portrait in a 2px white ring, yellow when it needs input,
+    a 1px halo in the operator's accent, a class badge bottom right: `C`
+    Claude Code, `X` Codex, `Cu` Cursor, `O` OpenCode, `G` Gemini); the
+    callsign in wide caps 10px (`PERLICA`; a repeat takes a spare operator,
+    then `PERLICA·2`) with the model or `◀ T3` beside it; the task (13px
+    medium); at the right "Generating ▶▶", a yellow "Needs input" pill,
+    "✓ Claimed" or "zZ Idle", over the elapsed time and a 5-block context
+    gauge. Blocked rows carry 4px hazard stripes on the left edge; a
+    generating row's floor has a 28px blue segment scanning across (1600ms).
+    Children (terminals started with `hc run`, and Claude Code's own
+    sub-agents read from its transcript) hang under their parent with a 1px
+    right angle from the parent chip's foot, whatever their vendor. From 12
+    agents everything goes compact: 34px rows, 24/20px chips, callsign over
+    task, a status glyph only (`▶▶`, `!`, `✓`, `zZ`); the spaces block becomes
+    numbered squares, six a row; and a pinned "Needs input" box (hazard edge,
+    count, three rows, then "+N more · Report ▶") sits above every squad. The
+    list scrolls and says "▾ N more agents below". Without the art pack every
+    chip shows its program's tile instead.
+  - Session panel, 368px, beside the sidebar while a squad row is hovered,
+    laid out like an AIC machine panel: the operator's bust in a dotted frame
+    with a range ring and an accent foot, an ink `// SESSION T3` chip and a
+    barcode, the task, `CALLSIGN · program · where`; three cells (Input on a
+    dot field: the folder and model as item tiles; the state with its march,
+    a tick ruler and `elapsed · turn`; Output: tokens in the wide face);
+    context reserves (20 blocks); Comms (the last two messages in and out,
+    `Log ▶`); the question in brackets when blocked; an ink footer with the
+    Current formula (`folder ▶▶ last action`), Peek, Pin, Dispatch + and
+    Answer/Focus ▶. Unknown fields (any non-Claude agent) read `—`.
   - Footer, 40px: settings (with an orange diamond when an update is ready),
     add machine, fold sidebar, and the palette key in mono.
 - **Tab strip, 36px**, drags the window: tabs run full height, separated by
   hairlines; each shows a mono index `01`, the agent icon, the label and its
-  status. The active tab sits on one yellow block that slides between tabs,
+  status. The active tab sits on a yellow plate that snaps to it while a 3px ink marker slides along its foot,
   with ink text and a close ×. Then an ink "+ New" button (radius 3, a 3px
   yellow tab on its left edge), the Files and Changes pills (ghost; ink when
   open; which show is shared `workspace.panels`), and on Windows and Linux
   44px minimise, maximise/restore and close buttons drawn as thin vector glyphs.
 - **Work area**: 8px padding and 8px gaps on the canvas (`#E5E5E5`). Panes are
   ink cards, radius 4, 1px `#BDBDBD` border, `#191919` when focused, framed
-  even when alone. A 30px white header: a 4px tab on its left edge (yellow
-  when focused, else hairline grey), a 16px program badge, `// title` in Geist
-  12.5 semibold, a mono `T3 · folder · branch`, the status at the right and,
-  focused, an L-bracket in the top-right corner. Files and Changes open in a
+  even when alone. A 34px white name plate: a 2px grey strip on its left edge
+  that a 6px yellow bar grows down when focused (300ms), the program's 34px
+  square tile (ink when focused), the operator's 22px chip on an agent's pane,
+  the title in wide caps 12px, a mono `PERLICA · T3 · folder · branch`, the
+  status at the right, and a 4px ink square in the top-right corner when
+  focused. When that agent needs input while its pane has focus, the plate
+  washes yellow and back (opacity 0 to .42, 1400ms), a 4px hazard rule runs
+  under it and the pill turns ink with yellow text; no toast is made.
+  Files and Changes open in a
   368px panel on the right (min 280, max 900), paper, radius 4.
-- **Status bar, 28px**: ink with a faint 45° grain. `// space / tab`, then the
-  counts in the wide face: `02 WORKING`, `01 NEEDS INPUT` (a yellow pill when
-  above zero), `03 DONE`; at the right the branch, the machine and the palette
-  key.
+- **Report**: the Report pill (ink, top right) swaps the work area for the
+  oversight screen; the squad sidebar stays live beside it. A white panel with
+  four corner brackets: `// Report` under `Oversight · every squad · last 10
+  min` and a barcode; readouts with coloured left edges (Squads, Agents,
+  Generating, Needs input, Claimed, Tokens · 10 min); `Group · Squad` (or
+  None); sortable headings (Agent, Rate, Reserves, Turn, Status; the active
+  one inverts to ink with ▼/▲; Status is the default: Needs input, Claimed,
+  Generating, Idle); squad headers like the sidebar's with `▶▶ n ✓ n` and a
+  yellow `! n need input`, folding on click; rows with the chip and callsign,
+  the terminal and its link (`◀ T3 · Claude Code ▶ Cursor`, or `3 children`),
+  a 16-bar output sparkline over 10 minutes (ink, never yellow), tokens a
+  minute on a blue edge, context on a grey edge that turns red past 75%, the
+  turn, and the status. Children stay under their parent whatever the sort.
+  46px rows, 30px on one line past 12 agents; it scrolls. Output and rate exist
+  for Claude Code agents only; others read `—`.
+- **Dispatch**: a 660px paper dialog with two corner brackets, `// Dispatch`
+  under the engine line (`hc send · to a running agent` or `hc run · new agent
+  in a space`) and a barcode, a Send to agent / New agent switch and a round
+  close. Send: target operators as party-chip tiles (yellow edge on the chosen
+  one) and a line that says what hc will do for its status. New agent: program
+  tiles on ink with a lime "installed" bar (not installed: dimmed), the
+  operator it will be drawn as (automatic), the squad (click for the next
+  space) and the parent. Then the task (or, for Shell, the command) in
+  brackets, the delivery (Only if idle, Now, Now and wait for reply) or
+  lifetime (Ends with parent, Outlives parent, No parent), and a graphite
+  footer: `Current formula YOU ▶▶ PERLICA · T3`, the exact hc command, Cancel
+  and the yellow Dispatch pill. Opened from a squad header's `+`, the session
+  panel's Dispatch, or the empty sidebar. Errors from hc show in the dialog.
+- **Comms**: the Comms pill opens a pane beside the focused one: `// Comms`,
+  All / You / Reports, a line naming its sources and what it can't see, and
+  message cards (time and age, sender chip ▶▶ recipient chip, the text in
+  brackets, the transport underneath, the left edge by kind: blue task or
+  message, lime reply, yellow needs input, red exited). YOU is the only yellow
+  chip; hc notes are a grey square.
+- **HUD footer, 44px**: ink with a faint 45° grain. The number of active
+  agents on a 22px odometer, `// space / tab`, then `▶▶ 14 GENERATING` and
+  `✓ 01 CLAIMED` on odometers; at the right the focused agent's context (used /
+  total over a 3px bar, red past 75%), its model, the branch and the machine;
+  and a 176px yellow block, `04 NEEDS INPUT ▶`, that opens (300ms) while
+  anyone needs input; click goes to the first.
 - **Toasts**: a white slab with a 3px edge and a round glyph in the level's
-  colour (an agent's own status wins: done lime, blocked yellow), title,
-  body, `// space` top right, a yellow "Open ▶▶" pill and a 2px countdown.
+  colour, title, body, `// space` top right, a yellow "Open ▶" pill and a 2px
+  countdown. An agent that finished gets the Claimed slip: its chip flashes
+  yellow once (.9 to 0, 300ms), the callsign, a lime "Claimed ✓" pill, the
+  task and a "View ▶" pill.
+- **Needs input, elsewhere: the cut-in.** A 440x214 ink slab at the bottom
+  right, an overlay window (Herdr's toast slot is too small): a field of dots,
+  a yellow diagonal band, the operator's signal duotone in a white frame with a
+  yellow diamond above and a `!` badge, `// space · T3` and a barcode, a white
+  caption plate that a yellow block grows across (330ms), holds and retracts to
+  a 4px edge (350ms, from 630ms), revealing "PERLICA NEEDS INPUT" in wide
+  caps, a hazard rule, the question from its screen in brackets, and Answer ▶ /
+  Later. It stays until answered or Later, and closes itself when the agent
+  stops needing input or its pane gets focus.
 - **Terminals**: JetBrains Mono 14 at weight 500 on `#191919`, foreground
   `#E6E6E1`, padding 14 by 10, yellow cursor, an original 16-colour set tuned
   to the status hues (working `#31ACF0`, blocked `#FFFA00`, done `#BBCC2B`,
@@ -85,23 +150,25 @@ rendered at 4x. It is a schematic, not a screenshot.
 
 - **Working:** `▶▶` steps through (300ms a beat) in flow blue, and a 1px blue
   segment rides the agent row's floor (3200ms, there and back).
-- **Blocked:** a yellow "Needs input" pill; the hazard tick breathes (opacity
-  0.55 to 1, 1400ms); the row flickers once (three 200ms pulses) when it
-  enters the state.
-- **Done:** the lime disc pops from 0 and the row flickers once; it turns idle
-  when looked at.
+- **Blocked:** a yellow "Needs input" pill and a hazard tick, both still:
+  blocked waits.
+- **Done:** the lime disc grows from 0 (200ms); it turns idle when looked at.
 - **Idle:** `zZ Idle` in muted text, still.
-- **Start:** an ink screen over faint contour lines, a 10px yellow gauge fills
-  the left edge, a yellow wipe crosses, then the screen fades (1.5s; a click
-  skips it). The regions flicker in 200ms apart: brand, spaces and tabs,
+- **Start:** an ink screen with range rings and four registration crosses, a
+  10px yellow bar fills the left edge (650ms from 100ms), `HERDR//` types on
+  glyph by glyph (50ms apart from 200ms), a yellow rule retracts to the right
+  (150ms from 760ms) under `// FIELD OPS · ESTABLISHING LINK`, then the screen
+  fades (225ms from 1275ms; a click skips it). The regions build in placeholder-first, each fading in (120ms) 100ms apart: brand, spaces and tabs,
   agents and panes, status. The mark's bars rise 80ms apart and the
   tri-colour bar wipes in.
 - **Spaces:** click selects (the ink fill wipes in, the yellow edge grows
   down); drag reorders within a machine (a 2px line shows where); right-click
   opens the space menu; the machine header folds its group.
-- **Agents:** click focuses the pane (the ink block slides there, 300ms); the
-  tile folds sub-agents; hover shows pin; a sub-agent without a pane opens as
-  a peek. The sort button opens Priority or Grouped by space. `alt-up` /
+- **Squads:** click focuses the pane (the plate snaps, the yellow marker
+  travels, 300ms); a child without a pane opens as a peek; a Claude Code
+  sub-agent opens its transcript beside its parent. A squad header folds it.
+  The sort pill opens Priority or Tab order. A new child draws its connector
+  top-down (240ms); a newly pinned agent fades in. `alt-up` /
   `alt-down` follow the list's order.
 - **Session card:** after 250ms on an agent row it fades in and slides 16px
   right (300ms) and the context blocks light 18ms apart. Moving onto the card
@@ -138,17 +205,18 @@ rendered at 4x. It is a schematic, not a screenshot.
 - `layouts/endfield.json`: root row, `titlebar: "none"`, `traffic_lights:
   [12, 16]`, theme `{light: "endfield", dark: "endfield-night"}`, font
   JetBrains Mono 14/500, `ui_font` Geist, `terminal_padding: [14, 10]`,
-  `toast: "endfield-toast"`, `preview: "layouts/endfield.svg"`.
+  `toast: "endfield"` (the mod's `toast` role), `preview: "layouts/endfield.svg"`.
   - `sidebar` (column, 248px, min 44, max 480, chrome): `brand` (64px,
     `window_drag`), `sidebar-lists` (`spaces` weight 1, `agents` weight 1.2,
     min 90 each), `sidebar-footer` (40px).
   - `work` (column, canvas): `tabs` (36px, `window_drag`), `work-body` (row,
-    padding 8, gap 8: `main` with the pane frame, and the hidden `panel`, 368px,
+    padding 8, gap 8: the `work-stack` stack, whose children are `main` with
+    the pane frame and `report` (role `report`), and the hidden `panel`, 368px,
     holding the `panel-body` stack of the shipped `files` and `changes`),
-    `status` (28px).
+    `status` (44px).
   - Every chrome block is `{mod: "endfield", props: {role}}`. The pane frame:
     background `#191919`, border 1 `input`, focus 1 `solid`, radius 4, gap 8,
-    `lone: true`, header `{mod: "endfield", props: {role: "pane"}}`, 30px,
+    `lone: true`, header `{mod: "endfield", props: {role: "pane"}}`, 34px,
     top, always.
 - `themes/endfield.json` and `themes/endfield-night.json`: terminal colours
   plus every panel colour by name.
@@ -159,7 +227,9 @@ rendered at 4x. It is a schematic, not a screenshot.
   status), `IDENTITY` (who an agent is drawn as) and `MOTION` (every timing).
   Behaviour is adapted from Herdr's shipped `spaces`, `agents`, `tabs`, `pane`,
   `workspace-chrome`, `workspace-status` and `toast` mods.
-- `mods/endfield-toast`: the layout's toast mod. `mods/endfield-transcript`:
+- Notifications: the layout's `toast` is the `endfield` mod; Herdr opens it with
+  notification props and no role, and `main.js` routes those to `toast`.
+  `mods/endfield-transcript`:
   the transcript pane, props `{path, title}`.
 - The session card is the `endfield` mod as an overlay window (`kind:
   "window"`, `frame: "none"`, props `{role: "card", terminal, title, where,
@@ -231,7 +301,7 @@ rendered at 4x. It is a schematic, not a screenshot.
 
 ## Done when
 
-- `herdr-app check` passes on `mods/endfield`, `mods/endfield-toast` and
+- `herdr-app check` passes on `mods/endfield` and
   `mods/endfield-transcript`, there is no `*.error` file, and `herdr-app
   status` lists no errors (`node scripts/verify.mjs` runs all of these).
 - `herdr-app do layout.switch --name endfield` shows the boot, then every
