@@ -361,15 +361,15 @@ export class Agents {
   }
 
   // This list owns the one session poller: the HUD footer gets the focused agent's context and the
-  // account's usage limits, the
-  // report every Claude Code agent's context, tokens and turns. Published only when they change.
+  // account's usage limits, the report every Claude Code agent's context, tokens and turns, and a
+  // card action's dialog the model, effort and mode it reads back. Published only when they change.
   share(R) {
     const f = R.flat.find((m) => m.focused);
     const s = f ? this.sessions.get(f.address) : null;
     const focus = f ? { ctx: s?.ctx ?? null, model: s?.model?.short ?? f.program?.name ?? null } : null;
     const all = Object.fromEntries(R.flat.flatMap((m) => {
       const x = this.sessions.get(m.address);
-      return x ? [[m.address, { ctx: x.ctx ?? null, tokens: x.tokens?.total ?? null, turns: x.turns ?? null }]] : [];
+      return x ? [[m.address, { ctx: x.ctx ?? null, tokens: x.tokens?.total ?? null, turns: x.turns ?? null, model: x.model?.short ?? null, effort: x.effort, mode: x.mode }]] : [];
     }));
     // The open card's whole session: the card draws it and runs no poller of its own.
     const card = this.card.open ? this.sessions.get(this.card.open.address) : null;
