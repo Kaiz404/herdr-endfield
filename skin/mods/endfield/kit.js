@@ -317,6 +317,9 @@ export const icon = (name, size = 14) => svg(`${ASSETS}/${name}.svg`).size(size)
 
 // A Squads row's context gauge: `segments` blocks of w x h, `gap` apart.
 export const GAUGE = { segments: 8, w: 5, h: 6, gap: 2 };
+// The HUD footer's usage limits: each window two rows (`top` and `bottom` px tall, `rowGap` apart)
+// in two columns `colGap` apart, the percent at `pct` px; windows `between` either side of a hairline.
+export const QUOTA = { top: 13, bottom: 10, rowGap: 5, colGap: 10, pct: 13, between: 12 };
 
 /** g: fleet.js rowMeta's gauge {lit, hot, tip}; `inv` on the selected row's plate. */
 export function gauge(C, g, { inv = false, id }) {

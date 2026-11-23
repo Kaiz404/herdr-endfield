@@ -141,7 +141,18 @@ rendered at 4x. It is a schematic, not a screenshot.
   chip; hc notes are a grey square.
 - **HUD footer, 44px**: ink with a faint 45° grain. The number of active
   agents on a 22px odometer, `// space / tab`, then `▶▶ 14 GENERATING` and
-  `✓ 01 FINISHED` on odometers; at the right the focused agent's context (used /
+  `✓ 01 FINISHED` on odometers; the account's Claude usage limits in the
+  free width, each window a block of two rows on one left edge, `5-HOUR
+  54% USED` over `▰▰▰▰▱▱▱▱ RESETS 1H 40M`, the percent column shared by both
+  rows, the blocks 12px either side of a hairline, no dots or pipes (label
+  and `USED` in the 10px mono label voice, the percent 13px bold; the kit's
+  8-block gauge, filled by percent used; countdown `<1m`, `42m`, `5h 00m`,
+  `2d 5h`; the newest any statusline sidecar carries; from 80% a red `▲`
+  before the label, a red gauge and a red percent; a window whose reset time
+  has passed reads `5-HOUR RESET` over an empty gauge; when the width runs
+  short the gauges go first, then the second window's `USED`; the rows keep
+  their 13px and 10px heights at every width; absent with no Claude
+  statusline data; the countdown repaints once a minute); at the right the focused agent's context (used /
   total over a 3px bar, red past 75%), its model, the branch and the machine;
   and a 176px yellow block, `04 NEEDS INPUT ▶`, that opens (300ms) while
   anyone needs input; click goes to the first.
@@ -190,7 +201,10 @@ rendered at 4x. It is a schematic, not a screenshot.
   `alt-down` follow the list's order.
 - **Session card:** after 250ms on an agent row it fades in and slides 16px
   right (300ms) and the context blocks light 18ms apart. Moving onto the card
-  keeps it; leaving both closes it after 160ms. Answer/Focus runs
+  keeps it; leaving both closes it after 160ms. A press outside the card
+  closes it at once, except on its own row. A hover-out Herdr never reports
+  closes nothing until the next press: the pointer's position is not read.
+  Answer/Focus runs
   `agent.focus`, Peek `terminal.peek`, Pin `terminal.pin`.
 - **Claude Code sub-agent row:** read from its transcript, not from how long
   ago it wrote. Working while a tool call has no result or its turn has not
@@ -261,6 +275,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   "window"`, `frame: "none"`, props `{role: "card", terminal, title, where,
   snap}`). Shared keys: `endfield.card.open` (the one card the agents list
   owns), `endfield.card.hot` (the pointer is on the card),
+  `endfield.card.closed` (the overlay id of a card pressed beside, or closed
+  by itself; a press on the card's own row is not a dismissal),
   `endfield.identity` (the identity table changed).
 - `herdr` calls: `spaces`, `agents`, `terminals`, `panes`, `focused`,
   `machines`, `layout`, `settings`, `keys`, `updates`, `fonts`, `shared`,

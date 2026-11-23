@@ -6,6 +6,8 @@
 
 - **Home base.** New spaces on this computer open in a workspace folder instead of your home folder, so an agent you start there treats that folder as its project, not your whole home folder. The default is `Projects` in your home folder if it exists. Set `homeBase` in `data/endfield/settings.json` to choose another folder. If that folder is missing, spaces open in your home folder and the sidebar says so. Spaces on other machines still open in that machine's home. The Spaces header shows the base, and the key command `endfield.newSpace` opens a space there. See [Home base](docs/SETUP.md#9-choose-where-new-spaces-open).
 
+- **Usage limits in the HUD footer.** The footer shows your Claude 5-hour and weekly limits, each as two short rows: the percent used on top (`5-HOUR 54% USED`), a small bar and the time to reset below (`RESETS 1H 40M`). From 80% a window turns red with a `▲`. A window that has reset since Claude Code last reported it reads `RESET` over an empty bar, not its old numbers. In a narrow window the bars go first, then the weekly window's `USED`. The numbers come from the [Claude Code statusline](extras/claude-statusline/README.md), so copy the updated `statusline-endfield.sh` to `~/.claude/` again to get them. Without it the section is not shown.
+
 ### Changed
 
 - **Waiting sub-agents stay in Squads.** A Claude Code sub-agent that waits on background work it started (a shell, an agent or a monitor), or sits in a long tool call, used to read **Finished** after 20 seconds without output, and Squads hid it. It now reads **Waiting**, with two still bars in place of the moving triangles, and stays under its parent like a Generating one. A sub-agent reads Finished only when its turn has ended and nothing it started still runs. Squads reads this from the transcript and from whether the session's Claude Code process still runs, not from how long ago the sub-agent wrote.
@@ -15,6 +17,10 @@
 - **Claimed is now Finished.** The status word for an agent that finished its turn reads **Finished** in Squads, the Report, the HUD footer (`01 FINISHED`) and the slip a finished agent gets. The status words are now Generating, Needs input, Finished, Idle and Error. The sound file keeps its name, `claimed.mp3`, so a `sounds.done` setting that points at it still works.
 - **Idle agents take one line.** An idle agent's row folds to its callsign, task and **Idle**, so the agents that are working get the room. Generating, Needs input, Finished and Error rows keep two lines.
 - **One motion per working agent.** A generating row in Squads no longer has a blue segment sliding along its floor. The status glyph still animates, so a sidebar full of working agents is calmer.
+
+### Fixed
+
+- **The session panel no longer stays open after you move on.** It closes when you click anywhere outside it, such as on Files, Comms or Report, and when you fold the sidebar. Clicking the agent's own row keeps its panel. One case is not fixed: if the pointer leaves the row or the panel and Herdr does not report it, the panel stays until your next click.
 
 ## 0.2.0
 

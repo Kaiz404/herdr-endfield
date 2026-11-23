@@ -1,7 +1,7 @@
 // sessions: what a Claude Code session behind an agent terminal is doing, one parsed shape
 // per terminal. Sources, first wins:
 //   1. a sidecar a Claude Code statusline writes: data/endfield/sessions/<session_id>.json
-//      {session_id, terminal, cwd, transcript_path, model:{id, display_name}, context:{used, total, pct}, updated_at}
+//      {session_id, terminal, cwd, transcript_path, model:{id, display_name}, context:{used, total, pct}, rate_limits, updated_at}
 //   2. the transcript itself, ~/.claude/projects/<cwd slug>/<session>.jsonl. Without a sidecar the
 //      terminal is matched to its folder's most recently written transcript: approximate, since
 //      two sessions in one folder can't be told apart (`approx`).
@@ -14,10 +14,10 @@
 //   ctx:{used, total, pct} | null, tokens:{total, delta} | null, tools, turns, effort, mode,
 //   lastAction:{tool, arg} | null, lastAt, startedAt, question, live: boolean | null, tasks: Task[],
 //   waiting (its turn ended with background work or a sub-agent still in flight), subagents: Sub[]}
-// Sub = {id, path, title, model, effort, ctx, tools, status: working | waiting | done | idle (fleet.js runStatus),
+// Sub = {id, path, title, model, effort, ctx, status: working | waiting | done | idle (fleet.js runStatus),
 //   lastAt, startedAt, lastAction, tasks: Task[]}, in no order (fleet.js subagentView orders them)
 // Task = background work a transcript started: {id, kind: shell | agent | monitor, description, startedAt,
-//   endedAt, state: running | completed | failed | killed | stopped | ended-with-session}
+//   endedAt, state: running | completed | failed | killed | stopped | timed-out | ended-with-session}
 
 import * as fs from "fs/promises";
 import { exec, appHome, watchFolder, checking } from "herdr";
@@ -59,7 +59,6 @@ function shape(t, raw, parentStatus) {
     model: s.model ? modelName(s.model) : null,
     effort: s.effort ?? null,
     ctx: s.used ? contextOf(s.model, s.used) : null,
-    tools: s.tools ?? 0,
     status: runStatus({ ...s, live: raw.live, now }, parentStatus),
     lastAt: s.mtime,
     startedAt: s.firstAt ?? null,
@@ -100,6 +99,8 @@ export class Sessions {
   constructor(name) {
     this.name = name;
     this.map = new Map();
+    // The account's Claude usage limits, the newest any sidecar carries (probe.mjs).
+    this.limits = null;
     this.dirty = true;
     this.busy = false;
     this.key = "";
@@ -161,7 +162,7 @@ export class Sessions {
   }
 
   poll(cx, targets, key) {
-    if (this.busy || !targets.length) { if (!targets.length) { this.map.clear(); this.follow(cx, []); } return; }
+    if (this.busy || !targets.length) { if (!targets.length) { this.map.clear(); this.limits = null; this.follow(cx, []); } return; }
     this.busy = true;
     this.dirty = false;
     this.key = key;
@@ -181,6 +182,7 @@ export class Sessions {
         const next = new Map();
         for (const t of targets) next.set(t.terminal, shape(t, out.sessions?.[t.terminal], t.status));
         this.map = next;
+        this.limits = out.limits ?? null;
         this.missing = (out.missing ?? []).length > 0;
         if (!this.stopped && out.watch) this.follow(cx, out.watch);
       } catch {
@@ -200,7 +202,7 @@ async function sweepCardRequests() {
   } catch {}
 }
 
-// ---- formatting the card and rows share
+// ---- formatting for the card
 
 /** 252000 ms -> "04m 12s"; hours as "2h 06m". */
 export function longDuration(ms) {
