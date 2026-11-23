@@ -5,7 +5,7 @@
 import { existsSync, readFileSync, rmSync, copyFileSync, readdirSync, rmdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { execFileSync } from "node:child_process";
-import { entries, home, owned, same, herdrWritten, modDirs, RETIRED } from "./skin.mjs";
+import { entries, home, owned, same, unedited, herdrWritten, modDirs, RETIRED } from "./skin.mjs";
 
 const HOME = home();
 const STATE = join(HOME, ".endfield-install");
@@ -32,7 +32,7 @@ for (const e of entries()) {
   const backup = join(STATE, "backup", e.rel);
   if (existsSync(backup)) { copyFileSync(backup, dest); done.restored.push(e.rel); }
   else if (created.has(e.rel) && existsSync(dest)) {
-    if (e.seed && !same(e.src, dest)) { done.kept.push(e.rel); continue; }
+    if (e.seed && !same(e.src, dest) && !unedited(e.rel, dest)) { done.kept.push(e.rel); continue; }
     rmSync(dest);
     done.removed.push(e.rel);
   }
