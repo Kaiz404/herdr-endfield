@@ -1,0 +1,12 @@
+{
+  "operators": {
+    "kestrel": { "name": "Kestrel", "image": "kestrel.png", "eyes": [0.5, 0.3], "face_width": 0.05, "accent": "#50BBE2" },
+    "lumen": { "name": "Lumen", "image": "lumen.png", "eyes": [0.46, 0.28], "face_width": 0.045 }
+  },
+  "default_assignment": {
+    "claude": "kestrel",
+    "codex": "lumen",
+    "sub-agent": "lumen",
+    "shell": null
+  }
+}
