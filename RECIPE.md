@@ -200,7 +200,10 @@ rendered at 4x. It is a schematic, not a screenshot.
   `alt-down` follow the list's order.
 - **Session card:** after 250ms on an agent row it fades in and slides 16px
   right (300ms) and the context blocks light 18ms apart. Moving onto the card
-  keeps it; leaving both closes it after 160ms. Answer/Focus runs
+  keeps it; leaving both closes it after 160ms. A press outside the card
+  closes it at once, except on its own row. A hover-out Herdr never reports
+  closes nothing until the next press: the pointer's position is not read.
+  Answer/Focus runs
   `agent.focus`, Peek `terminal.peek`, Pin `terminal.pin`.
 - **Claude Code sub-agent row:** working while its transcript was written in
   the last 20s and its last step is a tool call or not a final answer; else
@@ -211,7 +214,14 @@ rendered at 4x. It is a schematic, not a screenshot.
   file and keeps the newest entry in view. A tab has one transcript pane:
   clicking another sub-agent replaces it, clicking the one shown focuses it.
   The shown sub-agent's row wears the selected plate, and the yellow marker
-  while its pane has focus.
+  while its pane has focus. The pane's foot is a follow-up box on a raised
+  ground: `// FOLLOW-UP` and `SENT VIA PERLICA, WHO PASSES IT ON WITH
+  SENDMESSAGE`, a one-line input and a round Send button, then the exact `hc
+  send` command in mono, wrapped. The sub-agent has no terminal, so the text
+  goes to its parent, asking it to forward the text with SendMessage. Send is
+  yellow only while it would go and the input has focus; otherwise outlined,
+  and dimmed with the reason in place of the command when the parent is
+  working, needs input or is gone. Enter sends too. Nothing sends otherwise.
 - **Tabs:** click selects (the yellow block slides over left and width,
   300ms), double-click renames, drag reorders, right-click opens the tab menu,
   the wheel switches tabs. Hover grows a 24px, 2px underline from the left.
@@ -266,11 +276,18 @@ rendered at 4x. It is a schematic, not a screenshot.
 - Notifications: the layout's `toast` is the `endfield` mod; Herdr opens it with
   notification props and no role, and `main.js` routes those to `toast`.
   `mods/endfield-transcript`:
-  the transcript pane, props `{path, title}`.
+  the transcript pane, props `{path, title, id, parent, via}` (the sub-agent's
+  id, its parent's terminal and callsign). It runs `hc send` to the parent
+  (`orders.js` `relayOrder`), reads `agents()` for the parent's status, and
+  appends to `data/endfield/comms.jsonl`. A mod can't import outside its
+  folder, so it holds copies of the endfield mod's `orders.js` and
+  `messages.js`, kept identical by `tests/relay.test.mjs`.
 - The session card is the `endfield` mod as an overlay window (`kind:
   "window"`, `frame: "none"`, props `{role: "card", terminal, title, where,
   snap}`). Shared keys: `endfield.card.open` (the one card the agents list
   owns), `endfield.card.hot` (the pointer is on the card),
+  `endfield.card.closed` (the overlay id of a card pressed beside, or closed
+  by itself; a press on the card's own row is not a dismissal),
   `endfield.identity` (the identity table changed), `endfield.models` (each
   Claude Code agent's model id, for casting).
 - `herdr` calls: `spaces`, `agents`, `terminals`, `panes`, `focused`,
@@ -350,6 +367,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   a lime edge.
 - `pane.split {direction: "right", pane, mod: "endfield-transcript", props:
   {path}}` on a sub-agent transcript shows its entries and grows as the file
-  does.
+  does. Opened from Squads, its foot shows the `hc send` to the parent for
+  the typed text, and Send is disabled with a reason while the parent works.
 - With `art/operators/` deleted, every surface still draws, with program
   tiles.
