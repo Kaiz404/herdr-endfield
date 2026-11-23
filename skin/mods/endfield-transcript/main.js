@@ -133,12 +133,11 @@ export default class Transcript extends View {
     const ready = Boolean(args) && phase !== "busy" && phase !== "uncertain";
     // Yellow marks only what is yours right now: Send, while it would go and the input has focus.
     const primary = ready && this.typing;
-    const [line, tone] = this.notice ? [this.notice, C.red]
+    const [note, tone] = this.notice ? [this.notice, C.red]
       : phase === "uncertain" ? [`${error} It may have arrived: read the parent's screen before sending again.`, C.red]
       : error ? [error, phase === "sent" ? C.muted : C.red]
       : phase === "sent" ? [`Typed into ${p.via ?? "its parent"}. Check its pane to see whether it passed it on.`, C.muted]
-      : args ? [commandLine(args, appWindow()?.platform), C.dim]
-      : [problem, C.muted];
+      : [null, null];
     return v_flex().id("transcript-prompt").flex_none().gap(8).px(14).pt(10).pb(12).border_t(1).border_color(C.rule).bg(C.raised)
       .child(h_flex().gap(8).items_center()
         .child(div().flex_none().font_family("Geist Mono").text_size(10).text_color(C.muted).child("// FOLLOW-UP"))
@@ -153,8 +152,10 @@ export default class Transcript extends View {
           .when(ready, (el) => el.cursor_pointer())
           .on_click((_e, cx) => this.trySend(cx))
           .child(div().text_size(12).font_semibold().child(phase === "busy" ? "Sending" : "Send"))))
-      // Every argument, wrapped rather than cut: this is exactly what Send runs.
-      .child(div().id("transcript-cmd").min_w(0).max_h(48).overflow_y_scrollbar().font_family(MONO).text_size(10.5).line_height(1.4).text_color(tone).child(line));
+      .when(Boolean(note), (el) => el.child(div().min_w(0).font_family(MONO).text_size(10.5).line_height(1.4).text_color(tone).child(note)))
+      // Every argument, wrapped rather than cut, and drawn under any note: this is exactly what Send runs.
+      .child(div().id("transcript-cmd").min_w(0).max_h(48).overflow_y_scrollbar().font_family(MONO).text_size(10.5).line_height(1.4)
+        .text_color(args ? C.dim : C.muted).child(args ? commandLine(args, appWindow()?.platform) : problem));
   }
 
   entry(e, i) {
