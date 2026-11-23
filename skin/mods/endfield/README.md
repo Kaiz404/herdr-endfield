@@ -12,7 +12,8 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   `agents`, `sortmenu`, `card`, `tabs`, `pane`, `status`, `toast`, `cutin`,
   `report`, `dispatch`, `comms`.
 - `kit.js` owns the registries every role reads: `PALETTE` (keyed `paper` /
-  `night`, picked by `settings().dark`), `IDENTITY` (who an agent is drawn as)
+  `night`, picked by `settings().dark`), `IDENTITY` (who an agent is drawn as;
+  the casting rules are `CASTING` in `fleet.js`)
   and `MOTION` (every timing). It also holds the shared shapes (tiles, brackets,
   hatch, odometer, wipes, the selection plate and marker) and the motion helpers
   (`Entrance`, `StatusFx`).
@@ -81,12 +82,23 @@ python mods/endfield/tools/make_art.py
 
 ## Operators
 
-`IDENTITY.resolve(program, terminal, { parent })` in `kit.js` is the one place that
-decides an agent's operator. It returns `{ operator, name, accent, avatar, badge, fallbackIcon }`,
+`IDENTITY.resolve(program, terminal, { parent, model })` in `kit.js` is the one place
+surfaces ask who an agent is. It returns `{ operator, name, accent, avatar, badge, fallbackIcon, pool }`,
 where `avatar` holds the paths `32`, `64`, `128`, `round`, `bust` and `signal`, `badge`
-is the class badge (`C`, `X`, `Cu`, `O`, `G`), and `fallbackIcon` is the program, drawn
-as its tile inside the chip when `avatar` is null. `chip()` draws every party chip;
-`roster.js` adds the callsign.
+is the class badge (`C`, `X`, `Cu`, `O`, `G`), `fallbackIcon` is the program, drawn
+as its tile inside the chip when `avatar` is null, and `pool` is the draw order.
+`chip()` draws every party chip.
+
+The rules are pure, in `fleet.js`, and `tests/casting.test.mjs` runs them:
+`CASTING` maps a model id to a tier and a tier to a pool of operators (see
+[docs/CASTING.md](../../../docs/CASTING.md)); `choose()` picks the slug and pool;
+`cast()` draws the first operator of the pool no other agent holds and names the
+callsign, numbering (`YVONNE·2`) only once the pool is spent. `buildRoster()`
+casts every agent in creation order; a same-program child with no model of its
+own runs its parent's. `castCrew()` casts a Claude Code session's sub-agents
+around the fleet, each keeping its operator while it stays shown. The agents
+list's session poller publishes each Claude Code agent's model id as the shared
+key `endfield.models`, which `roster.js` passes in, so every surface casts alike.
 
 Two files feed it, both optional:
 
@@ -102,19 +114,22 @@ Two files feed it, both optional:
   }
   ```
 
-  An optional `"spares": ["laevatain"]` lists the operators a repeat takes before
-  callsigns get numbers (default: the manifest's `unassigned`).
+  The installed seed is empty, so the model decides. An optional
+  `"spares": ["laevatain"]` lists the operators a repeat takes after its pool and
+  before callsigns get numbers (default: the manifest's `unassigned`).
   `programs` maps a program key (`program.key`: `claude`, `codex`, ...) to an
-  operator slug. `sub-agent` is used for sub-agents and `shell` for any agent
-  with no entry of its own. `terminals` maps one terminal address to a slug and
-  wins over `programs`. `null` means no operator: that agent keeps its program
-  tile. Unknown slugs also fall back to the tile.
+  operator slug and wins over the model. `sub-agent` is used for sub-agents.
+  `terminals` maps one terminal address to a slug and wins over everything.
+  `null` means no operator: that agent keeps its program tile. Unknown slugs
+  also fall back to the tile.
 
-Resolution order: `terminals[address]`, then `programs["sub-agent"]` for a
-child of the same program (a cross-vendor child keeps its own program's
-operator), then `programs[program.key]`, then `programs.shell`; overrides replace
-the manifest's `default_assignment` key by key. An operator whose avatar files
-are missing is dropped, so deleting `art/operators/` leaves every surface as it
+Resolution order: `terminals[address]`, then the person's `programs["sub-agent"]`
+for a child of the same program (a cross-vendor child keeps its own program's
+operator), then the person's `programs[program.key]`, then the model's pool (only
+the operators the pack has), then the manifest's `default_assignment`:
+`sub-agent` for a same-program child, the program key, `shell`. A model no rule
+knows draws `CASTING.fallback`. A pinned terminal never takes a spare. An
+operator whose avatar files are missing is dropped, so deleting `art/operators/` leaves every surface as it
 was. The agents list rereads both files on start and every 30 s; the table is
 rebuilt, and every copy redrawn, only when their text changed (mods have no
 file `stat`, so the cache is keyed by content, not mtime).

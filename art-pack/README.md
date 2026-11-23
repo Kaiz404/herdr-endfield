@@ -16,7 +16,7 @@ Official Arknights: Endfield art is © Hypergryph / Gryphline. You can keep it o
 ## Fetch the official operators
 
 ```sh
-node scripts/fetch-operators.mjs --list      # the eight operators and the default assignment
+node scripts/fetch-operators.mjs --list      # the 36 operators and the program defaults
 node scripts/fetch-operators.mjs --accept    # download, verify and build
 ```
 
@@ -24,11 +24,13 @@ The script first prints a notice: this is an unofficial fan project, the art is 
 
 What it does:
 
-1. Reads [`operators.json`](operators.json), the catalogue. Each operator row has its name, class, element, rarity, accent, the official CDN URL and sha256 of its source render, the official page URL, and its crop recipe (`eyes`, `face_width`, `bust`). The catalogue holds no images.
+1. Reads [`operators.json`](operators.json), the catalogue: the 36 playable operators, plus `endministrator-alt`, the male Endministrator render. Each operator row has its name, class, element and rarity (from the official operator page), the official CDN URL, sha256 and size of its source render, the official page URL, and its crop recipe (`eyes`, `face_width`, `bust`). Rows without an `accent` get one sampled from the image. A `note` marks a row whose source is only the small roster card (Kay and Mimino, for now). The catalogue holds no images, and no links other than the official site and its CDN. Tier-list facts for casting live in [docs/CASTING.md](../docs/CASTING.md).
 2. Downloads each source over https, with a 30 second timeout and an 8 MB cap, into a temp folder. It refuses any URL that is not on the catalogue's `cdn`.
 3. Checks each file's sha256. If the official site now serves a different file, it stops, installs nothing, and says the catalogue needs an update.
 4. Runs `build_pack.py` on the downloads, then copies the pack into `art/operators/` in `HERDR_APP_HOME`, else `~/.config/herdr-app` (`%USERPROFILE%\.config\herdr-app` on Windows): the six files per operator, `manifest.json` and `CREDITS.md`.
 5. Deletes the temp folder.
+
+**How the crops were measured.** The first 8 rows keep their earlier values. For the other 29, the renders were downloaded to a scratch folder outside the repo, an anime face detector (OpenCV's LBP cascade, `lbpcascade_animeface`) proposed the face box, and the eye midpoint and face width were taken from that box with ratios calibrated on those 8 rows. Each crop was then checked by eye on a contact sheet of every avatar and bust. Where the detector missed or picked the wrong face (Alesh, Antal, Arclight, Argent Flow, Catcher, Da Pan, Purrchena, the male Endministrator, Kay and Mimino) the eyes and face width were read by hand from a grid over the render. Kay's and Mimino's busts take the whole 303x386 card. No crop is a default. The images were deleted afterwards.
 
 Rerunning it is safe. It records what it built in `art/operators/.fetch-operators.json` and skips operators whose source hash and built files still match, so a second run downloads nothing. It never deletes a file. Before it replaces a file it did not write, or one you edited, it copies it to `art/operators/.fetch-operators-backup/<time>/`. It merges into an existing `manifest.json`: other operators, extra fields and your `default_assignment` stay.
 
@@ -79,7 +81,7 @@ To remove the pack, delete `art/operators/` from your Herdr home.
 
 Any other field (`class`, `source_url`, ...) is copied as-is into the operator's manifest entry.
 
-`default_assignment` maps a program key to a slug, or to `null` for "keep the program tile". Program keys are Herdr's (`claude`, `codex`, `gemini`, `opencode`, `cursor`, ...). Two keys are special: `sub-agent` is used for sub-agents, and `shell` for any agent with no entry of its own.
+`default_assignment` maps a program key to a slug, or to `null` for "keep the program tile". It applies to agents whose model the skin does not know, or whose model's pool has none of the pack's operators; see [docs/CASTING.md](../docs/CASTING.md). Program keys are Herdr's (`claude`, `codex`, `gemini`, `opencode`, `cursor`, ...). Two keys are special: `sub-agent` is used for sub-agents, and `shell` for any agent with no entry of its own.
 
 ## What it builds
 
@@ -125,4 +127,4 @@ Paths are relative to the Herdr home. An operator with any of the six files miss
 { "programs": { "claude": "kestrel", "codex": null }, "terminals": { "t3": "lumen" } }
 ```
 
-The skin resolves an agent's operator in this order: `terminals[address]`, then `programs["sub-agent"]` for a sub-agent, then `programs[program key]`, then `programs.shell`. Install seeds this file from `skin/data/endfield/operators.example.json` and never overwrites it afterwards.
+The skin resolves an agent's operator in this order: `terminals[address]`, then your `programs["sub-agent"]` for a sub-agent, then your `programs[program key]`, then the operators its model's tier draws ([docs/CASTING.md](../docs/CASTING.md)), then the pack's `default_assignment` (`sub-agent`, the program key, `shell`). Install seeds this file, empty, from `skin/data/endfield/operators.example.json` and never overwrites a copy you edited.

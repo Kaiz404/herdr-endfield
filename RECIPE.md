@@ -256,6 +256,11 @@ rendered at 4x. It is a schematic, not a screenshot.
   `status`). `kit.js` holds the tables every role reads: `PALETTE` (`paper`
   and `night`), `STATUS` (word, glyph, colour, entrance, rank per agent
   status), `IDENTITY` (who an agent is drawn as) and `MOTION` (every timing).
+  An agent with a known model is drawn from its model's tier: `CASTING` in
+  `fleet.js` maps the model id to fable, opus, sonnet or haiku, and each tier
+  has a pool of operators, strongest first (docs/CASTING.md). Siblings draw
+  different operators; a callsign is numbered (`YVONNE·2`) only once its pool
+  is spent. An unknown model draws the Endministrator.
   Behaviour is adapted from Herdr's shipped `spaces`, `agents`, `tabs`, `pane`,
   `workspace-chrome`, `workspace-status` and `toast` mods.
 - Notifications: the layout's `toast` is the `endfield` mod; Herdr opens it with
@@ -266,7 +271,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   "window"`, `frame: "none"`, props `{role: "card", terminal, title, where,
   snap}`). Shared keys: `endfield.card.open` (the one card the agents list
   owns), `endfield.card.hot` (the pointer is on the card),
-  `endfield.identity` (the identity table changed).
+  `endfield.identity` (the identity table changed), `endfield.models` (each
+  Claude Code agent's model id, for casting).
 - `herdr` calls: `spaces`, `agents`, `terminals`, `panes`, `focused`,
   `machines`, `layout`, `settings`, `keys`, `updates`, `fonts`, `shared`,
   `setShared`, `setAgentOrder`, `openOverlay`, `closeOverlay`, `run`, `exec`,
