@@ -55,6 +55,31 @@ def contour():
 
 ICONS["contour"] = contour()
 
+# The geometric layer, all tinted with the text colour and drawn large, then clipped by their
+# parent: a field of dots (6px pitch), a 48px grid, a catalogue barcode, a registration cross,
+# a tick ruler (major every 20px, minor every 4px), and range rings (dotted outer, solid inner,
+# four ticks) that frame empty space.
+def pattern(pid, w, h, body, size):
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{size[0]}" height="{size[1]}" viewBox="0 0 {size[0]} {size[1]}" fill="currentColor">'
+            f'<defs><pattern id="{pid}" width="{w}" height="{h}" patternUnits="userSpaceOnUse">{body}</pattern></defs>'
+            f'<rect width="{size[0]}" height="{size[1]}" fill="url(#{pid})"/></svg>\n')
+
+ICONS["dots"] = pattern("d", 6, 6, '<circle cx="3" cy="3" r="0.8"/>', (1440, 960))
+ICONS["grid"] = pattern("g", 48, 48, '<rect width="48" height="1"/><rect width="1" height="48"/>', (2400, 1600))
+ICONS["barcode"] = ('<svg xmlns="http://www.w3.org/2000/svg" width="36" height="8" viewBox="0 0 36 8" fill="currentColor">'
+                    + "".join(f'<rect x="{x + o}" width="{w}" height="8"/>' for x in range(0, 36, 9) for o, w in ((0, 1), (3, 2), (6, 1)))
+                    + "</svg>\n")
+ICONS["cross"] = '<svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 9 9" fill="currentColor"><rect x="4" width="1" height="9"/><rect y="4" width="9" height="1"/></svg>\n'
+ICONS["ticks"] = ('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="6" viewBox="0 0 400 6" fill="currentColor">'
+                  + "".join(f'<rect x="{x}" y="{0 if x % 20 == 0 else 3}" width="1" height="{6 if x % 20 == 0 else 3}"/>' for x in range(0, 400, 4))
+                  + "</svg>\n")
+ICONS["vticks"] = ('<svg xmlns="http://www.w3.org/2000/svg" width="6" height="1200" viewBox="0 0 6 1200" fill="currentColor">'
+                   + "".join(f'<rect y="{y}" x="0" height="1" width="{6 if y % 20 == 0 else 3}"/>' for y in range(0, 1200, 4))
+                   + "</svg>\n")
+ICONS["rings"] = ('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300" fill="none" stroke="currentColor">'
+                  '<circle cx="150" cy="150" r="148" stroke-dasharray="1 5" stroke-linecap="round"/><circle cx="150" cy="150" r="104"/>'
+                  '<path d="M150 0v26M150 274v26M0 150h26M274 150h26"/></svg>\n')
+
 for name, svg in ICONS.items():
     (ART / f"{name}.svg").write_text(svg, encoding="utf-8")
 print(f"wrote {len(ICONS)} files to {ART}")

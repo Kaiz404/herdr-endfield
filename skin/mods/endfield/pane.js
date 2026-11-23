@@ -1,11 +1,13 @@
-// pane: a pane's header in the layout's pane frame. Ported from the shipped `pane`
-// mod: live facts from panes(), click to focus, split/zoom/close on hover, divider
-// on the terminal-facing edge read from layout().
+// pane: a pane's header in the layout's pane frame, drawn as a name plate. Ported from the shipped
+// `pane` mod: live facts from panes(), click to focus, split/zoom/close on hover, divider on the
+// terminal-facing edge read from layout(). An agent's pane carries its operator's chip; when that
+// agent needs input while its pane has focus, the plate pulses yellow instead of a cut-in.
 
 import { div } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { panes, props, run, layout } from "herdr";
-import { palette, root, stop, statusMark, badge, micro, icon, path, basename, telling, growDisc, Entrance, StatusFx, MOTION } from "./kit.js";
+import { palette, root, stop, statusMark, badge, chip, hazard, micro, wide, icon, basename, telling, growDisc, Entrance, StatusFx, MOTION } from "./kit.js";
+import { roster } from "./roster.js";
 
 // The first visible tab frame, including the active child of a stack.
 function paneFrame(node) {
@@ -32,7 +34,6 @@ const ACTIONS = [
 const BUTTON = 22, GAP = 2, RULE = 9;
 // The tray's open width: the divider and its margins, then the buttons.
 const TRAY = RULE + ACTIONS.length * BUTTON + (ACTIONS.length - 1) * GAP;
-const HEIGHT = 30;
 
 export default class PaneHeader {
   init(_props, cx) {
@@ -47,21 +48,25 @@ export default class PaneHeader {
     const C = palette();
     const p = panes().find((x) => x.pane === props()?.pane);
     if (!p) return div();
+    const frame = paneFrame(layout())?.header;
+    const height = frame?.height ?? 34;
+    const bottom = frame?.position === "bottom";
+    const m = p.terminal && p.program?.agent ? roster().all.get(p.terminal) : null;
     const name = (p.program?.agent && telling(p)) || ((p.program?.agent || p.program?.shell) && p.program.name) || p.title || p.program?.name || "shell";
-    const where = [p.terminal, basename(p.cwd), p.branch].filter(Boolean).join(" · ");
-    const bottom = paneFrame(layout())?.header?.position === "bottom";
+    const where = [m?.ident.callsign, p.terminal?.toUpperCase(), basename(p.cwd), p.branch].filter(Boolean).join(" · ");
     const pane = p.pane;
     const on = p.focused;
     const open = this.hovered;
+    // Needs input while you are looking at it: the plate washes yellow and a hazard rule runs under it.
+    const pulse = on && p.status === "blocked";
     this.fx.track(pane, p.status, cx);
     const fx = this.fx.of(pane);
     return root(C, this.entrance.apply(h_flex()
       .id(`pane-head-${pane}`)
       .relative()
       .size_full()
-      .pl(14)
       .pr(8)
-      .gap(9)
+      .gap(10)
       .items_center()
       .bg(C.raised)
       .when(bottom, (el) => el.border_t(1))
@@ -69,25 +74,30 @@ export default class PaneHeader {
       .border_color(C.hair)
       .on_hover((hovered, cx) => { this.hovered = hovered; cx.notify(); })
       .on_click(() => run("pane.focus", { pane }))
-      // Focus: the yellow tab grows down the hairline tab, the corner bracket drops into place.
-      .child(div().absolute().left(0).top(0).bottom(0).w(4).bg(C.hair))
-      .child(div().id(`ph-tab-${pane}`).absolute().left(0).top(0).w(4).h(on ? HEIGHT : 0).bg(C.signal)
-        .transition("height", MOTION.pane.bar))
-      .child(div().id(`ph-brk-${pane}`).absolute().right(3).top(on ? 3 : -10).w(7).h(7).border_t(1.5).border_r(1.5).border_color(C.text)
-        .opacity(on ? 1 : 0).transition("top", MOTION.pane.brackets).transition("opacity", MOTION.pane.fade))
-      .child(badge(C, p.program, 16))
-      .child(div().flex_shrink(1).min_w(0).child(path(name, C.text, C.muted, { size: 12.5, weight: 600 })))
-      .child(micro(where, C.muted).flex_shrink(2).min_w(0).truncate())
+      .when(pulse, (el) => el.child(div().absolute().left(0).top(0).right(0).bottom(0).bg(C.signal).loop("opacity", MOTION.pane.pulse)))
+      .when(pulse, (el) => el.child(div().absolute().left(0).right(0).bottom(0).h(4).overflow_hidden().child(hazard(C, 4000, 4))))
+      // Focus: the yellow bar grows down the hairline strip; a small square lights at the top right.
+      .child(div().absolute().left(0).top(0).bottom(0).w(2).bg(C.hairStrong))
+      .child(div().id(`ph-bar-${pane}`).absolute().left(0).top(0).w(6).h(on ? height : 0).bg(C.signal).transition("height", MOTION.pane.bar))
+      .child(div().id(`ph-sq-${pane}`).absolute().right(4).top(4).size(4).bg(C.text).opacity(on ? 1 : 0).transition("opacity", MOTION.pane.fade))
+      // The program's square tile: ink while focused.
+      .child(div().relative().ml(6).size(height).flex_none().flex().items_center().justify_center().bg(on ? C.ink : C.sunken)
+        .child(badge({ ...C, selBg: "transparent", selText: on ? "#F2F2F2" : C.text }, on ? p.program : { ...p.program, tile: null, color: null }, 18)))
+      .when(Boolean(m), (el) => el.child(div().relative().tooltip(m.ident.callsign).child(chip(C, m.ident, p.status, { size: 22, id: `ph-chip-${pane}`, flash: fx.flash ? fx : null, ground: C.raised }))))
+      .child(wide(name, C.text, 12).relative().flex_shrink(1).min_w(0).truncate())
+      .child(micro(where, C.muted).relative().flex_shrink(2).min_w(0).truncate())
       .child(div().flex_1())
-      .child(div().flex_none().child(statusMark(C, p.status, { size: 11, id: `ph-disc-${pane}`, pop: fx.pop }) ?? div()))
-      // The tray opens on hover; each button fades and slides in 40ms after the one before.
-      .child(h_flex().id(`ph-tray-${pane}`).flex_none().h(BUTTON).overflow_hidden().w(open ? TRAY : 0)
+      .child(div().relative().flex_none().child(pulse
+        ? div().h(18).px(9).flex().items_center().rounded_full().bg(C.ink).text_color(C.signal).text_size(10).font_semibold().child("Needs input")
+        : statusMark(C, p.status, { size: 11, id: `ph-disc-${pane}`, pop: fx.pop }) ?? div()))
+      // The tray opens on hover; each button fades and slides in pane.actions after the one before.
+      .child(h_flex().id(`ph-tray-${pane}`).relative().flex_none().h(BUTTON).overflow_hidden().w(open ? TRAY : 0)
         .transition("width", MOTION.pane.brackets)
         .child(div().w(1).h(14).mx(4).flex_none().bg(C.hair))
         .children(ACTIONS.map((a, i) => {
           const key = `${a.id}-${pane}`;
           const hot = this.hot === key;
-          return div().id(`ph-${key}`).relative().size(BUTTON).flex_none().ml(i ? GAP : 0).flex().items_center().justify_center().rounded(3)
+          return div().id(`ph-${key}`).relative().size(BUTTON).flex_none().ml(i ? GAP : 0).flex().items_center().justify_center().rounded_full()
             .opacity(open ? 1 : 0).left(open ? 0 : 6)
             .transition("opacity", { ...MOTION.pane.fade, delay: i * MOTION.pane.actions.delay }).transition("left", { ...MOTION.pane.brackets, delay: i * MOTION.pane.actions.delay })
             .text_color(hot ? (a.danger ? C.ink : C.text) : C.muted)

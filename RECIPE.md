@@ -77,18 +77,34 @@ rendered at 4x. It is a schematic, not a screenshot.
   44px minimise, maximise/restore and close buttons drawn as thin vector glyphs.
 - **Work area**: 8px padding and 8px gaps on the canvas (`#E5E5E5`). Panes are
   ink cards, radius 4, 1px `#BDBDBD` border, `#191919` when focused, framed
-  even when alone. A 30px white header: a 4px tab on its left edge (yellow
-  when focused, else hairline grey), a 16px program badge, `// title` in Geist
-  12.5 semibold, a mono `T3 · folder · branch`, the status at the right and,
-  focused, an L-bracket in the top-right corner. Files and Changes open in a
+  even when alone. A 34px white name plate: a 2px grey strip on its left edge
+  that a 6px yellow bar grows down when focused (300ms), the program's 34px
+  square tile (ink when focused), the operator's 22px chip on an agent's pane,
+  the title in wide caps 12px, a mono `PERLICA · T3 · folder · branch`, the
+  status at the right, and a 4px ink square in the top-right corner when
+  focused. When that agent needs input while its pane has focus, the plate
+  washes yellow and back (opacity 0 to .42, 1400ms), a 4px hazard rule runs
+  under it and the pill turns ink with yellow text; no toast is made.
+  Files and Changes open in a
   368px panel on the right (min 280, max 900), paper, radius 4.
 - **Status bar, 28px**: ink with a faint 45° grain. `// space / tab`, then the
   counts in the wide face: `02 WORKING`, `01 NEEDS INPUT` (a yellow pill when
   above zero), `03 DONE`; at the right the branch, the machine and the palette
   key.
 - **Toasts**: a white slab with a 3px edge and a round glyph in the level's
-  colour (an agent's own status wins: done lime, blocked yellow), title,
-  body, `// space` top right, a yellow "Open ▶▶" pill and a 2px countdown.
+  colour, title, body, `// space` top right, a yellow "Open ▶" pill and a 2px
+  countdown. An agent that finished gets the Claimed slip: its chip flashes
+  yellow once (.9 to 0, 300ms), the callsign, a lime "Claimed ✓" pill, the
+  task and a "View ▶" pill.
+- **Needs input, elsewhere: the cut-in.** A 440x214 ink slab at the bottom
+  right, an overlay window (Herdr's toast slot is too small): a field of dots,
+  a yellow diagonal band, the operator's signal duotone in a white frame with a
+  yellow diamond above and a `!` badge, `// space · T3` and a barcode, a white
+  caption plate that a yellow block grows across (330ms), holds and retracts to
+  a 4px edge (350ms, from 630ms), revealing "PERLICA NEEDS INPUT" in wide
+  caps, a hazard rule, the question from its screen in brackets, and Answer ▶ /
+  Later. It stays until answered or Later, and closes itself when the agent
+  stops needing input or its pane gets focus.
 - **Terminals**: JetBrains Mono 14 at weight 500 on `#191919`, foreground
   `#E6E6E1`, padding 14 by 10, yellow cursor, an original 16-colour set tuned
   to the status hues (working `#31ACF0`, blocked `#FFFA00`, done `#BBCC2B`,

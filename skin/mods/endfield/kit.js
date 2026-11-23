@@ -3,7 +3,7 @@
 
 import { div, svg, image, PathBuilder, Background } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { settings, layout, shared, setShared, run, keys, home, appHome, readTextFile, fonts, checking, window as appWindow } from "herdr";
+import { settings, layout, shared, setShared, run, keys, home, appHome, readTextFile, fonts, checking, playSound, window as appWindow } from "herdr";
 import * as fs from "fs/promises";
 
 export const ASSETS = "mods/endfield/art";
@@ -161,6 +161,9 @@ export function freshDot(C, size = 8) {
 
 const MANIFEST = "art/operators/manifest.json";
 const OVERRIDES = "data/endfield/operators.json";
+const PREFS = "data/endfield/settings.json";
+// The person's skin settings (data/endfield/settings.json, schema in README).
+let prefs = { sounds: { alerts: true, ticks: false } };
 const AVATAR = { 32: "avatar32", 64: "avatar64", 128: "avatar128", round: "avatar64round", bust: "bust480", signal: "signal" };
 // The class badge on a chip: the program, in one or two letters.
 const BADGE = { claude: "C", codex: "X", cursor: "Cu", opencode: "O", gemini: "G" };
@@ -182,7 +185,8 @@ export const IDENTITY = {
   /** Rereads both files; rebuilds the table, and redraws every copy, only when their text changed. */
   refresh() {
     reading ??= (async () => {
-      const [[mText, manifest], [oText, overrides]] = await Promise.all([readJson(MANIFEST), readJson(OVERRIDES)]);
+      const [[mText, manifest], [oText, overrides], [, own]] = await Promise.all([readJson(MANIFEST), readJson(OVERRIDES), readJson(PREFS)]);
+      prefs = { sounds: { ...prefs.sounds, ...(own?.sounds ?? {}) } };
       const text = JSON.stringify([mText, oText]);
       if (text !== cast.text) {
         const operators = {};
@@ -224,6 +228,23 @@ export const IDENTITY = {
   /** Operators held back for repeats (data/endfield/operators.json "spares", else the manifest's unassigned). */
   spares() { return cast.spares; },
 };
+
+// ---- sound: original cues, synthesised by tools/make_sounds.py.
+// The two alerts play only when Herdr's own attention sounds are off, so one event never sounds
+// twice; to hear these with Herdr's on, point settings.json sounds.done / sounds.blocked at them.
+
+const SOUND = {
+  needs: { file: "mods/endfield/sounds/needs-input.mp3", alert: true },
+  claimed: { file: "mods/endfield/sounds/claimed.mp3", alert: true },
+  tick: { file: "mods/endfield/sounds/tick.mp3", alert: false },
+};
+
+export function cue(name) {
+  const s = SOUND[name];
+  if (!s || checking()) return;
+  if (s.alert ? !prefs.sounds.alerts || settings()?.sounds?.enabled !== false : !prefs.sounds.ticks) return;
+  playSound(s.file);
+}
 
 // ---- type
 
@@ -506,6 +527,32 @@ export function growDisc(id, w, h, d, on, color) {
   return div().id(id).absolute().left((w - size) / 2).top((h - size) / 2).w(size).h(size).rounded_full().bg(color)
     .transition("width", MOTION.done.check).transition("height", MOTION.done.check)
     .transition("left", MOTION.done.check).transition("top", MOTION.done.check);
+}
+
+// ---- the geometric layer: generated SVGs, tinted, drawn large and clipped by their parent.
+
+/** A field of dots (6px pitch) filling a relative, overflow-hidden parent. */
+export const dots = (color) => svg(`${ASSETS}/dots.svg`).absolute().left(0).top(0).w(1440).h(960).text_color(color);
+
+/** The 48px blueprint grid behind the panes. */
+export const grid = (color) => svg(`${ASSETS}/grid.svg`).absolute().left(0).top(0).w(2400).h(1600).text_color(color);
+
+/** A catalogue barcode beside a title: texture, never content. */
+export const barcode = (color, w = 30) => div().w(w).h(8).flex_none().overflow_hidden().child(svg(`${ASSETS}/barcode.svg`).w(36).h(8).text_color(color));
+
+/** A 9px registration cross. */
+export const cross = (color) => svg(`${ASSETS}/cross.svg`).size(9).flex_none().text_color(color);
+
+/** A tick ruler, major every 20px, minor every 4px. */
+export const ticks = (color, w) => div().w(w).h(6).flex_none().overflow_hidden().child(svg(`${ASSETS}/ticks.svg`).w(400).h(6).text_color(color));
+
+/** Range rings framing empty space: a dotted ring, a solid ring, four ticks. */
+export const rings = (color, d = 300) => svg(`${ASSETS}/rings.svg`).size(d).flex_none().text_color(color);
+
+/** The skill caption's diagonal band: a yellow parallelogram at its final angle (no element rotation). */
+export function band(color, h = 240) {
+  const path = PathBuilder.fill().add_polygon([[104, 0], [126, 0], [126 - (112 * h) / 240, h], [104 - (112 * h) / 240, h]], true).build();
+  return window.paint_path(path, color).absolute().left(0).top(0).w(140).h(h);
 }
 
 /** Topographic lines, tinted (6% in the art): the boot's ground, and empty states. */

@@ -11,6 +11,7 @@
 //   pane      a pane's header (the layout's pane frame)
 //   status    the ink status bar
 //   toast     every notification: the layout's `toast` is this mod, and Herdr gives it no role
+//   cutin     the needs-input skill caption, an overlay window the toast opens
 
 import { View, div } from "gpui-kit";
 import { props } from "herdr";
@@ -22,8 +23,9 @@ import Tabs from "./tabs.js";
 import PaneHeader from "./pane.js";
 import Status from "./status.js";
 import { Toast } from "./toast.js";
+import { CutIn } from "./cutin.js";
 
-const ROLES = { boot: Boot, brand: Brand, footer: Footer, spaces: Spaces, agents: Agents, sortmenu: SortMenu, card: Card, tabs: Tabs, pane: PaneHeader, status: Status, toast: Toast };
+const ROLES = { boot: Boot, brand: Brand, footer: Footer, spaces: Spaces, agents: Agents, sortmenu: SortMenu, card: Card, tabs: Tabs, pane: PaneHeader, status: Status, toast: Toast, cutin: CutIn };
 // Herdr opens the layout's toast mod with notification props and no role.
 const roleOf = (p) => p.role ?? (p.overlay && "title" in p ? "toast" : null);
 

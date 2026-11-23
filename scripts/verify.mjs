@@ -19,7 +19,7 @@ const sh = (cmd, args) => {
 };
 
 const repoFiles = walk(ROOT).filter((p) => !/[\\/](\.git|node_modules)[\\/]/.test(p)).map((p) => ({ p, rel: posix(p.slice(ROOT.length + 1)) }));
-const BINARY = /\.(ttf|otf|png|jpe?g|webp|gif|bmp|ico)$/i;
+const BINARY = /\.(ttf|otf|png|jpe?g|webp|gif|bmp|ico|mp3)$/i;
 const text = (f) => readFileSync(f.p, "utf8");
 
 // ---- the skin's own rules (ported from the Endfield lever)

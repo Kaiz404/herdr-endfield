@@ -10,7 +10,7 @@ export const home = () => process.env.HERDR_APP_HOME || join(homedir(), ".config
 export const posix = (p) => p.split(sep).join("/");
 
 // A seed is the person's to edit once installed: written only when absent, never overwritten.
-const SEEDS = { "data/endfield/operators.example.json": "data/endfield/operators.json" };
+const SEEDS = { "data/endfield/operators.example.json": "data/endfield/operators.json", "data/endfield/settings.example.json": "data/endfield/settings.json" };
 
 // The only paths in a Herdr home this project may write or delete.
 export const owned = (rel) => /^(layouts|themes)\/endfield[\w-]*\.\w+$|^mods\/endfield[\w-]*\/|^data\/endfield\//.test(rel);

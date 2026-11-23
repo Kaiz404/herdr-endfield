@@ -10,6 +10,9 @@
 ### New
 
 - **Squads.** The agents list is now squads: agents grouped per space, numbered like their space, each a party chip (the operator's portrait, a yellow ring when it needs input, a class badge for the program) with its callsign over its task. Children hang under their parent with right-angle connectors across vendors. Squads fold to a stack of their operators. From 12 agents the sidebar goes compact, spaces become numbered squares, and agents that need input are pinned above every squad. Status words follow the game: Generating, Needs input, Claimed, Idle.
+- **Needs input, as a skill caption.** An agent that needs input while you look elsewhere gets a cut-in: its operator's portrait, a yellow block that sweeps across its callsign, the question from its screen, Answer and Later. If its pane already has focus, there is no toast: the pane's name plate pulses yellow instead. Finished agents get a Claimed slip with a one-beat flash.
+- **Name-plate pane headers.** Wide-caps titles, the program's square tile, and the operator's chip on agent panes.
+- **Original sounds.** A needs-input alert, a Claimed chime and quiet UI ticks, synthesised for the skin. They never double Herdr's own sounds; see the mod README.
 - **Demo fleet.** `node scripts/demo-fleet.mjs up --agents 30` fills Herdr with stand-in agents (Node processes that only report a status) for screenshots and checks at scale; `down` removes them.
 
 - **First public layout.** The Endfield layout, its light and night themes, the `endfield`, `endfield-toast` and `endfield-transcript` mods, and a settings preview.

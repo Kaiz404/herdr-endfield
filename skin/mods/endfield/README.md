@@ -21,7 +21,9 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   order so it never hops), its parent and depth, and squads (one per space) in
   tree order.
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
-  `card.js` (the session card), `tabs.js`, `pane.js`, `status.js`, `toast.js`.
+  `card.js` (the session card), `tabs.js`, `pane.js` (the name plate), `status.js`,
+  `toast.js` (notifications; it decides between the cut-in, the Claimed slip and
+  the plain slab), `cutin.js` (the needs-input skill caption).
 - `sessions.js` is the data layer for Claude Code sessions: one parsed shape per
   agent terminal (model, context, tokens, tools, turns, last action, pending
   question, sub-agents). Sources, first wins: a statusline sidecar in
@@ -92,6 +94,25 @@ are missing is dropped, so deleting `art/operators/` leaves every surface as it
 was. The agents list rereads both files on start and every 30 s; the table is
 rebuilt, and every copy redrawn, only when their text changed (mods have no
 file `stat`, so the cache is keyed by content, not mtime).
+
+## Sounds
+
+Three original cues in `sounds/`, synthesised by `tools/make_sounds.py` with
+ffmpeg (sines, no samples): `needs-input.mp3`, `claimed.mp3` and `tick.mp3`.
+`cue(name)` in `kit.js` is the one place that plays them. The two alerts play
+when the toast role meets an agent that needs input (with its cut-in) or has
+finished, and only when Herdr's own attention sounds are off
+(`settings.json` `sounds.enabled: false`), so one event never sounds twice. To
+hear them with Herdr's sounds on, point Herdr at them instead:
+
+```json
+{ "sounds": { "enabled": true, "blocked": "mods/endfield/sounds/needs-input.mp3", "done": "mods/endfield/sounds/claimed.mp3" } }
+```
+
+`data/endfield/settings.json` (installed from `settings.example.json`, never
+overwritten) holds the skin's own switches: `sounds.alerts` (default `true`)
+and `sounds.ticks` (default `false`: very quiet clicks when Dispatch sends and
+when a panel opens).
 
 ## Fonts and licences
 
