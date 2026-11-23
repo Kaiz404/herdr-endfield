@@ -24,7 +24,9 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   `card.js` (the session panel), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),
   `toast.js` (notifications; it decides between the cut-in, the Claimed slip and
   the plain slab), `cutin.js` (the needs-input skill caption), `comms.js` (the
-  message log Dispatch writes).
+  message log Dispatch writes), `report.js` (the oversight screen: a block in the
+  layout's `work-stack`, beside `main`, so it covers the work area at any size;
+  `toggleReport()` selects it).
 - `sessions.js` is the data layer for Claude Code sessions: one parsed shape per
   agent terminal (model, context, tokens, tools, turns, last action, pending
   question, sub-agents). Sources, first wins: a statusline sidecar in

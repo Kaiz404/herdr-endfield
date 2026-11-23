@@ -6,6 +6,7 @@ import { div, svg, image } from "gpui-kit";
 import { h_flex, ScrollHandle } from "gpui-base";
 import { spaces, panes, run, openOverlay, window as appWindow, shared, layout, settings } from "herdr";
 import { palette, root, find, stop, statusOf, glyph, freshDot, micro, icon, pad2, telling, growDisc, pill, cue, Entrance, MOTION } from "./kit.js";
+import { REPORT, toggleReport } from "./report.js";
 
 // A tab Herdr named follows its agent's live title, as the agents list does; a name the person gave stays.
 function label(tab, lead) {
@@ -187,7 +188,12 @@ export default class Tabs {
             if (on) run("layout.hide", { id: "panel" });
             else { run("layout.select", { stack: "panel-body", child: p.id }); run("layout.show", { id: "panel" }); }
           });
-        })))
+        }))
+        .child((() => {
+          const open = find(rootNode, REPORT.stack)?.active === REPORT.report;
+          return pill(C, "tab-report", "Report", { kind: "ink", knob: open ? "×" : "▶", hot: this.hot === "tab-report", on_hover: this.hover("tab-report"),
+            tip: open ? "Back to the panes" : "Every squad on one screen", action: () => { if (!open) cue("tick"); toggleReport(!open); } });
+        })()))
       .when(Boolean(w?.buttons), (el) => el.child(h_flex().h_full().flex_none().border_l(1).border_color(C.hair)
         .child(winButton("minimize", "win-min", "Minimize", () => run("window.minimize")))
         .child(winButton("maximize", w.maximized ? "win-restore" : "win-max", w.maximized ? "Restore" : "Maximize", () => run("window.maximize")))

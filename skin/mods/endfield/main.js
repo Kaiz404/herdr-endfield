@@ -12,6 +12,7 @@
 //   status    the ink status bar
 //   toast     every notification: the layout's `toast` is this mod, and Herdr gives it no role
 //   cutin     the needs-input skill caption, an overlay window the toast opens
+//   report    the oversight screen, the work area's other stack child
 
 import { View, div } from "gpui-kit";
 import { props } from "herdr";
@@ -24,8 +25,9 @@ import PaneHeader from "./pane.js";
 import Status from "./status.js";
 import { Toast } from "./toast.js";
 import { CutIn } from "./cutin.js";
+import { Report } from "./report.js";
 
-const ROLES = { boot: Boot, brand: Brand, footer: Footer, spaces: Spaces, agents: Agents, sortmenu: SortMenu, card: Card, tabs: Tabs, pane: PaneHeader, status: Status, toast: Toast, cutin: CutIn };
+const ROLES = { boot: Boot, brand: Brand, footer: Footer, spaces: Spaces, agents: Agents, sortmenu: SortMenu, card: Card, tabs: Tabs, pane: PaneHeader, status: Status, toast: Toast, cutin: CutIn, report: Report };
 // Herdr opens the layout's toast mod with notification props and no role.
 const roleOf = (p) => p.role ?? (p.overlay && "title" in p ? "toast" : null);
 

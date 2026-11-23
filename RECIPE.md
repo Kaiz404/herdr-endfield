@@ -87,6 +87,21 @@ rendered at 4x. It is a schematic, not a screenshot.
   under it and the pill turns ink with yellow text; no toast is made.
   Files and Changes open in a
   368px panel on the right (min 280, max 900), paper, radius 4.
+- **Report**: the Report pill (ink, top right) swaps the work area for the
+  oversight screen; the squad sidebar stays live beside it. A white panel with
+  four corner brackets: `// Report` under `Oversight · every squad · last 10
+  min` and a barcode; readouts with coloured left edges (Squads, Agents,
+  Generating, Needs input, Claimed, Tokens · 10 min); `Group · Squad` (or
+  None); sortable headings (Agent, Rate, Reserves, Turn, Status; the active
+  one inverts to ink with ▼/▲; Status is the default: Needs input, Claimed,
+  Generating, Idle); squad headers like the sidebar's with `▶▶ n ✓ n` and a
+  yellow `! n need input`, folding on click; rows with the chip and callsign,
+  the terminal and its link (`◀ T3 · Claude Code ▶ Cursor`, or `3 children`),
+  a 16-bar output sparkline over 10 minutes (ink, never yellow), tokens a
+  minute on a blue edge, context on a grey edge that turns red past 75%, the
+  turn, and the status. Children stay under their parent whatever the sort.
+  46px rows, 30px on one line past 12 agents; it scrolls. Output and rate exist
+  for Claude Code agents only; others read `—`.
 - **HUD footer, 44px**: ink with a faint 45° grain. The number of active
   agents on a 22px odometer, `// space / tab`, then `▶▶ 14 GENERATING` and
   `✓ 01 CLAIMED` on odometers; at the right the focused agent's context (used /
@@ -176,12 +191,13 @@ rendered at 4x. It is a schematic, not a screenshot.
     `window_drag`), `sidebar-lists` (`spaces` weight 1, `agents` weight 1.2,
     min 90 each), `sidebar-footer` (40px).
   - `work` (column, canvas): `tabs` (36px, `window_drag`), `work-body` (row,
-    padding 8, gap 8: `main` with the pane frame, and the hidden `panel`, 368px,
+    padding 8, gap 8: the `work-stack` stack, whose children are `main` with
+    the pane frame and `report` (role `report`), and the hidden `panel`, 368px,
     holding the `panel-body` stack of the shipped `files` and `changes`),
-    `status` (28px).
+    `status` (44px).
   - Every chrome block is `{mod: "endfield", props: {role}}`. The pane frame:
     background `#191919`, border 1 `input`, focus 1 `solid`, radius 4, gap 8,
-    `lone: true`, header `{mod: "endfield", props: {role: "pane"}}`, 30px,
+    `lone: true`, header `{mod: "endfield", props: {role: "pane"}}`, 34px,
     top, always.
 - `themes/endfield.json` and `themes/endfield-night.json`: terminal colours
   plus every panel colour by name.

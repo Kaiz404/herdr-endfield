@@ -11,6 +11,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { agents, panes, focused, spaces, layout, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
 import { palette, root, narrow, find, toggleSidebar, statusOf, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, duration, telling, wipe, marker, nudge, rings, cross, ticks, pill, Entrance, StatusFx, MOTION, IDENTITY, FONT } from "./kit.js";
 import { roster, BY, DENSE_AT } from "./roster.js";
+import { toggleReport } from "./report.js";
 import { Sessions, isClaude } from "./sessions.js";
 import { CARD, cardHeight } from "./card.js";
 
@@ -324,17 +325,24 @@ export class Agents {
           .child(div().relative().size(18).flex_none().rounded_full().bg(C.signal).flex().items_center().justify_center().text_size(7).text_color(C.ink).child("▶"));
       }))
       .when(blocked.length > PIN.max, (el) => el.child(h_flex().id("pin-more").h(PIN.more).px(10).gap(6).items_center().border_t(1).border_color(C.hair).cursor_pointer()
-        .on_click(() => setShared("endfield.report", true))
+        .on_click(() => toggleReport(true))
         .child(micro(`+${blocked.length - PIN.max} more need input`, C.muted)).child(div().flex_1()).child(micro("Report ▶", C.text))));
   }
 
-  // The HUD footer shows the focused agent's context; this list owns the one session poller.
-  shareFocus(R) {
+  // This list owns the one session poller: the HUD footer gets the focused agent's context, the
+  // report every Claude Code agent's context, tokens and turns. Published only when they change.
+  share(R) {
     const f = R.flat.find((m) => m.focused);
     const s = f ? this.sessions.get(f.address) : null;
-    const v = f ? { ctx: s?.ctx ?? null, model: s?.model?.short ?? f.program?.name ?? null } : null;
-    const text = JSON.stringify(v);
-    if (text !== this.focusText) { this.focusText = text; setShared("endfield.focus", v); }
+    const focus = f ? { ctx: s?.ctx ?? null, model: s?.model?.short ?? f.program?.name ?? null } : null;
+    const all = Object.fromEntries(R.flat.flatMap((m) => {
+      const x = this.sessions.get(m.address);
+      return x ? [[m.address, { ctx: x.ctx ?? null, tokens: x.tokens?.total ?? null, turns: x.turns ?? null }]] : [];
+    }));
+    for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all]]) {
+      const text = JSON.stringify(value);
+      if (text !== this.published?.[key]) { (this.published ??= {})[key] = text; setShared(key, value); }
+    }
   }
 
   render(cx) {
@@ -407,7 +415,7 @@ export class Agents {
     this.scrollY = Math.min(this.scrollY, maxY);
     const below = this.viewH ? sections.reduce((n, s) => n + (s.folded ? 0 : s.rows.filter((r) => !r.native && s.start + r.top >= this.scrollY + this.viewH).length), 0) : 0;
     const active = R.flat.filter((m) => !statusOf(m.status)?.quiet).length;
-    this.shareFocus(R);
+    this.share(R);
     // The geometric layer fills the list's empty foot, never behind a row.
     const room = this.viewH - y > 170;
 
