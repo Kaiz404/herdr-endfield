@@ -6,6 +6,8 @@
 
 - **Home base.** New spaces on this computer open in a workspace folder instead of your home folder, so an agent you start there treats that folder as its project, not your whole home folder. The default is `Projects` in your home folder if it exists. Set `homeBase` in `data/endfield/settings.json` to choose another folder. If that folder is missing, spaces open in your home folder and the sidebar says so. Spaces on other machines still open in that machine's home. The Spaces header shows the base, and the key command `endfield.newSpace` opens a space there. See [Home base](docs/SETUP.md#9-choose-where-new-spaces-open).
 
+- **Follow up with a sub-agent.** The transcript pane of a Claude Code sub-agent has a box at its foot. Type a follow-up and click **Send** or press Enter. A Claude Code sub-agent has no terminal to type into, so the box sends your text to its parent agent and asks the parent to pass it on with its SendMessage tool. The pane says so (**Sent via PERLICA**) and shows the exact `hc send` command before you send. It sends only when the parent is waiting for you (idle or finished). While the parent is working or needs input, **Send** is disabled and the pane says why. Each follow-up appears in Comms. Agents started with `hc` have their own terminal, so you type in their pane or use Dispatch, as before.
+
 - **Usage limits in the HUD footer.** The footer shows your Claude 5-hour and weekly limits, each as two short rows: the percent used on top (`5-HOUR 54% USED`), a small bar and the time to reset below (`RESETS 1H 40M`). From 80% a window turns red with a `▲`. A window that has reset since Claude Code last reported it reads `RESET` over an empty bar, not its old numbers. In a narrow window the bars go first, then the weekly window's `USED`. The numbers come from the [Claude Code statusline](extras/claude-statusline/README.md), so copy the updated `statusline-endfield.sh` to `~/.claude/` again to get them. Without it the section is not shown.
 
 ### Changed
@@ -16,6 +18,7 @@
 - **Claimed is now Finished.** The status word for an agent that finished its turn reads **Finished** in Squads, the Report, the HUD footer (`01 FINISHED`) and the slip a finished agent gets. The status words are now Generating, Needs input, Finished, Idle and Error. The sound file keeps its name, `claimed.mp3`, so a `sounds.done` setting that points at it still works.
 - **Idle agents take one line.** An idle agent's row folds to its callsign, task and **Idle**, so the agents that are working get the room. Generating, Needs input, Finished and Error rows keep two lines.
 - **One motion per working agent.** A generating row in Squads no longer has a blue segment sliding along its floor. The status glyph still animates, so a sidebar full of working agents is calmer.
+- **Dispatch's Only if idle and finished agents.** With **Only if idle**, a target that finished its turn used to read "Idle. Delivered now.", and then hc refused the send. A finished agent waits at its prompt, so it now gets a plain send, and the preview says it finished its turn. While the target is generating or stopped on an error, **Only if idle** now disables **Dispatch** and says why, instead of letting hc refuse. The sub-agent follow-up box uses the same rule.
 
 ### Fixed
 

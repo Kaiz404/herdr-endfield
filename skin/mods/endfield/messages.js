@@ -1,5 +1,6 @@
 // messages: the Comms rules with no Herdr in them (tests/messages.test.mjs runs them in node).
 // What a screen tag may claim, how many are kept, and how the Dispatch log stays small.
+// endfield-transcript logs its follow-ups with a byte-identical copy; tests/relay.test.mjs fails when they differ.
 
 /** The Dispatch log is kept under this many bytes; past it, the oldest lines go. */
 export const LOG_MAX = 512 * 1024;

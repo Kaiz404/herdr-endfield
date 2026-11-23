@@ -214,7 +214,14 @@ rendered at 4x. It is a schematic, not a screenshot.
   file and keeps the newest entry in view. A tab has one transcript pane:
   clicking another sub-agent replaces it, clicking the one shown focuses it.
   The shown sub-agent's row wears the selected plate, and the yellow marker
-  while its pane has focus.
+  while its pane has focus. The pane's foot is a follow-up box on a raised
+  ground: `// FOLLOW-UP` and `SENT VIA PERLICA, WHO PASSES IT ON WITH
+  SENDMESSAGE`, a one-line input and a round Send button, then the exact `hc
+  send` command in mono, wrapped. The sub-agent has no terminal, so the text
+  goes to its parent, asking it to forward the text with SendMessage. Send is
+  yellow only while it would go and the input has focus; otherwise outlined,
+  and dimmed with the reason in place of the command when the parent is
+  working, needs input or is gone. Enter sends too. Nothing sends otherwise.
 - **Tabs:** click selects (the yellow block slides over left and width,
   300ms), double-click renames, drag reorders, right-click opens the tab menu,
   the wheel switches tabs. Hover grows a 24px, 2px underline from the left.
@@ -264,7 +271,12 @@ rendered at 4x. It is a schematic, not a screenshot.
 - Notifications: the layout's `toast` is the `endfield` mod; Herdr opens it with
   notification props and no role, and `main.js` routes those to `toast`.
   `mods/endfield-transcript`:
-  the transcript pane, props `{path, title}`.
+  the transcript pane, props `{path, title, id, parent, via}` (the sub-agent's
+  id, its parent's terminal and callsign). It runs `hc send` to the parent
+  (`orders.js` `relayOrder`), reads `agents()` for the parent's status, and
+  appends to `data/endfield/comms.jsonl`. A mod can't import outside its
+  folder, so it holds copies of the endfield mod's `orders.js` and
+  `messages.js`, kept identical by `tests/relay.test.mjs`.
 - The session card is the `endfield` mod as an overlay window (`kind:
   "window"`, `frame: "none"`, props `{role: "card", terminal, title, where,
   snap}`). Shared keys: `endfield.card.open` (the one card the agents list
@@ -349,6 +361,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   a lime edge.
 - `pane.split {direction: "right", pane, mod: "endfield-transcript", props:
   {path}}` on a sub-agent transcript shows its entries and grows as the file
-  does.
+  does. Opened from Squads, its foot shows the `hc send` to the parent for
+  the typed text, and Send is disabled with a reason while the parent works.
 - With `art/operators/` deleted, every surface still draws, with program
   tiles.
