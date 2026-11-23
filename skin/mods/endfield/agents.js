@@ -233,6 +233,7 @@ export class Agents {
     const session = r.native ? null : this.sessions.get(m.address);
     const when = r.native ? 0 : this.changed[m.address]?.at ?? 0;
     const fx = this.fx.of(m.address);
+    const pin = this.pinButton(C, r, hot, on);
     // The connector: a 1px right angle from the parent chip's foot to this chip's side, drawn top-down when the child arrives.
     let link = null;
     if (r.parentTop != null) {
@@ -277,7 +278,7 @@ export class Agents {
           .child(wide(m.ident.callsign, fg, dense ? 9 : 10).flex_none())
           .child(micro(r.meta, sub).min_w(0).truncate()))
         .child(div().min_w(0).truncate().font_medium().text_size(dense ? 11.5 : 13).child(r.title)))
-      .when(Boolean(this.pinButton(C, r, hot, on)), (el) => el.child(this.pinButton(C, r, hot, on)))
+      .when(Boolean(pin), (el) => el.child(pin))
       .child(right);
   }
 
@@ -414,8 +415,8 @@ export class Agents {
         push(r);
         // Claude Code's own sub-agents, read from its transcript, hang under it like any child.
         // They share one operator, so each is numbered in the order it started (ARDELIA, ARDELIA·2...).
-        const started = [...(this.sessions.get(m.address)?.subagents ?? [])].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0)).map((k) => k.id);
-        if (m.agent && isClaude(m.agent)) for (const k of this.natives(m)) {
+        const started = m.agent && isClaude(m.agent) ? [...(this.sessions.get(m.address)?.subagents ?? [])].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0)).map((k) => k.id) : [];
+        if (started.length) for (const k of this.natives(m)) {
           const ident = IDENTITY.resolve(m.program, null, { parent: m.program });
           const n = started.indexOf(k.id) + 1;
           push({ key: `sa-${k.id}`, m: { address: `sa-${k.id}`, status: k.status, ident: { ...ident, callsign: `${ident.name.toUpperCase()}${n > 1 ? `·${n}` : ""}` } }, depth: m.depth + 1,
