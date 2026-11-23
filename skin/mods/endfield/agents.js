@@ -16,6 +16,7 @@ import { toggleReport, goTo } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
 import { CARD, cardHeight } from "./card.js";
+import { wantedCard } from "./hovercard.js";
 
 // Fixed heights, so the selection marker knows where the selected row starts (the row's own ink plate snaps).
 // Compact (DENSE_AT agents and up): 34px rows that keep the chip, badge and callsign over the task.
@@ -124,7 +125,7 @@ export class Agents {
     cx.timer.after((row && row !== this.card.open?.address ? MOTION.card.open : MOTION.card.close).delay, () => {
       if (seq !== this.card.seq) return;
       const open = this.card.open;
-      const want = rowOf() ?? (open && this.card.hot === open.id ? open.address : null);
+      const want = wantedCard({ row: rowOf(), hot: this.card.hot, open });
       if (want === open?.address) return;
       if (open) closeOverlay(open.id);
       this.card.open = want ? this.openCard(want) : null;
