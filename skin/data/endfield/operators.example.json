@@ -1,0 +1,12 @@
+{
+  "programs": {
+    "claude": "perlica",
+    "codex": "endministrator",
+    "gemini": "last-rite",
+    "opencode": "chen-qianyu",
+    "cursor": "snowshine",
+    "sub-agent": "ardelia",
+    "shell": "ember"
+  },
+  "terminals": {}
+}
