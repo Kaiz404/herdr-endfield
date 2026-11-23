@@ -15,6 +15,7 @@ The image is a schematic of the layout, not a screenshot.
 - **A session panel** when you hover an agent: model, context, tokens, turns, its last action and any question it is waiting on.
 - **Report**, one screen with every squad, sortable by status, rate, context and turn.
 - **Dispatch**, to send a task to a running agent or start a new one, after it shows you the exact command. **Comms** shows what you sent and what agents told each other.
+- **A home base.** New spaces open in your workspace folder (`Projects` in your home folder, if it exists), not in the home folder itself. An agent you start there works inside that folder instead of your whole home folder.
 - **Light and night appearances** that follow your system, and original sounds.
 - **Optional extras.** Official operator portraits, a Claude Code statusline, and a PowerShell prompt.
 
