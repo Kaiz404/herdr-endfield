@@ -12,6 +12,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter
 INK, PAPER, SIGNAL = (0x19, 0x19, 0x19), (0xEE, 0xED, 0xEC), (0xFF, 0xFA, 0x00)
 FILES = {'avatar32': 'avatar-32.png', 'avatar64': 'avatar-64.png', 'avatar128': 'avatar-128.png',
          'avatar64round': 'avatar-64-round.png', 'signal': 'signal.png'}
+RECIPE = {'name', 'accent', 'image', 'eyes', 'face_width', 'bust'}
 
 
 def avatars(im, ex, ey, s):
@@ -80,13 +81,15 @@ def main():
         W, H = im.size
         ex, ey = o['eyes'][0] * W, o['eyes'][1] * H
         s = o['face_width'] * W / 0.7
-        b = bust(im, ex, ey, 1.17 * s)
+        bx, by, side = (o['bust']['center'][0] * W, o['bust']['center'][1] * H, o['bust']['side'] * W) if 'bust' in o else (ex, ey, 1.17 * s)
+        b = bust(im, bx, by, side)
         made = {**avatars(im, ex, ey, s), 'signal': duotone(b, INK, SIGNAL, gamma=2.2)}
         os.makedirs(os.path.join(out_dir, slug), exist_ok=True)
         for key, name in FILES.items():
             made[key].save(os.path.join(out_dir, slug, name), optimize=True)
         accent = o.get('accent') or sample_accent(b)
         operators.append({'slug': slug, 'name': o.get('name', slug), 'accent': accent,
+                          **{k: v for k, v in o.items() if k not in RECIPE},
                           'files': {k: f'art/operators/{slug}/{n}' for k, n in FILES.items()}})
         print(f'{slug}: {len(FILES)} files, accent {accent}')
 
