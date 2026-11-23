@@ -12,6 +12,16 @@ export const posix = (p) => p.split(sep).join("/");
 // A seed is the person's to edit once installed: written only when absent, never overwritten.
 const SEEDS = { "data/endfield/operators.example.json": "data/endfield/operators.json", "data/endfield/settings.example.json": "data/endfield/settings.json" };
 
+// Seeds as earlier versions shipped them. A home copy still equal to one was never edited, so
+// install and sync replace it with today's seed: the old operators seed pinned every program,
+// which would hide casting by model.
+const SHIPPED = {
+  "data/endfield/operators.json": [{ programs: { claude: "perlica", codex: "endministrator", gemini: "last-rite", opencode: "chen-qianyu", cursor: "snowshine", "sub-agent": "ardelia", shell: "ember" }, terminals: {} }],
+};
+export const unedited = (rel, dest) => (SHIPPED[rel] ?? []).some((old) => {
+  try { return JSON.stringify(JSON.parse(readFileSync(dest, "utf8"))) === JSON.stringify(old); } catch { return false; }
+});
+
 // The only paths in a Herdr home this project may write or delete.
 export const owned = (rel) => /^(layouts|themes)\/endfield[\w-]*\.\w+$|^mods\/endfield[\w-]*\/|^data\/endfield\//.test(rel);
 

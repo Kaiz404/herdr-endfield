@@ -11,8 +11,8 @@ import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE } from "./kit.js";
-import { roster } from "./roster.js";
-import { BY, DENSE_AT, statusOf, subNumbers, subagentView, TRANSCRIPT, transcriptsIn, transcriptPlan, rowShape, rowMeta } from "./fleet.js";
+import { roster, holdCrew } from "./roster.js";
+import { BY, DENSE_AT, statusOf, castCrew, held, subagentView, TRANSCRIPT, transcriptsIn, transcriptPlan, rowShape, rowMeta } from "./fleet.js";
 import { toggleReport, goTo } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
@@ -414,7 +414,10 @@ export class Agents {
     }));
     // The open card's whole session: the card draws it and runs no poller of its own.
     const card = this.card.open ? this.sessions.get(this.card.open.address) : null;
-    for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all], ["endfield.card.session", card], ["endfield.limits", this.sessions.limits]]) {
+    // Every surface's roster casts by model (roster.js), so each draws an agent the same.
+    // Sorted, so the same models in another order don't publish again.
+    const models = Object.fromEntries(R.flat.flatMap((m) => { const id = this.sessions.get(m.address)?.model?.id; return id ? [[m.address, id]] : []; }).sort(([a], [b]) => (a < b ? -1 : 1)));
+    for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all], ["endfield.card.session", card], ["endfield.limits", this.sessions.limits], ["endfield.models", models]]) {
       const text = JSON.stringify(value);
       if (text !== this.published?.[key]) { (this.published ??= {})[key] = text; setShared(key, value); }
     }
@@ -452,6 +455,8 @@ export class Agents {
     // Each squad: its rows with tops inside the squad, and where the squad starts in the list.
     let y = 0;
     const nextNums = new Map();
+    // Sub-agents draw around the fleet's operators and the ones sub-agents already hold (holdCrew).
+    const taken = new Set(R.taken);
     const sections = R.squads.map((q) => {
       const folded = this.folded.has(q.id);
       const start = y + D.head;
@@ -478,15 +483,15 @@ export class Agents {
         // Claude Code's own sub-agents, read from its transcript, hang under it like any child.
         const subs = m.agent && isClaude(m.agent) ? this.natives(m) : { shown: [], earlier: 0 };
         const shownSubs = subs.shown;
-        const nums = subNumbers(this.subNums.get(m.address) ?? new Map(), [...shownSubs].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0)).map((k) => k.id));
-        if (shownSubs.length) nextNums.set(m.address, nums);
+        // Each draws from its own model's pool (its parent's model when the transcript names none).
+        const crew = castCrew(IDENTITY, this.subNums.get(m.address), shownSubs.map((k) => ({ id: k.id, startedAt: k.startedAt,
+          ident: IDENTITY.resolve(m.program, null, { parent: m.program, model: k.model?.id ?? m.model }), program: m.program })), taken);
+        if (shownSubs.length) nextNums.set(m.address, crew);
         const docked = shownSubs.length ? transcriptsIn(panes(), m.tab)[0] : null;
         for (const k of shownSubs) {
-          const ident = IDENTITY.resolve(m.program, null, { parent: m.program });
-          const n = nums.get(k.id);
           // The one its tab's transcript pane shows wears the selected plate; the yellow marker only while that pane is focused.
           const viewed = Boolean(docked) && this.viewing[m.tab] === k.path;
-          push({ key: `sa-${k.id}`, m: { address: `sa-${k.id}`, status: k.status, ident: { ...ident, callsign: `${ident.name.toUpperCase()}${n > 1 ? `·${n}` : ""}` } }, depth: m.depth + 1,
+          push({ key: `sa-${k.id}`, m: { address: `sa-${k.id}`, status: k.status, ident: crew.get(k.id) }, depth: m.depth + 1,
             ...sized(k.status, m.depth + 1), top: inner, on: viewed, here: viewed && docked.focused, title: k.title, native: true, meta: rowMeta(runOf(k, k.status === "working"), now, GAUGE.segments),
             up: r, click: () => this.openTranscript(m, k) });
         }
@@ -500,6 +505,7 @@ export class Agents {
       return { q, folded, start, rows, inner, blocked: q.members.filter((m) => m.status === "blocked").length };
     });
     this.subNums = nextNums;
+    holdCrew(held([...nextNums.values()].flatMap((c) => [...c.values()])));
     this.arrive([...sections.flatMap((s) => [...s.rows.map((r) => r.key), ...(s.folded ? [`sq-${s.q.id}-stack`] : [])]), ...blocked.map((m) => `pin-${m.address}`)], cx);
 
     const here = (r) => r.here ?? r.on;

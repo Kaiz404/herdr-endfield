@@ -1,13 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildRoster, BY, PINNED, subNumbers, subagentView, rowMeta, rowShape } from "../skin/mods/endfield/fleet.js";
+import { buildRoster, BY, PINNED, subagentView, rowMeta, rowShape } from "../skin/mods/endfield/fleet.js";
+import { identityOf } from "./identity.mjs";
 
-// Every claude agent is PERLICA unless spares are free; a repeat takes a spare, then a number.
-const identity = (spares = []) => ({
-  resolve: (program) => ({ operator: program.key === "claude" ? "perlica" : null, name: program.key === "claude" ? "Perlica" : program.name, pinned: false }),
-  as: (slug, program) => ({ operator: slug, name: slug[0].toUpperCase() + slug.slice(1), pinned: false, program }),
-  spares: () => spares,
-});
+// Every claude agent with no model is PERLICA; a repeat takes a spare, then a number.
+const identity = (spares = []) => identityOf({ defaults: { claude: "perlica" }, operators: ["perlica", "ember"], spares });
 const claude = { key: "claude", name: "Claude Code" };
 const codex = { key: "codex", name: "Codex" };
 const spaces = [{ id: "s1", name: "one" }, { id: "s2", name: "two" }, { id: "s3", name: "three" }];
@@ -55,15 +52,6 @@ test("tab order ignores urgency but still keeps trees whole", () => {
   const listed = [agent("t2", "s1", "blocked", { tab_index: 2 }), agent("t1", "s1", "idle", { tab_index: 1 })];
   const R = build(listed, [term("t1", 1), term("t2", 2), term("t7", 7, "t2")], { sort: BY.order });
   assert.deepEqual(R.flat.map((m) => m.address), ["t1", "t2", "t7"]);
-});
-
-test("a session's sub-agents are numbered among those shown, not every one it ever started", () => {
-  const shown = ["a27", "a28", "a29", "a30"];
-  const first = subNumbers(new Map(), shown);
-  assert.deepEqual(shown.map((id) => first.get(id)), [1, 2, 3, 4], "30 started, 4 shown: ARDELIA to ARDELIA·4, never ARDELIA·30");
-  const next = subNumbers(first, ["a28", "a30", "a31"]);
-  assert.deepEqual(["a28", "a30"].map((id) => next.get(id)), [2, 4], "a sub-agent still shown keeps its number");
-  assert.equal(next.get("a31"), 1, "a newcomer takes the lowest number no shown sub-agent holds");
 });
 
 const sub = (id, status, startedAt, lastAt = startedAt) => ({ id, status, startedAt, lastAt });
