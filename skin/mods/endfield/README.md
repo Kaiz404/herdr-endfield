@@ -231,7 +231,8 @@ shaped as the native policy it feeds, so a surface writes
 Only native motion: `.transition` on opacity, width, height, left and top,
 `.loop`, and `.frames`. No colour ever transitions. One-shot `cx.timer.after`
 calls end a transient state (the boot, a Finished flash, the card's open delay).
-The repeating timers are for data only: the agents list's 30s age labels, the
+The repeating timers are for data only: the agents list's 30s age labels (and a
+one-second redraw while a generating row is under a minute old, so its seconds count), the
 spaces list's git and machine checks, Comms' 15s screen scan (one at a time, six
 reads at once, 5s each), and the 3s session poll. That poll runs only when a
 watched folder changed (`watchFolder` on the sidecars and on the target agents'

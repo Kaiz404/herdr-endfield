@@ -13,7 +13,7 @@
 // Session = {sessionId, terminal, cwd, transcriptPath, approx, model:{id, display, short} | null,
 //   ctx:{used, total, pct} | null, tokens:{total, delta} | null, tools, turns, effort, mode,
 //   lastAction:{tool, arg} | null, lastAt, startedAt, question, subagents: Sub[]}
-// Sub = {id, path, title, model, effort, ctx, tools, status: working | done | idle, lastAt, startedAt, lastAction},
+// Sub = {id, path, title, model, effort, ctx, status: working | done | idle, lastAt, startedAt, lastAction},
 //   in no order (fleet.js subagentView orders them)
 
 import * as fs from "fs/promises";
@@ -58,7 +58,6 @@ function shape(t, raw, parentStatus) {
     model: s.model ? modelName(s.model) : null,
     effort: s.effort ?? null,
     ctx: s.used ? contextOf(s.model, s.used) : null,
-    tools: s.tools ?? 0,
     status: now - s.mtime < LIVE_MS && (s.pending || !s.final) ? "working" : parentStatus === "idle" ? "idle" : "done",
     lastAt: s.mtime,
     startedAt: s.firstAt ?? null,
@@ -193,7 +192,7 @@ async function sweepCardRequests() {
   } catch {}
 }
 
-// ---- formatting the card and rows share
+// ---- formatting for the card
 
 /** 252000 ms -> "04m 12s"; hours as "2h 06m". */
 export function longDuration(ms) {
