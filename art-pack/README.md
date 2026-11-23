@@ -1,6 +1,9 @@
-# Art pack: bring your own operator art
+# Art pack: operator art
 
-The skin can give each agent a character ("operator") instead of its program tile. This repo ships no character art. You supply the images, and `build_pack.py` turns them into the files the skin reads.
+The skin can give each agent a character ("operator") instead of its program tile. This repo ships no character art. There are two ways to get a pack:
+
+- **The official renders, fetched on your machine.** `scripts/fetch-operators.mjs` downloads them from the official site and builds the pack. See [Fetch the official operators](#fetch-the-official-operators).
+- **Your own images.** `build_pack.py` turns them into the files the skin reads. See [Make a pack](#make-a-pack).
 
 Status: the skin's identity registry (`IDENTITY` in `skin/mods/endfield/kit.js`) reads the pack and your overrides today. The surfaces that draw avatars (agent rows, session card, pane header, toast) are not built yet; see [ROADMAP.md](../ROADMAP.md). Until then a pack changes nothing on screen.
 
@@ -11,6 +14,31 @@ Without an art pack, every surface draws the program's own tile.
 Use art you made, art you commissioned, or art whose licence lets you crop and recolour it.
 
 Official Arknights: Endfield art is © Hypergryph / Gryphline. You can keep it on your own machine for your own use. Do not commit it, publish it, or ship it in a fork, a pack or a screenshot set. The official [fan content guidelines](https://endfield.gryphline.com/en-us/news/4497) prohibit works that copy official material without clear originality, and works that could be mistaken for official content. `scripts/verify.mjs` fails on any image other than `preview.png` and on any file under `art/operators/`, so CI catches it.
+
+## Fetch the official operators
+
+```sh
+node scripts/fetch-operators.mjs --list      # the eight operators and the default assignment
+node scripts/fetch-operators.mjs --accept    # download, verify and build
+```
+
+The script first prints a notice: this is an unofficial fan project, the art is © Hypergryph / Gryphline, and it is downloaded for your personal, local use only. Do not redistribute it. It downloads nothing until you pass `--accept`, or answer `y` when it asks at a terminal.
+
+What it does:
+
+1. Reads [`operators.json`](operators.json), the catalogue. Each operator row has its name, class, element, rarity, accent, the official CDN URL and sha256 of its source render, the official page URL, and its crop recipe (`eyes`, `face_width`, `bust`). The catalogue holds no images.
+2. Downloads each source over https, with a 30 second timeout and an 8 MB cap, into a temp folder. It refuses any URL that is not on the catalogue's `cdn`.
+3. Checks each file's sha256. If the official site now serves a different file, it stops, installs nothing, and says the catalogue needs an update.
+4. Runs `build_pack.py` on the downloads, then copies the pack into `art/operators/` in `HERDR_APP_HOME`, else `~/.config/herdr-app` (`%USERPROFILE%\.config\herdr-app` on Windows): the five files per operator, `manifest.json` and `CREDITS.md`.
+5. Deletes the temp folder.
+
+Rerunning it is safe. It records what it built in `art/operators/.fetch-operators.json` and skips operators whose source hash and built files still match, so a second run downloads nothing. It never deletes a file. Before it replaces a file it did not write, or one you edited, it copies it to `art/operators/.fetch-operators-backup/<time>/`. It merges into an existing `manifest.json`: other operators, extra fields and your `default_assignment` stay.
+
+Options: `--only perlica,ember` limits the run to those slugs. `--dry-run` prints the plan and writes nothing.
+
+It needs Python 3.8 or newer with Pillow. If either is missing it says so and prints the install command (`python -m pip install Pillow`).
+
+To remove the pack, delete `art/operators/` from your Herdr home.
 
 ## Make a pack
 
@@ -49,6 +77,9 @@ To remove the pack, delete `art/operators/` from your Herdr home.
 | `eyes` | yes | `[x, y]`: the midpoint between the eyes, as fractions of the image width and height. In an image editor, read the pixel position and divide: `[612 / 1200, 455 / 1600]`. |
 | `face_width` | yes | Width of the face (ear to ear), as a fraction of the image width. The avatar is cropped to about 1.4 times this. |
 | `accent` | no | `#RRGGBB` used for the operator's edges. Default: sampled from the image. Avoid the signal yellow `#FFFA00`; the skin reserves it for "you, here, now". |
+| `bust` | no | `{"center": [x, y], "side": w}`: where to crop `signal.png`, as fractions of the image (`side` of its width). The crop is 3 sides wide and 3.6 tall, starting 1.1 sides above the centre. Default: centred on the eyes, sized from `face_width`. |
+
+Any other field (`class`, `source_url`, ...) is copied as-is into the operator's manifest entry.
 
 `default_assignment` maps a program key to a slug, or to `null` for "keep the program tile". Program keys are Herdr's (`claude`, `codex`, `gemini`, `opencode`, `cursor`, ...). Two keys are special: `sub-agent` is used for sub-agents, and `shell` for any agent with no entry of its own.
 

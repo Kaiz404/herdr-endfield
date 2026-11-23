@@ -50,9 +50,20 @@ Neither is installed by `install.mjs`. Each folder's README says what it changes
 - [`extras/claude-statusline/`](extras/claude-statusline/README.md): a Claude Code statusline in the same style. It also writes a small file per session, so the skin matches each agent to its exact session instead of guessing from the newest transcript.
 - [`extras/powershell-prompt/`](extras/powershell-prompt/README.md): a one-line PowerShell prompt, `// folder  branch ›`, that also tells Herdr which folder you are in.
 
-## Operator art
+## Operator art (optional)
 
-The skin can give each agent a character portrait. No art ships with it. [`art-pack/`](art-pack/README.md) builds a pack from images you supply and documents the format. Drawing the portraits on screen is on the [roadmap](ROADMAP.md); without a pack every agent keeps its program icon.
+The skin can give each agent an Arknights: Endfield operator. This repo contains no official images. If you want them, one script downloads the official renders onto your own machine and builds the pack the skin reads:
+
+```sh
+node scripts/fetch-operators.mjs --list
+node scripts/fetch-operators.mjs --accept
+```
+
+> The character art is © Hypergryph / Gryphline. The script downloads it from the official site for your personal, local use only. Do not redistribute the files: no commits, forks, packs or uploads. See the [fan content guidelines](https://endfield.gryphline.com/en-us/news/4497).
+
+It needs Python 3 with Pillow (`python -m pip install Pillow`). It writes only to `art/operators/` in your Herdr home, and a second run does nothing. `--dry-run` shows what it would do. To use your own art instead, see [`art-pack/`](art-pack/README.md).
+
+The skin works the same without it: every agent keeps its program icon. Drawing the portraits on screen is on the [roadmap](ROADMAP.md).
 
 ## Screenshots
 

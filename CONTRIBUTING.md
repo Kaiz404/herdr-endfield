@@ -6,7 +6,7 @@ Thanks for helping. This file covers the dev loop, the rules every change follow
 
 - `skin/` is a slice of a Herdr home: `layouts/`, `themes/`, `mods/endfield*`, `data/endfield/`. Install is a copy of it, so anything you put here lands in people's Herdr folders. Every path in it must start with `endfield`; `verify.mjs` enforces that.
 - `extras/` holds opt-in pieces that live outside Herdr (a statusline, a shell prompt).
-- `art-pack/` builds the optional operator art from images a person supplies.
+- `art-pack/` builds the optional operator art, from images a person supplies or from the official renders `scripts/fetch-operators.mjs` downloads on their machine.
 - `scripts/` holds the Node scripts. They have no dependencies.
 
 Read [`skin/mods/endfield/README.md`](skin/mods/endfield/README.md) for how the mod is put together, and [RECIPE.md](RECIPE.md) for what every region looks like and does. Herdr's own reference is `AGENTS.md` in your Herdr home.
@@ -44,7 +44,7 @@ These keep the skin coherent. A change that breaks one needs a reason in its PR.
 
 `verify.mjs --static` fails on each of these:
 
-- Official art: anything under `art/operators/`, any image other than `preview.png`, and links to the game's asset CDN.
+- Official art: anything under `art/operators/`, any image other than `preview.png`, and links to the game's asset CDN anywhere except `art-pack/operators.json`. Every URL in that catalogue must be on the official site or its CDN (no wikis or mirrors), and every source needs its sha256.
 - Personal data: absolute paths with a user name (`C:\Users\<name>`, `/home/<name>`), email addresses, session ids, Herdr ids, transcripts, logs and window shots.
 
 Before you attach a screenshot to an issue or PR, crop out terminal contents and folder names.
