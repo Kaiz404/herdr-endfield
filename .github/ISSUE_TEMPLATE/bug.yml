@@ -1,0 +1,35 @@
+name: Bug
+description: Something in the skin looks or behaves wrong.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to see it
+      placeholder: "1. Switch to the Endfield layout\n2. Start an agent in a second tab\n3. ..."
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Herdr version, OS, light or dark appearance
+      placeholder: "herdr-app 0.x, Windows 11, dark"
+    validations:
+      required: true
+  - type: textarea
+    id: status
+    attributes:
+      label: Output of `herdr-app status` and any `*.error` file
+      description: Remove folder names, terminal text and anything else personal before pasting.
+      render: json
+  - type: textarea
+    id: shot
+    attributes:
+      label: Screenshot
+      description: Optional. Crop out terminal contents, file names and anything personal.

@@ -1,0 +1,26 @@
+name: Idea
+description: A design or feature you would like the skin to have.
+labels: [idea]
+body:
+  - type: textarea
+    id: moment
+    attributes:
+      label: The moment it helps
+      description: What you are doing when you would want this, and what you have to do today instead.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would see
+      description: Region, size, colour, motion. A sketch or mockup helps more than words.
+    validations:
+      required: true
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Design rules (CONTRIBUTING.md)
+      options:
+        - label: Motion only where work happens, idle stays still
+        - label: Yellow only for "you, here, now"
+        - label: Uses no official art or logos
