@@ -203,6 +203,9 @@ export class Agents {
   /**
    * One agent row. r: { key, m, depth, shape, h, size, top, on, title, meta, native, up, click }, tops relative
    * to its squad; `up` is the parent's row. An idle row is one line: chip, callsign, task, status.
+   * A two-line row: callsign, model, effort, then elapsed and status at the right; under it the task,
+   * then the context gauge at the right. Status and elapsed never shrink: the model and effort give
+   * way first, then the callsign truncates.
    */
   row(C, D, r) {
     const { m, depth, size } = r;
@@ -214,7 +217,7 @@ export class Agents {
     const sub = on ? C.selMuted : C.muted;
     const pad = D.pad[depth ? 1 : 0];
     const st = statusOf(m.status);
-    const { head, time, gauge: ctx } = r.meta;
+    const { model, effort, time, gauge: ctx } = r.meta;
     const fx = this.fx.of(m.address);
     const pin = this.pinButton(C, r, hot, on);
     // The connector: a 1px right angle from the parent chip's foot to this chip's side, drawn top-down when the child arrives.
@@ -226,15 +229,35 @@ export class Agents {
         .h(this.fresh.has(r.key) ? 0 : r.top + r.h / 2 - foot).border_l(1).border_b(1).border_color(on ? C.selMuted : C.hairStrong)
         .transition("height", MOTION.link.draw);
     }
-    const right = one && !dense
-      ? h_flex().flex_none().items_center().child(statusMark(C, m.status, { inv: on, size: 11, id: `${r.key}-disc`, pop: fx.pop }) ?? div())
-      : dense
+    const mark = statusMark(C, m.status, { inv: on, size: 11, id: `${r.key}-disc`, pop: fx.pop }) ?? div();
+    const right = dense
       ? h_flex().h(12).flex_none().items_center().tooltip(st?.word ?? m.status).child(glyph(C, m.status, { inv: on, size: 11, id: `${r.key}-disc`, pop: fx.pop }) ?? div())
-      : v_flex().flex_none().items_end().gap(5)
-        .child(statusMark(C, m.status, { inv: on, size: 11, id: `${r.key}-disc`, pop: fx.pop }) ?? div())
-        .when(Boolean(time), (el) => el.child(h_flex().gap(4).items_center().text_color(sub)
-          .child(icon("clock", 10)).child(micro(time, sub).flex_none())))
-        .when(Boolean(ctx), (el) => el.child(gauge(C, ctx, { inv: on, id: `${r.key}-ctx` })));
+      : one ? h_flex().flex_none().items_center().child(mark) : null;
+    // flex_1 sizes from zero, so the model and effort get only the room the rest leaves.
+    const head = h_flex().flex_1().min_w(0).gap(6).items_center().overflow_hidden()
+      .when(Boolean(model), (el) => el.child(micro(model, sub).min_w(0).truncate()))
+      .when(Boolean(effort), (el) => el.child(micro(effort, on ? C.selDim : C.dim).flex_none()));
+    const label = one
+      ? nudge(h_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(8).items_center()
+        .child(wide(m.ident.callsign, fg, 9).flex_none())
+        .child(div().min_w(0).truncate().font_medium().text_size(11.5).child(r.title))
+      : dense
+      ? nudge(v_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(4)
+        .child(h_flex().min_w(0).gap(6).items_center()
+          .child(wide(m.ident.callsign, fg, 9).flex_none())
+          .child(head))
+        .child(div().min_w(0).truncate().font_medium().text_size(11.5).child(r.title))
+      : nudge(v_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(6)
+        .child(h_flex().min_w(0).gap(8).items_center()
+          .child(wide(m.ident.callsign, fg, 10).flex_shrink(1).min_w(0).truncate())
+          .child(head)
+          .when(Boolean(pin), (el) => el.child(pin))
+          .when(Boolean(time), (el) => el.child(h_flex().flex_none().gap(4).items_center().text_color(sub)
+            .child(icon("clock", 10)).child(div().font_family(FONT.mono).text_size(10).line_height(1).child(time))))
+          .child(div().flex_none().child(mark)))
+        .child(h_flex().min_w(0).gap(8).items_center()
+          .child(div().flex_1().min_w(0).truncate().font_medium().text_size(13).child(r.title))
+          .when(Boolean(ctx), (el) => el.child(gauge(C, ctx, { inv: on, id: `${r.key}-ctx` }))));
     return h_flex()
       .id(r.key)
       .relative()
@@ -257,17 +280,9 @@ export class Agents {
         .child(div().absolute().top(0).h(1).w(28).bg(C[on ? "flowInv" : "flow"]).loop("left", { from: -28, to: this.width, ...MOTION.status.scan }))))
       .when(Boolean(link), (el) => el.child(link))
       .child(chip(C, m.ident, m.status, { size, on, id: r.key, flash: fx.flash ? fx : null }))
-      .child(one
-        ? nudge(h_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(8).items_center()
-          .child(wide(m.ident.callsign, fg, 9).flex_none())
-          .child(div().min_w(0).truncate().font_medium().text_size(11.5).child(r.title))
-        : nudge(v_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(dense ? 4 : 6)
-          .child(h_flex().min_w(0).gap(6).items_center()
-            .child(wide(m.ident.callsign, fg, dense ? 9 : 10).flex_none())
-            .child(micro(head, sub).min_w(0).truncate()))
-          .child(div().min_w(0).truncate().font_medium().text_size(dense ? 11.5 : 13).child(r.title)))
-      .when(Boolean(pin), (el) => el.child(pin))
-      .child(right);
+      .child(label)
+      .when(Boolean(pin) && Boolean(right), (el) => el.child(pin))
+      .when(Boolean(right), (el) => el.child(right));
   }
 
   /** Under a Claude Code agent's sub-agents: "+N earlier" lists the finished ones too, "Show less" folds back. */
@@ -445,6 +460,14 @@ export class Agents {
     const sel = selRow ? { top: selIn.start + selRow.top, h: selRow.h } : null;
     const maxY = Math.max(0, y - this.viewH);
     this.scrollY = Math.min(this.scrollY, maxY);
+    // A live run under a minute reads seconds, so while one is on screen the list redraws each
+    // second. Past the minute it reads "1m" and the 30s refresh is enough.
+    const seen = (top, h) => !this.viewH || (top < this.scrollY + this.viewH && top + h > this.scrollY);
+    const ticking = !dense && sections.some((s) => !s.folded && s.rows.some((r) => r.meta?.ticking && seen(s.start + r.top, r.h)));
+    if (ticking && !this.ticking) {
+      this.ticking = true;
+      cx.timer.after(1000, (cx) => { this.ticking = false; cx.notify(); });
+    }
     const below = this.viewH ? sections.reduce((n, s) => n + (s.folded ? 0 : s.rows.filter((r) => !r.native && !r.more && s.start + r.top >= this.scrollY + this.viewH).length), 0) : 0;
     const active = R.flat.filter((m) => !statusOf(m.status)?.quiet).length;
     // The geometric layer fills the list's empty foot, never behind a row.

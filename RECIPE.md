@@ -42,17 +42,21 @@ rendered at 4x. It is a schematic, not a screenshot.
     a 1px halo in the operator's accent, a class badge bottom right: `C`
     Claude Code, `X` Codex, `Cu` Cursor, `O` OpenCode, `G` Gemini); the
     callsign in wide caps 10px (`PERLICA`; a repeat takes a spare operator,
-    then `PERLICA·2`) with a mono meta line beside it: the model and effort
-    level, as `OPUS 5.5 · MED` (effort reads LOW, MED, HIGH, XHIGH or MAX;
-    an agent with no Claude Code session shows its program; no terminal
-    address, no tool count); the task (13px medium); at the right
-    "Generating ▶▶", a yellow "Needs input" pill or "✓ Claimed", over a
-    clock icon and how long the run has gone (to now while generating, else
-    to its last write: `<1M`, `27M`, `1H07`, `12H`, `3D`), over an 8-block
-    context gauge (5x6px blocks 2px apart; lit share = used / window, red
-    from 75%; its tooltip reads `157K / 1M · 16%`; an unknown window is 1M
-    for a `[1m]` model or a context past 200K, else 200K). Sub-agent rows
-    show the same. What isn't known is left out. Compact rows keep only the
+    then `PERLICA·2`), then in mono the model and, 6px on in a dimmer grey,
+    the effort level: `OPUS 5.5  MED` (effort reads LOW, MED, HIGH, XHIGH or
+    MAX; an agent with no Claude Code session shows its program; no
+    terminal address, no tool count); at the right of that line a clock icon
+    and how long the run has gone (to now while generating, else to its
+    last write: `42s`, `27m`, `1h07`, `12h`, `3d`), then "▶▶ Generating", a
+    yellow "Needs input" pill or "✓ Finished". The second line is the task
+    (13px medium) with, at its right, an 8-block context gauge (5x6px blocks
+    2px apart; lit share = used / window, red from 75%; its tooltip reads
+    `157K / 1M · 16%`; an unknown window is 1M for a `[1m]` model or a
+    context past 200K, else 200K). The status and elapsed never shrink; the
+    model and effort give way first, then the callsign truncates. While a
+    generating row under a minute is on screen the list redraws each second
+    so its seconds count; otherwise every 30 seconds. Sub-agent rows show
+    the same. What isn't known is left out. Compact rows keep only the
     status glyph at the right. An idle
     row folds to one 34px line (26px compact): a 22px chip (18px compact),
     the callsign, the task at 11.5px and "zZ Idle". Blocked rows carry 4px hazard stripes on the left edge; a
@@ -105,9 +109,9 @@ rendered at 4x. It is a schematic, not a screenshot.
   oversight screen; the squad sidebar stays live beside it. A white panel with
   four corner brackets: `// Report` under `Oversight · every squad · last 10
   min` and a barcode; readouts with coloured left edges (Squads, Agents,
-  Generating, Needs input, Claimed, Tokens · 10 min); `Group · Squad` (or
+  Generating, Needs input, Finished, Tokens · 10 min); `Group · Squad` (or
   None); sortable headings (Agent, Rate, Reserves, Turn, Status; the active
-  one inverts to ink with ▼/▲; Status is the default: Needs input, Claimed,
+  one inverts to ink with ▼/▲; Status is the default: Needs input, Finished,
   Generating, Idle); squad headers like the sidebar's with `▶▶ n ✓ n` and a
   yellow `! n need input`, folding on click; rows with the chip and callsign,
   the terminal and its link (`◀ T3 · Claude Code ▶ Cursor`, or `3 children`),
@@ -137,14 +141,14 @@ rendered at 4x. It is a schematic, not a screenshot.
   chip; hc notes are a grey square.
 - **HUD footer, 44px**: ink with a faint 45° grain. The number of active
   agents on a 22px odometer, `// space / tab`, then `▶▶ 14 GENERATING` and
-  `✓ 01 CLAIMED` on odometers; at the right the focused agent's context (used /
+  `✓ 01 FINISHED` on odometers; at the right the focused agent's context (used /
   total over a 3px bar, red past 75%), its model, the branch and the machine;
   and a 176px yellow block, `04 NEEDS INPUT ▶`, that opens (300ms) while
   anyone needs input; click goes to the first.
 - **Toasts**: a white slab with a 3px edge and a round glyph in the level's
   colour, title, body, `// space` top right, a yellow "Open ▶" pill and a 2px
-  countdown. An agent that finished gets the Claimed slip: its chip flashes
-  yellow once (.9 to 0, 300ms), the callsign, a lime "Claimed ✓" pill, the
+  countdown. An agent that finished gets the Finished slip: its chip flashes
+  yellow once (.9 to 0, 300ms), the callsign, a lime "Finished ✓" pill, the
   task and a "View ▶" pill.
 - **Needs input, elsewhere: the cut-in.** A 440x214 ink slab at the bottom
   right, an overlay window (Herdr's toast slot is too small): a field of dots,

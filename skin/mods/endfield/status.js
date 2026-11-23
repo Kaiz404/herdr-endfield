@@ -1,5 +1,5 @@
 // status: the HUD footer, an ink bar along the bottom. Numbers are the headline: agents active on
-// an odometer, then where you are, Generating and Claimed counts, the focused agent's context, its
+// an odometer, then where you are, Generating and Finished counts, the focused agent's context, its
 // model, branch and machine, and a yellow "Needs input" block that opens when anyone needs you
 // (click: go to the first one).
 
@@ -52,7 +52,7 @@ export default class Status {
           .when(Boolean(tab), (el) => el.child(div().flex_none().text_color(C.barSlash).child("/")).child(crumb(tab.named ? tab.name : `Tab ${pad2(tab.index)}`))))
         .child(rule())
         .child(tally("working", "Generating"))
-        .child(tally("done", "Claimed"))
+        .child(tally("done", "Finished"))
         .child(div().flex_1())
         .child(v_flex().w(170).flex_none().gap(5)
           .child(h_flex().justify_between().items_end()

@@ -6,7 +6,7 @@
 export const STATUS = {
   blocked: { word: "Needs input", kind: "pill", bar: "signal", edge: "hazard", rank: 4 },
   error: { word: "Error", kind: "text", glyph: "×", hue: "error", bar: "red", rank: 4 },
-  done: { word: "Claimed", kind: "disc", glyph: "✓", bar: "lime", fresh: true, enter: ["flash", "pop"], rank: 3 },
+  done: { word: "Finished", kind: "disc", glyph: "✓", bar: "lime", fresh: true, enter: ["flash", "pop"], rank: 3 },
   working: { word: "Generating", kind: "march", hue: "flow", bar: "flowInv", conveyor: true, rank: 2 },
   idle: { word: "Idle", kind: "mono", glyph: "zZ", bar: "hairStrong", quiet: true, oneLine: true, rank: 1 },
 };
@@ -150,10 +150,10 @@ export function fmtTokens(n) {
   return String(n);
 }
 
-/** 40s -> "<1m", 27 min -> "27m", 67 min -> "1h07", 12 h -> "12h", 3 days -> "3d". */
+/** 42s -> "42s", 27 min -> "27m", 67 min -> "1h07", 12 h -> "12h", 3 days -> "3d". */
 export function elapsed(ms) {
   const m = Math.floor(ms / 60000), h = Math.floor(m / 60);
-  if (m < 1) return "<1m";
+  if (m < 1) return `${Math.floor(ms / 1000)}s`;
   if (m < 60) return `${m}m`;
   if (h < 10) return `${h}h${String(m % 60).padStart(2, "0")}`;
   return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
@@ -170,19 +170,23 @@ export const CTX_HOT = 0.75;
 const EFFORT = { low: "low", medium: "med", high: "high", xhigh: "xhigh", max: "max" };
 
 /**
- * What a Squads row says about a run. head: model (or, with no session, the program) and effort,
+ * What a Squads row says about a run. model (or, with no session, the program) and effort sit
  * beside the callsign. time: how long the run has gone, to now while it works, else to its last
- * write. gauge: how full its context is, in `segments` blocks. What isn't known is null.
+ * write. ticking: the time reads seconds and changes each second. gauge: how full its context is,
+ * in `segments` blocks. What isn't known is null.
  * run: {startedAt, lastAt, live, model, modelId, effort, used, total, program}, every field optional
- * -> {head, time, gauge: {lit, hot, tip} | null}
+ * -> {model, effort, time, ticking, gauge: {lit, hot, tip} | null}
  */
 export function rowMeta(run, now, segments) {
   const end = run.live ? now : run.lastAt;
+  const ms = run.startedAt && end ? Math.max(0, end - run.startedAt) : null;
   const total = run.total ?? contextWindow(run.modelId, run.used);
   const share = run.used ? run.used / total : null;
   return {
-    head: [run.model ?? run.program, EFFORT[run.effort] ?? run.effort].filter(Boolean).join(" · "),
-    time: run.startedAt && end ? elapsed(Math.max(0, end - run.startedAt)) : null,
+    model: run.model ?? run.program ?? null,
+    effort: EFFORT[run.effort] ?? run.effort ?? null,
+    time: ms == null ? null : elapsed(ms),
+    ticking: Boolean(run.live) && ms != null && ms < 60000,
     gauge: share == null ? null : {
       lit: Math.round(Math.min(1, share) * segments),
       hot: share >= CTX_HOT,

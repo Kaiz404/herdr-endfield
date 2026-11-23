@@ -184,7 +184,7 @@ Herdr plays its own sounds for the same two events. The skin plays its two alert
 "sounds": { "enabled": false }
 ```
 
-The skin then plays its alerts when it shows the needs-input cut-in or the Claimed slip.
+The skin then plays its alerts when it shows the needs-input cut-in or the Finished slip.
 
 The skin's own switches are in `data/endfield/settings.json`. `sounds.alerts` (default `true`) turns the skin's alerts on or off. `sounds.ticks` (default `false`) turns the quiet clicks on or off.
 
