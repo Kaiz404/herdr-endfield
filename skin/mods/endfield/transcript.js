@@ -1,30 +1,22 @@
-// endfield-transcript: a Claude Code transcript (a sub-agent's, usually) as a read-only pane.
-// props: {path, title?, id?, parent?, via?}. The user's prompt, the assistant's words as markdown,
-// each tool call as one `● Tool · arg` line and its result folded to its first line. It follows the
-// file while shown and keeps the newest entry in view.
-// Transcripts run to tens of MB and readTextFile stops at 1 MiB, so the endfield mod's
-// tools/probe.mjs (node) reads them, from the byte it last reached.
+// transcript: a Claude Code transcript (a sub-agent's, usually) as a read-only pane, the endfield
+// mod's transcript role. props: {role, path, title?, id?, parent?, via?}. The user's prompt, the
+// assistant's words as markdown, each tool call as one `● Tool · arg` line and its result folded to
+// its first line. It follows the file while shown and keeps the newest entry in view.
+// Transcripts run to tens of MB and readTextFile stops at 1 MiB, so tools/probe.mjs (node) reads
+// them, from the byte it last reached.
 // Its foot takes a follow-up for the sub-agent. A Claude Code sub-agent has no terminal, so the text
 // goes to its parent (terminal `parent`, callsign `via`) with `hc send`, asking it to pass the text
-// on with SendMessage; the argv and its refusals are orders.js, a copy of the endfield mod's. Send runs
-// exactly the command last drawn: render reads agents(), so it redraws when the parent's status
-// changes, and a click that beats that redraw is refused with the reason. Nothing goes without the
-// person's click or Enter, and each send is logged to Comms the way Dispatch logs (comms.js append).
+// on with SendMessage; the argv and its refusals are orders.js. Send runs exactly the command last
+// drawn: render reads agents(), so it redraws when the parent's status changes, and a click that
+// beats that redraw is refused with the reason. Nothing goes without the person's click or Enter,
+// and each send is logged to Comms the way Dispatch logs.
 
-import { View, div } from "gpui-kit";
+import { div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle, TextView, InputState, Input } from "gpui-base";
-import { props, exec, appHome, watchFolder, settings, checking, agents, readTextFile, writeTextFile, window as appWindow } from "herdr";
+import { props, exec, appHome, watchFolder, settings, checking, agents, window as appWindow } from "herdr";
 import * as fs from "fs/promises";
 import { relayOrder, relayRefusal, commandLine, deliver, timeoutFor } from "./orders.js";
-import { appendCapped } from "./messages.js";
-
-/** comms.js append: the expected text makes a concurrent writer fail rather than be overwritten. */
-async function append(msg) {
-  const log = `${appHome()}/data/endfield/comms.jsonl`;
-  let text = null;
-  try { text = await readTextFile(log); } catch {}
-  await writeTextFile(log, appendCapped(text, JSON.stringify(msg)), text);
-}
+import { append } from "./comms.js";
 
 // Panes are ink cards in both appearances, so one set of terminal-side colours.
 const C = { text: "#E6E6E1", muted: "#A9A9A3", dim: "#6F6F6A", rule: "#2C2C2C", flow: "#4CB8F5", signal: "#FFFA00", red: "#FF5A5E", raised: "#222222" };
@@ -34,7 +26,7 @@ const KEEP = 400;
 
 const base = (p) => String(p ?? "").split(/[\\/]/).pop();
 
-export default class Transcript extends View {
+export class Transcript {
   init(p, cx) {
     this.p = props() ?? p ?? {};
     this.entries = [];
@@ -42,7 +34,7 @@ export default class Transcript extends View {
     this.to = 0;
     this.state = "loading";
     this.scroll = ScrollHandle.new();
-    this.req = `${appHome()}/data/endfield-transcript/req-${Math.random().toString(36).slice(2, 10)}.json`;
+    this.req = `${appHome()}/data/endfield/probe-transcript-${Math.random().toString(36).slice(2, 10)}.json`;
     // edit -> busy -> sent | refused (may send again) | uncertain (Send waits until the text changes): deliver() in orders.js.
     this.send = { phase: "edit", error: null };
     // The order prompt() last drew; Send runs its args and nothing else.
@@ -77,7 +69,7 @@ export default class Transcript extends View {
 
   async load() {
     try {
-      await fs.mkdir(this.req.replace(/\/[^/]+$/, ""), { recursive: true });
+      await fs.mkdir(`${appHome()}/data/endfield`, { recursive: true });
       await fs.writeFile(this.req, JSON.stringify({ cmd: "render", path: this.p.path, from: this.to }));
       const r = await exec("node", [`${appHome()}/mods/endfield/tools/probe.mjs`, this.req], { timeout: 60000 });
       if (r.code !== 0) { this.state = "failed"; return; }

@@ -178,6 +178,29 @@ export function choose(cast, program, terminal, { parent = null, model = null } 
   return { slug: own, pinned: pinned !== undefined, claim: chosen !== undefined && Boolean(own), pool };
 }
 
+// The endfield mod has two pane roles, Comms and a sub-agent's transcript. panes() reports a mod
+// pane's mod but not its props, so the roles are told apart by a registry kept in shared(PANE_ROLES):
+// { roles: {pane: role}, opening: {tab: role} }. An opener calls opening() just before its
+// pane.split, which records every endfield pane open now; the one that then appears in that tab has
+// the role being opened. An endfield pane the registry never saw is Comms, the only pane role before.
+export const PANE_ROLES = "endfield.panes";
+// Transcript panes opened before the transcript was a role; that mod folder is gone after an upgrade.
+const RETIRED_TRANSCRIPT = "endfield-transcript";
+
+export function paneRole(reg, p) {
+  if (p.mod === RETIRED_TRANSCRIPT) return "transcript";
+  if (p.mod !== "endfield") return null;
+  return reg?.roles?.[p.pane] ?? reg?.opening?.[p.tab] ?? "comms";
+}
+
+/** The registry once `role` is about to open in `tab`: every live endfield pane's role fixed, the dead dropped. */
+export function opening(reg, panes, tab, role) {
+  const roles = Object.fromEntries(panes.filter((p) => p.mod === "endfield").map((p) => [p.pane, paneRole(reg, p)]));
+  const tabs = new Set(panes.map((p) => p.tab));
+  const pending = Object.entries(reg?.opening ?? {}).filter(([t]) => t !== tab && tabs.has(t));
+  return { roles, opening: { ...Object.fromEntries(pending), [tab]: role } };
+}
+
 const slot = ({ slug, n }) => `${slug}·${n}`;
 
 /** The first of `pool` that `taken` doesn't hold: each once, then each again as ·2, and so on. -> {slug, n, from} */
@@ -224,15 +247,15 @@ export function castCrew(identity, prev, crew, taken) {
 export const held = (idents) => idents.flatMap((i) => (i?.drawn ? [slot(i.drawn)] : []));
 
 // A sub-agent's transcript shows in one pane per tab, docked right of its parent.
-export const TRANSCRIPT = "endfield-transcript";
-export const transcriptsIn = (panes, tab) => panes.filter((p) => p.mod === TRANSCRIPT && p.tab === tab);
+export const transcriptsIn = (panes, tab, reg) => panes.filter((p) => p.tab === tab && paneRole(reg, p) === "transcript");
 
 // What a click on a sub-agent does in its parent's tab. `shown`: the path that tab's pane was
 // opened on. The one already shown is focused; any other click replaces every transcript pane
-// there with one new split, because a mod pane's props can't change once it is open.
-export function transcriptPlan(panes, tab, shown, path) {
-  const open = transcriptsIn(panes, tab);
-  if (open.length === 1 && shown === path) return { focus: open[0].pane };
+// there with one new split, because a mod pane's props can't change once it is open. A pane of the
+// retired mod is always replaced, since it can only show an error.
+export function transcriptPlan(panes, tab, shown, path, reg) {
+  const open = transcriptsIn(panes, tab, reg);
+  if (open.length === 1 && shown === path && open[0].mod === "endfield") return { focus: open[0].pane };
   return { close: open.map((p) => p.pane) };
 }
 

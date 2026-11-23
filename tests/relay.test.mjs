@@ -1,16 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { relayOrder, relayMessage, relayRefusal, deliverPlan, deliver } from "../skin/mods/endfield/orders.js";
-
-const mods = new URL("../skin/mods/", import.meta.url);
-const text = (rel) => readFileSync(new URL(rel, mods), "utf8").replace(/\r\n/g, "\n");
-
-test("the transcript pane's copies of orders.js and messages.js match the endfield mod's", () => {
-  for (const f of ["orders.js", "messages.js"]) {
-    assert.ok(text(`endfield-transcript/${f}`) === text(`endfield/${f}`), `copy skin/mods/endfield/${f} to skin/mods/endfield-transcript/${f}`);
-  }
-});
 
 const order = (o) => relayOrder({ parent: "t3", status: "idle", id: "a1f0", title: "Review x.rs", text: "also check y.rs", ...o });
 

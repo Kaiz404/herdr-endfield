@@ -5,9 +5,10 @@
 
 import { div } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { panes, props, run, layout } from "herdr";
+import { panes, props, run, layout, shared } from "herdr";
 import { palette, root, stop, midTrunc, statusMark, badge, chip, hazard, micro, wide, icon, basename, telling, growDisc, Entrance, StatusFx, MOTION } from "./kit.js";
 import { roster } from "./roster.js";
+import { PANE_ROLES, paneRole } from "./fleet.js";
 
 // The first visible tab frame, including the active child of a stack.
 function paneFrame(node) {
@@ -52,9 +53,10 @@ export default class PaneHeader {
     const height = frame?.height ?? 34;
     const bottom = frame?.position === "bottom";
     const m = p.terminal && p.program?.agent ? roster().all.get(p.terminal) : null;
-    const name = (p.mod === "endfield" && "Comms") || (p.program?.agent && telling(p)) || ((p.program?.agent || p.program?.shell) && p.program.name) || p.title || p.program?.name || "shell";
+    const role = paneRole(shared(PANE_ROLES), p);
+    const name = (role === "comms" && "Comms") || (role === "transcript" && "Transcript") || (p.program?.agent && telling(p)) || ((p.program?.agent || p.program?.shell) && p.program.name) || p.title || p.program?.name || "shell";
     // The skin's own pane (Comms) is named for what it is, with the "//" tile, not an unknown program.
-    const comms = p.mod === "endfield";
+    const comms = role === "comms";
     const where = comms ? "Who sent what to whom" : [m?.ident.callsign, p.terminal?.toUpperCase(), basename(p.cwd), midTrunc(p.branch)].filter(Boolean).join(" · ");
     const pane = p.pane;
     const on = p.focused;

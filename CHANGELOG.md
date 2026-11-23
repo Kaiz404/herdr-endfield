@@ -14,6 +14,7 @@
 
 ### Changed
 
+- **The transcript pane is part of the `endfield` mod.** It used to be a separate mod, `endfield-transcript`, with its own copies of the Dispatch rules. `install.mjs`, `sync.mjs` and `uninstall.mjs` remove the old `mods/endfield-transcript` folder. A transcript pane left open from before the update can show an error. Click a sub-agent in Squads to replace it, or close it.
 - **Operator overrides start empty.** `data/endfield/operators.json` used to be seeded with one operator per program, which would hide casting by model. The seed is now empty. `node scripts/install.mjs` replaces your copy if you never edited it, and keeps it if you did. Your own `programs` and `terminals` entries still win over the model. With no known model, Codex now defaults to Laevatain instead of the Endministrator.
 - **One transcript pane per tab.** Clicking a Claude Code sub-agent in Squads opens its transcript right of its parent, as before. Clicking another sub-agent now replaces that pane instead of splitting the tab again, and clicking the one shown focuses it. The shown sub-agent's row is marked as selected.
 - **Claude Code sub-agents.** Squads used to show at most four sub-agents under a parent, picked in no useful order. Now it shows every working sub-agent, newest first. A row under them, **+N earlier**, lists the finished ones too, newest first. **Show less** folds them away again. Each parent remembers its choice until Herdr reloads the skin. A long list scrolls.
