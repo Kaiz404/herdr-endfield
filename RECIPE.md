@@ -48,7 +48,11 @@ rendered at 4x. It is a schematic, not a screenshot.
     gauge. Blocked rows carry 4px hazard stripes on the left edge.
     Children (terminals started with `hc run`, and Claude Code's own
     sub-agents read from its transcript) hang under their parent with a 1px
-    right angle from the parent chip's foot, whatever their vendor. From 12
+    right angle from the parent chip's foot, whatever their vendor. Claude
+    Code sub-agents show while working, newest started first; below them a
+    26px row (22px compact) reads "▾ +N earlier" and lists the finished ones
+    too, newest first, or "▴ Show less" to fold them back. Each parent keeps
+    its choice until the mod reloads; there is no cap, the list scrolls. From 12
     agents everything goes compact: 34px rows, 24/20px chips, callsign over
     task, a status glyph only (`▶▶`, `!`, `✓`, `zZ`); the spaces block becomes
     numbered squares, six a row; and a pinned "Needs input" box (hazard edge,
@@ -270,7 +274,8 @@ rendered at 4x. It is a schematic, not a screenshot.
 - Mods have no colour transition: hover and selection fills are absolute
   layers whose width transitions, measured from each list's `on_size_change`.
 - Selection blocks need fixed row heights (spaces 38, machine header 28,
-  login guidance 48, notes 30; agents 50, sub-agents 40, group header 28).
+  login guidance 48, notes 30; agents 56, children 50, sub-agent toggle 26,
+  squad header 28; compact 34, 34, 22, 26).
 - Flicker is a `.loop("opacity")` that a one-shot timer removes after three
   pulses. No repeating timer drives motion; the repeating timers are for data
   only (30s age labels, git and machine checks, a 3s session poll that runs

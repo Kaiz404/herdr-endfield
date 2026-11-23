@@ -11,7 +11,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, duration, telling, wipe, marker, nudge, rings, cross, ticks, pill, Entrance, StatusFx, MOTION, IDENTITY, FONT } from "./kit.js";
 import { roster } from "./roster.js";
-import { BY, DENSE_AT, statusOf, subNumbers } from "./fleet.js";
+import { BY, DENSE_AT, statusOf, subNumbers, subagentView } from "./fleet.js";
 import { toggleReport, goTo } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
@@ -20,12 +20,10 @@ import { CARD, cardHeight } from "./card.js";
 // Fixed heights, so the selection marker knows where the selected row starts (the row's own ink plate snaps).
 // Compact (DENSE_AT agents and up): 34px rows that keep the chip, badge and callsign over the task.
 const H = {
-  full: { lead: 56, child: 50, head: 28, chip: [36, 28], pad: [16, 46] },
-  dense: { lead: 34, child: 34, head: 26, chip: [24, 20], pad: [14, 34] },
+  full: { lead: 56, child: 50, head: 28, chip: [36, 28], pad: [16, 46], more: 26 },
+  dense: { lead: 34, child: 34, head: 26, chip: [24, 20], pad: [14, 34], more: 22 },
 };
 const PIN = { max: 3, row: 34, more: 22 };
-// Claude Code sub-agents shown under a parent: every working one, else the newest few.
-const NATIVE_SHOWN = 4;
 // A wheel notch in lines, as pixels, for the "N below" estimate (the scroll area reports no offset).
 const LINE_PX = 20;
 
@@ -96,6 +94,8 @@ export class Agents {
     this.bounds = {};
     this.info = {};
     this.subNums = new Map();
+    // Parents whose finished sub-agents are listed too; kept until the mod reloads.
+    this.opened = new Set();
     this.card = { open: null, hot: null, seq: 0 };
     // The one card this list owns; a card that isn't it (left from a reload) closes itself.
     setShared("endfield.card.open", null);
@@ -187,9 +187,7 @@ export class Agents {
   }
 
   natives(m) {
-    const all = this.sessions.get(m.address)?.subagents ?? [];
-    const working = all.filter((k) => k.status === "working").length;
-    return all.slice(0, Math.max(NATIVE_SHOWN, working));
+    return subagentView(this.sessions.get(m.address)?.subagents ?? [], this.opened.has(m.address));
   }
 
   // One split per click: a double-click or a quick second press would stack two panes.
@@ -278,6 +276,16 @@ export class Agents {
         .child(div().min_w(0).truncate().font_medium().text_size(dense ? 11.5 : 13).child(r.title)))
       .when(Boolean(pin), (el) => el.child(pin))
       .child(right);
+  }
+
+  /** Under a Claude Code agent's sub-agents: "+N earlier" lists the finished ones too, "Show less" folds back. */
+  more(C, D, r) {
+    const hot = this.hovered === r.key;
+    return h_flex().id(r.key).relative().h(r.h).flex_none().pl(D.pad[1]).pr(12).items_center().cursor_pointer()
+      .on_hover((over, cx) => { if (over) this.hovered = r.key; else if (this.hovered === r.key) this.hovered = null; cx.notify(); })
+      .on_click(r.click)
+      .child(wipe(`${r.key}-wipe`, C.sunken, this.width, hot))
+      .child(micro(r.open ? "▴ Show less" : `▾ +${r.earlier} earlier`, hot ? C.text : C.muted).relative());
   }
 
   /** A squad's header: formation number, name, (folded) a stack of its operators, its ! and count, + and the chevron. */
@@ -413,7 +421,8 @@ export class Agents {
         }
         push(r);
         // Claude Code's own sub-agents, read from its transcript, hang under it like any child.
-        const shownSubs = m.agent && isClaude(m.agent) ? this.natives(m) : [];
+        const subs = m.agent && isClaude(m.agent) ? this.natives(m) : { shown: [], earlier: 0 };
+        const shownSubs = subs.shown;
         const nums = subNumbers(this.subNums.get(m.address) ?? new Map(), [...shownSubs].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0)).map((k) => k.id));
         if (shownSubs.length) nextNums.set(m.address, nums);
         for (const k of shownSubs) {
@@ -422,6 +431,11 @@ export class Agents {
           push({ key: `sa-${k.id}`, m: { address: `sa-${k.id}`, status: k.status, ident: { ...ident, callsign: `${ident.name.toUpperCase()}${n > 1 ? `·${n}` : ""}` } }, depth: m.depth + 1,
             h: D.child, top: inner, on: false, title: k.title, native: true, meta: [`◀ ${m.address.toUpperCase()}`, k.model?.short, `${pad2(k.tools)} tools`].filter(Boolean).join(" · "),
             parentTop: r.top, parentDepth: m.depth, click: () => this.openTranscript(m, k) });
+        }
+        if (subs.earlier) {
+          const open = this.opened.has(m.address);
+          push({ key: `sm-${m.address}`, more: true, h: D.more, top: inner, on: false, open, earlier: subs.earlier,
+            click: (_e, cx) => { open ? this.opened.delete(m.address) : this.opened.add(m.address); cx.notify(); } });
         }
       }
       y = start + (folded ? 0 : inner);
@@ -435,7 +449,7 @@ export class Agents {
     const sel = selRow ? { top: selIn.start + selRow.top, h: selRow.h } : null;
     const maxY = Math.max(0, y - this.viewH);
     this.scrollY = Math.min(this.scrollY, maxY);
-    const below = this.viewH ? sections.reduce((n, s) => n + (s.folded ? 0 : s.rows.filter((r) => !r.native && s.start + r.top >= this.scrollY + this.viewH).length), 0) : 0;
+    const below = this.viewH ? sections.reduce((n, s) => n + (s.folded ? 0 : s.rows.filter((r) => !r.native && !r.more && s.start + r.top >= this.scrollY + this.viewH).length), 0) : 0;
     const active = R.flat.filter((m) => !statusOf(m.status)?.quiet).length;
     // The geometric layer fills the list's empty foot, never behind a row.
     const room = this.viewH - y > 170;
@@ -472,7 +486,7 @@ export class Agents {
           this.head(C, D, s),
           v_flex().id(`sq-${s.q.id}-rows`).relative().flex_none().overflow_hidden().h(s.folded ? 0 : s.inner)
             .transition("height", MOTION.squad.fold)
-            .children(s.rows.map((r) => this.row(C, D, r))),
+            .children(s.rows.map((r) => (r.more ? this.more(C, D, r) : this.row(C, D, r)))),
         ]))
         .child(marker("ag-mark", C, sel?.top ?? 0, sel?.h ?? 0).when(!sel, (el) => el.opacity(0))))
       .when(below > 0, (el) => el.child(h_flex().h(28).flex_none().pl(16).pr(12).gap(8).items_center().border_t(1).border_color(C.hairStrong)

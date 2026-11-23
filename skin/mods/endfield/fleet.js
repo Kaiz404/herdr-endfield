@@ -109,6 +109,17 @@ export function buildRoster({ listed, terms, spaces, identity, sort = BY.priorit
   return { all, squads, flat: squads.flatMap((q) => q.members) };
 }
 
+// A Claude Code session's own sub-agents under its row: the working ones, or all of them while
+// `open`, newest started first (by start, not last write, so a busy one doesn't hop past a newer
+// one). `earlier` counts the ones not working, which a toggle row offers.
+// subs: [{status, startedAt | null, lastAt}] -> {shown: subs, earlier: number}
+export function subagentView(subs, open) {
+  const at = (k) => k.startedAt ?? k.lastAt ?? 0;
+  const newest = [...subs].sort((a, b) => at(b) - at(a));
+  const working = newest.filter((k) => k.status === "working");
+  return { shown: open ? newest : working, earlier: newest.length - working.length };
+}
+
 // A Claude Code session's own sub-agents share one operator, so each one shown takes the lowest
 // number no other shown one holds, and keeps it while it stays shown: ARDELIA·2, never ARDELIA·30.
 // prev: Map<id, n> from the last render; shown: ids in start order.
