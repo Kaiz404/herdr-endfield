@@ -25,8 +25,8 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
 - Three modules hold the rules with no Herdr import, so `tests/` runs them under
   `node --test` (CI and `verify.mjs --static` too): `fleet.js` (the `STATUS`
   table, agent status to word, glyph kind, bar colour, entrance effect and rank,
-  and the roster), `orders.js` (Dispatch's argv, the command line it shows, and
-  what became of a run) and `messages.js` (which Comms screen tags count, how
+  and the roster), `orders.js` (Dispatch's argv and the transcript pane's
+  follow-up relay, the command line each shows, and what became of a run) and `messages.js` (which Comms screen tags count, how
   many are kept, the log's size cap) and `base.js` (the home base: which folder a
   new local space opens in).
 - `kit.js` `newSpace()` is the one way a space is made: every New space control in
@@ -167,6 +167,37 @@ tag counts only when its sender is a live terminal other than the recipient
 characters, and the pane keeps the newest 200. With "Now, wait for reply" the
 log records the last screen line after the turn as a "Screen line", not a
 reply: it may be a prompt, a spinner or a draft.
+
+### Follow-ups to a sub-agent (the transcript pane)
+
+The transcript pane's foot takes a follow-up for the sub-agent it shows. Which
+agents can take one:
+
+- An `hc`-started child is a terminal. Squads focuses its pane (or peeks it) and
+  never opens a transcript for it, so its follow-up goes the usual ways: type in
+  its pane, or Dispatch with "Only if idle". The box is not offered for it.
+- A Claude Code Task sub-agent has no terminal, so nothing can type into it. The
+  box asks its parent instead: `hc send <parent> -- "Use SendMessage to send your
+  sub-agent <id> (<description>) this follow-up, word for word: <text>"`. The
+  pane says so ("sent via PERLICA") and shows that exact command before Send.
+  `<id>` is the transcript's `agent-<id>.jsonl` name, the id SendMessage takes.
+
+The parent must be waiting at its prompt. Idle goes with `--if idle`. Done (a
+Claude Code agent that finished its turn reports `done` until someone looks, and
+`--if idle` refuses it with exit 10; `hc` has no `--if done`) goes plain. Working
+or blocked parents, or a parent Herdr no longer lists, leave Send disabled with
+the reason. The pane never forces. The run and its refusals are `relayOrder()`
+and `deliver()` in `orders.js`, as for Dispatch: a refusal (exit 2, 3, 7, 9, 10)
+may be retried, any other failure leaves Send disabled until the text changes.
+Each sent follow-up is a Comms `Message` from you to the parent, `via` the relay
+and the command.
+
+A mod can't import outside its folder, so `mods/endfield-transcript` holds
+byte-identical copies of `orders.js` and `messages.js`; `tests/relay.test.mjs`
+fails when they differ. Copy the endfield ones over after editing either.
+
+Not verified live: that Claude Code's SendMessage reaches a finished sub-agent,
+and how the parent words what it does with the relay.
 
 ## Native limits
 

@@ -6,6 +6,8 @@
 
 - **Home base.** New spaces on this computer open in a workspace folder instead of your home folder, so an agent you start there treats that folder as its project, not your whole home folder. The default is `Projects` in your home folder if it exists. Set `homeBase` in `data/endfield/settings.json` to choose another folder. If that folder is missing, spaces open in your home folder and the sidebar says so. Spaces on other machines still open in that machine's home. The Spaces header shows the base, and the key command `endfield.newSpace` opens a space there. See [Home base](docs/SETUP.md#9-choose-where-new-spaces-open).
 
+- **Follow up with a sub-agent.** The transcript pane of a Claude Code sub-agent has a box at its foot. Type a follow-up and click **Send** or press Enter. A Claude Code sub-agent has no terminal to type into, so the box sends your text to its parent agent and asks the parent to pass it on with its SendMessage tool. The pane says so (**Sent via PERLICA**) and shows the exact `hc send` command before you send. It sends only when the parent is waiting for you (idle or finished). While the parent is working or needs input, **Send** is disabled and the pane says why. Each follow-up appears in Comms. Agents started with `hc` have their own terminal, so you type in their pane or use Dispatch, as before.
+
 ### Changed
 
 - **One transcript pane per tab.** Clicking a Claude Code sub-agent in Squads opens its transcript right of its parent, as before. Clicking another sub-agent now replaces that pane instead of splitting the tab again, and clicking the one shown focuses it. The shown sub-agent's row is marked as selected.
