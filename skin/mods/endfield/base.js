@@ -15,7 +15,7 @@ export async function resolveHomeBase(setting, home, exists, machine = null) {
     const projects = `${home}${sep}Projects`;
     return { folder: (await there(projects)) ? projects : home, note: null };
   }
-  const folder = String(setting).replace(/^~(?=$|[\\/])/, home);
+  const folder = String(setting).replace(/^~(?=$|[\\/])/, home).replace(/[\\/]/g, sep);
   if (await there(folder)) return { folder, note: null };
   return { folder: home, note: `${setting} not found, so home` };
 }

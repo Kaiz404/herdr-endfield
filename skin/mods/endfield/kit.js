@@ -3,7 +3,7 @@
 
 import { div, svg, image, PathBuilder, Background } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { settings, layout, shared, setShared, run, keys, home, appHome, readTextFile, fonts, checking, playSound, spaces, window as appWindow } from "herdr";
+import { settings, layout, shared, setShared, run, keys, home, appHome, readTextFile, fonts, checking, playSound, spaces, exec, window as appWindow } from "herdr";
 import * as fs from "fs/promises";
 import { statusOf } from "./fleet.js";
 import { resolveHomeBase } from "./base.js";
@@ -235,8 +235,14 @@ export const IDENTITY = {
 
 // ---- the home base: where new local spaces open (base.js decides; settings.json `homeBase`).
 
+// A mod's fs sees only the home folder, so a folder elsewhere counts if a program can start in it.
+async function isFolder(p) {
+  try { if (await fs.exists(p)) return true; } catch {}
+  try { await exec("hc", ["--version"], { cwd: p, timeout: 5000 }); return true; } catch { return false; }
+}
+
 async function baseFor(own, machine = null) {
-  const b = await resolveHomeBase(own?.homeBase, home(), (p) => fs.exists(p), machine);
+  const b = await resolveHomeBase(own?.homeBase, home(), isFolder, machine);
   if (b && !checking() && JSON.stringify(b) !== JSON.stringify(homeBase())) setShared("endfield.base", b);
   return b;
 }

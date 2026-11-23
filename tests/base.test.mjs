@@ -34,6 +34,11 @@ test("Windows home: Projects joins with a backslash", async () => {
   assert.equal((await resolveHomeBase(undefined, "C:\\Users\\<name>", has("C:\\Users\\<name>\\Projects"))).folder, "C:\\Users\\<name>\\Projects");
 });
 
+test("Windows home: ~/ in the setting gives one kind of separator", async () => {
+  const W = "C:\\Users\\<name>";
+  assert.deepEqual(await resolveHomeBase("~/code/app", W, has(`${W}\\code\\app`)), { folder: `${W}\\code\\app`, note: null });
+});
+
 test("a remote machine keeps its own home: no folder at all", async () => {
   assert.equal(await resolveHomeBase("/srv/work", HOME, has("/srv/work"), "vps"), null);
   assert.equal(await resolveHomeBase(undefined, HOME, has("/home/<name>/Projects"), "vps"), null);
