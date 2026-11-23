@@ -374,7 +374,8 @@ export class Agents {
     // The open card's whole session: the card draws it and runs no poller of its own.
     const card = this.card.open ? this.sessions.get(this.card.open.address) : null;
     // Every surface's roster casts by model (roster.js), so each draws an agent the same.
-    const models = Object.fromEntries(R.flat.flatMap((m) => { const id = this.sessions.get(m.address)?.model?.id; return id ? [[m.address, id]] : []; }));
+    // Sorted, so the same models in another order don't publish again.
+    const models = Object.fromEntries(R.flat.flatMap((m) => { const id = this.sessions.get(m.address)?.model?.id; return id ? [[m.address, id]] : []; }).sort(([a], [b]) => (a < b ? -1 : 1)));
     for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all], ["endfield.card.session", card], ["endfield.limits", this.sessions.limits], ["endfield.models", models]]) {
       const text = JSON.stringify(value);
       if (text !== this.published?.[key]) { (this.published ??= {})[key] = text; setShared(key, value); }

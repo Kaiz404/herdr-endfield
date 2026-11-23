@@ -4,10 +4,11 @@ With the art pack installed, each agent is drawn as an Arknights: Endfield opera
 
 ## The rule
 
-1. The skin reads the agent's model id, for example `claude-opus-5-5`. Today it knows the model of Claude Code agents and their sub-agents. Other agents have no model, so step 4 applies to them.
+1. The skin reads the agent's model id, for example `claude-opus-5-5`. Today it knows the model of Claude Code agents and their sub-agents. Other agents have no model, so step 5 applies to them.
 2. It lowercases the id, drops any `vendor/` prefix, and tests the patterns in `CASTING.rules` in order. The first pattern that matches names the tier.
-3. The tier's pool lists operators in draw order. The agent takes the first one that no other agent holds. Sibling sub-agents therefore get different operators. A callsign number, such as `YVONNE·2`, appears only when every operator in the pool is taken.
-4. An agent with no model gets its program's default from the art pack (`default_assignment`). An agent whose model matches no pattern gets the fallback, the Endministrator.
+3. The tier's pool lists operators in draw order. The agent takes the first one that no other agent holds, including the sub-agents shown in Squads. Sibling sub-agents therefore get different operators. A callsign number, such as `YVONNE·2`, appears only when every operator in the pool is taken.
+4. The agent keeps its operator while it draws from the same pool. When another agent closes, or another agent's model arrives, nobody else changes. Only a change to the agent's own pool draws it again: a model in another tier, its first known model, a pin or an override.
+5. An agent with no model gets its program's default from the art pack (`default_assignment`). An agent whose model matches no pattern gets the fallback, the Endministrator. Dispatch shows the operator a new agent will draw. A same-program child runs its parent's model, so Dispatch predicts it by model. Any other new agent starts on its program's default, and Dispatch labels it that way.
 
 Two kinds of override still win over the model. Both live in `data/endfield/operators.json` in your Herdr home. A terminal pin (`terminals`) always wins. A program entry (`programs`) wins for every agent of that program. See [Choose which operator each agent gets](SETUP.md#3-choose-which-operator-each-agent-gets).
 
@@ -25,6 +26,7 @@ A pool uses only the operators your art pack has. With an older pack of eight op
 Two patterns need care:
 
 - **"mini" is a word of its own.** `gpt-5-mini` and `o4-mini` match `(^|[-_.])mini($|[-_.])`. The end of `gemini` does not match, so `gemini-3-pro` stays in the opus tier.
+- **A size tag of 99B or less means a small local model.** `(^|[-:/])\d{1,2}b($|[-_.])` matches a parameter count of one or two digits written as its own tag, as in `qwen2.5-coder:7b`, `mistral-7b` or `gpt-oss-20b`. Those go to haiku. The rule runs before the open-weight family rule, so `qwen3-coder:30b` is haiku, not sonnet. A tag of three digits does not match: `llama3.1:405b` stays sonnet by family, and `gpt-oss-120b` matches no rule and gets the fallback. An active-parameter tag such as the `a22b` in `qwen3-235b-a22b` does not match either, because a letter comes before the digits.
 - **Order matters.** `gpt-5.1-codex-mini` must reach the mini rule before the Codex rule, and `gemini-3-flash-lite` must reach the Flash-Lite rule before the Flash rule.
 
 `tests/casting.test.mjs` runs 39 model ids through the table.
