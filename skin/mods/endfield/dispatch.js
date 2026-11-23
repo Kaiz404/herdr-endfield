@@ -1,12 +1,12 @@
 // dispatch: one dialog, two modes, and nothing it does is the skin's own rule: it shows the exact hc
 // command and, on Dispatch, runs it. props: {role: "dispatch", mode: "send" | "new", target?, space?,
-// parent?, overlay}.
-//   send  hc send <t> [--if idle] [--wait] "<task>"  to a running agent (or any terminal it was opened on)
-//   new   hc run --bg --keep (--parent <t> [--outlive-parent] | --no-parent) --cwd <space folder>
+// parent?, overlay}. The argv, and what became of a run, are orders.js:
+//   send  hc send <t> [--if idle] [--wait] -- "<task>"  to a running agent (or any terminal it was opened on)
+//   new   hc run --bg --keep --json (--parent <t> [--outlive-parent] | --no-parent) --cwd <space folder>
 //         --label herdr.space=<id> --label herdr.tab=<new id> -- <program> "<task>"
 //         A tab id Herdr doesn't know becomes a new tab in that space; the agent shows up there.
 // Every dispatch is logged to the Comms log (comms.js). The skin never starts anything on its own:
-// only this dialog, on the person's click.
+// only this dialog, on the person's click or Enter, and once: after hc took it, the action is Close.
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
@@ -14,6 +14,7 @@ import { props, closeOverlay, openOverlay, spaces, terminals, knownAgents, exec,
 import { palette, root, micro, wide, chip, glyph, pill, barcode, dots, cue, growDisc, IDENTITY, MOTION, FONT } from "./kit.js";
 import { roster } from "./roster.js";
 import { append } from "./comms.js";
+import { sendArgs, runArgs, taskProblem, commandLine, deliver, timeoutFor } from "./orders.js";
 
 export const openDispatch = (p) => openOverlay({ mod: "endfield", kind: "dialog", frame: "none", width: 700, height: 620, props: { role: "dispatch", ...p } });
 
@@ -26,7 +27,6 @@ const SHELL = () => (appWindow()?.platform === "windows"
   ? { key: "shell", name: "Shell", run: ["powershell", "-NoProfile", "-Command"], installed: true, shell: true }
   : { key: "shell", name: "Shell", run: ["sh", "-c"], installed: true, shell: true });
 const newTab = () => `tb${Array.from({ length: 32 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("")}`;
-const quote = (s) => (/^[\w./:=@-]+$/.test(s) ? s : `"${s.replace(/"/g, '\\"')}"`);
 
 export class Dispatch {
   init(p, cx) {
@@ -38,12 +38,16 @@ export class Dispatch {
     this.opt = { send: "now", new: this.parent ? "keep" : "none" };
     this.progs = [SHELL()];
     this.prog = null;
-    this.state = { busy: false, error: null };
+    // edit -> busy -> sent | refused (may Dispatch again) | uncertain: deliver() in orders.js.
+    this.state = { phase: "edit", error: null };
     this.input = InputState.new({ placeholder: "What should it do?" });
     this.input.on("change", (_e, cx) => cx.notify());
+    this.input.on("submit", (_e, cx) => { if (this.ready) cx.spawn(async (cx) => this.confirm(cx)); });
     this.entered = false;
     if (checking()) return;
+    // The first focus can land before the dialog is shown (the shipped prompt's finding): try again.
     this.input.focus();
+    cx.timer.after(600, () => this.input.focus());
     cx.spawn(async (cx) => {
       // Installed programs first, then the shell, then the rest (dimmed): six tiles show.
       try { const known = await knownAgents(); this.progs = [...known.filter((g) => g.installed), SHELL(), ...known.filter((g) => !g.installed)]; } catch {}
@@ -52,48 +56,47 @@ export class Dispatch {
     });
   }
 
-  // The exact command, as argv for hc and as the text the footer shows.
+  // The exact command: the argv hc gets, and that argv as one line for this machine's shell.
   command() {
     const task = this.input.value().trim();
+    const platform = appWindow()?.platform;
     if (this.mode === "send") {
-      const args = ["send", this.target ?? "?", ...(this.opt.send === "idle" ? ["--if", "idle"] : []), ...(this.opt.send === "wait" ? ["--wait"] : []), task];
-      return { args, text: `hc ${args.map(quote).join(" ")}` };
+      const args = sendArgs({ target: this.target ?? "?", delivery: this.opt.send, task });
+      return { args, text: commandLine(args, platform), task };
     }
     const prog = this.progs.find((g) => g.key === this.prog) ?? SHELL();
     const space = spaces().find((s) => s.id === this.space);
-    const folder = space?.folder ?? null;
     const parent = this.opt.new === "none" ? null : this.parent;
-    const args = ["run", "--bg", "--keep", "--json", ...(parent ? ["--parent", parent] : ["--no-parent"]), ...(parent && this.opt.new === "outlive" ? ["--outlive-parent"] : []),
-      ...(space?.machine ? ["--on", space.machine] : []), ...(folder ? ["--cwd", folder] : []),
-      "--label", `herdr.space=${(this.space ?? "").replace(/^.*\//, "")}`, "--label", `herdr.tab=${this.tab ??= newTab()}`, "--", ...prog.run, ...(task ? [task] : [])];
-    return { args, text: `hc ${args.filter((a) => a !== "--json").map(quote).join(" ")}`, prog };
+    const args = runArgs({ parent, outlive: this.opt.new === "outlive", machine: space?.machine, folder: space?.folder, space: this.space, tab: this.tab ??= newTab(), argv: prog.run, task });
+    return { args, text: commandLine(args, platform), prog, task };
   }
 
   async confirm(cx) {
-    const task = this.input.value().trim();
-    if (!task || this.state.busy) return;
-    const { args, text } = this.command();
-    this.state = { busy: true, error: null };
+    if (this.state.phase !== "edit" && this.state.phase !== "refused") return;
+    const { args, task } = this.command();
+    if (!task) return;
+    const send = this.mode === "send";
+    const target = this.target;
+    const wait = send && this.opt.send === "wait";
+    this.state = { phase: "busy", error: null };
     cx.notify();
-    try {
-      // --wait can hold for a whole turn: give it hc's own ten minutes, not exec's thirty seconds.
-      const r = this.opt.send === "wait" && this.mode === "send" ? await exec("hc", args, { timeout: 600000 }) : await hc(args);
-      const out = `${r.stdout ?? ""}`.trim();
-      const err = r.code !== 0 ? (/"message":"([^"]+)"/.exec(out)?.[1] ?? (`${r.stderr ?? ""}`.trim() || out || `hc exited ${r.code}`)) : null;
-      if (err) { this.state = { busy: false, error: err }; cx.notify(); return; }
-      const to = this.mode === "send" ? this.target : (/"address":"([^"]+)"/.exec(out)?.[1] ?? "new");
-      await append({ at: Date.now(), from: "you", to, kind: "task", via: `Dispatch · ${text.slice(0, text.lastIndexOf(quote(task))).trim()}`, text: task });
-      if (this.mode === "send" && this.opt.send === "wait") {
-        const screen = await hc(["read", this.target, "--lines", "20"]);
+    const r = await deliver({
+      args,
+      exec: (a) => exec("hc", a, { timeout: timeoutFor({ mode: this.mode, delivery: this.opt.send }) }),
+      log: async (r) => {
+        const to = send ? target : (/"address":"([^"]+)"/.exec(r.stdout ?? "")?.[1] ?? "new");
+        await append({ at: Date.now(), from: "you", to, kind: "task", via: `Dispatch · ${commandLine(args.slice(0, -1), appWindow()?.platform)}`, text: task });
+        if (!wait) return;
+        // Not a reply: the screen's last line once the turn ended, which may be a prompt, a spinner or a draft.
+        const screen = await hc(["read", target, "--lines", "20"]);
         const last = `${screen.stdout ?? ""}`.split(/\r?\n/).map((l) => l.trim()).filter((l) => /[\p{L}\p{N}]/u.test(l)).at(-1);
-        if (last) await append({ at: Date.now(), from: this.target, to: "you", kind: "reply", via: "hc send --wait · turn ended (last screen line)", text: last });
-      }
-      cue("tick");
-      closeOverlay(props()?.overlay ?? this.p.overlay);
-    } catch (e) {
-      this.state = { busy: false, error: String(e?.message ?? e) };
-      cx.notify();
-    }
+        if (last) await append({ at: Date.now(), from: target, to: "you", kind: "screen", via: "hc send --wait · last screen line after the turn", text: last });
+      },
+    });
+    if (r.phase === "sent") cue("tick");
+    if (r.phase === "sent" && r.logged) { closeOverlay(props()?.overlay ?? this.p.overlay); return; }
+    this.state = r.phase === "sent" ? { phase: "sent", error: "Sent. The Comms log could not be written." } : r;
+    cx.notify();
   }
 
   hover(id) { return (over, cx) => { if (over) this.hot = id; else if (this.hot === id) this.hot = null; cx.notify(); }; }
@@ -119,7 +122,11 @@ export class Dispatch {
       : T?.status === "working" ? ["flow", "Generating. Sent now; it reads the message at its next step."]
       : T ? ["lime", "Idle. Delivered now."] : term ? ["hairStrong", "A terminal with no agent status: the text is typed and Enter pressed."] : ["hairStrong", "Pick a target."];
     const blocked = send && T?.status === "blocked";
-    const ready = Boolean(task) && !blocked && !this.state.busy && (send ? Boolean(this.target) : Boolean(this.space));
+    const problem = taskProblem({ mode: this.mode, shell: Boolean(prog?.shell), task });
+    const done = this.state.phase === "sent" || this.state.phase === "uncertain";
+    const ready = Boolean(task) && !blocked && !problem && (this.state.phase === "edit" || this.state.phase === "refused") && (send ? Boolean(this.target) : Boolean(this.space));
+    this.ready = ready;
+    const banner = this.state.error ? { refused: ["hc said", C.error], uncertain: ["Check before sending again", C.error], sent: ["Sent", C.text] }[this.state.phase] ?? ["hc said", C.error] : problem ? ["Not sent", C.error] : null;
     const section = (n, label, right) => h_flex().gap(8).items_center().child(micro(`${n} · ${label}`, C.muted)).child(div().flex_1().h(1).bg(C.hair)).when(Boolean(right), (el) => el.child(micro(right, C.muted)));
     const tabBtn = (k, label, cmd) => {
       const on = this.mode === k;
@@ -210,8 +217,8 @@ export class Dispatch {
               .child(div().size(8).rounded_full().border(1.5).border_color(on ? C.selText : C.text).when(on, (el) => el.bg(C.signal)))
               .child(div().text_size(12).text_color(on ? C.selText : C.text).child(o.label));
           })))
-        .when(Boolean(this.state.error), (el) => el.child(h_flex().mx(22).mb(12).px(10).py(7).gap(8).items_center().border_l(2).border_color(C.red).bg(C.ground)
-          .child(micro("hc said", C.error)).child(div().flex_1().min_w(0).truncate().font_family(FONT.mono).text_size(11).child(this.state.error))))
+        .when(Boolean(banner), (el) => el.child(h_flex().mx(22).mb(12).px(10).py(7).gap(8).items_center().border_l(2).border_color(this.state.phase === "sent" ? C.lime : C.red).bg(C.ground)
+          .child(micro(banner[0], banner[1]).flex_none()).child(div().flex_1().min_w(0).font_family(FONT.mono).text_size(11).child(this.state.error ?? problem))))
         // The graphite strip: who ▶▶ whom, the exact command, Cancel and the one yellow action.
         .child(h_flex().pl(22).pr(14).py(12).gap(12).items_center().bg("#374045").text_color("#F2F2F2").rounded_b(3)
           .child(v_flex().flex_1().min_w(0).gap(6)
@@ -220,10 +227,12 @@ export class Dispatch {
               .child(wide("You", "#F2F2F2", 10).flex_none())
               .child(div().text_size(9).text_color("#31ACF0").child("▶▶"))
               .child(wide(send ? (T ? `${T.ident.callsign} · ${T.address}` : this.target ?? "—") : `New ${prog?.name ?? ""} · ${lone ? space?.name ?? "" : `child of ${this.parent}`}`, "#F2F2F2", 10).min_w(0).truncate()))
-            .child(div().min_w(0).truncate().font_family("JetBrains Mono").text_size(10.5).text_color("#B9C2C7").child(text)))
-          .child(h_flex().id("dl-cancel").h(30).px(14).items_center().rounded_full().border_1().border_color("#6B777D").cursor_pointer()
-            .on_click(() => closeOverlay(p.overlay)).child(div().text_size(12).font_medium().text_color("#F2F2F2").child("Cancel")))
-          .child(div().when(!ready, (el) => el.opacity(0.45)).child(pill(C, "dl-go", this.state.busy ? "Dispatching" : "Dispatch", { kind: "primary", h: 30, hot: this.hot === "dl-go", on_hover: this.hover("dl-go"),
-            action: (_e, cx) => { if (ready) cx.spawn(async (cx) => this.confirm(cx)); } }))))));
+            // Every argument, wrapped rather than cut: this line runs exactly what Dispatch runs.
+            .child(div().id("dl-cmd").min_w(0).max_h(58).overflow_y_scrollbar().font_family("JetBrains Mono").text_size(10.5).line_height(1.4).text_color("#B9C2C7").child(text)))
+          .when(!done, (el) => el.child(h_flex().id("dl-cancel").h(30).px(14).items_center().rounded_full().border_1().border_color("#6B777D").cursor_pointer()
+            .on_click(() => closeOverlay(p.overlay)).child(div().text_size(12).font_medium().text_color("#F2F2F2").child("Cancel"))))
+          .when(done, (el) => el.child(pill(C, "dl-close-done", "Close", { kind: "dark", knob: "×", h: 30, hot: this.hot === "dl-close-done", on_hover: this.hover("dl-close-done"), action: () => closeOverlay(p.overlay) })))
+          .when(!done, (el) => el.child(div().when(!ready, (el) => el.opacity(0.45)).child(pill(C, "dl-go", this.state.phase === "busy" ? "Dispatching" : "Dispatch", { kind: "primary", h: 30, hot: this.hot === "dl-go", on_hover: this.hover("dl-go"),
+            action: (_e, cx) => { if (ready) cx.spawn(async (cx) => this.confirm(cx)); } })))))));
   }
 }
