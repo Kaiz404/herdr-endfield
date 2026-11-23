@@ -45,8 +45,7 @@ rendered at 4x. It is a schematic, not a screenshot.
     then `PERLICA·2`) with the model or `◀ T3` beside it; the task (13px
     medium); at the right "Generating ▶▶", a yellow "Needs input" pill,
     "✓ Claimed" or "zZ Idle", over the elapsed time and a 5-block context
-    gauge. Blocked rows carry 4px hazard stripes on the left edge; a
-    generating row's floor has a 28px blue segment scanning across (1600ms).
+    gauge. Blocked rows carry 4px hazard stripes on the left edge.
     Children (terminals started with `hc run`, and Claude Code's own
     sub-agents read from its transcript) hang under their parent with a 1px
     right angle from the parent chip's foot, whatever their vendor. From 12
@@ -148,8 +147,8 @@ rendered at 4x. It is a schematic, not a screenshot.
 
 ## How it behaves
 
-- **Working:** `▶▶` steps through (300ms a beat) in flow blue, and a 1px blue
-  segment rides the agent row's floor (3200ms, there and back).
+- **Working:** `▶▶` steps through (300ms a beat) in flow blue. It is the only motion on a
+  generating row.
 - **Blocked:** a yellow "Needs input" pill and a hazard tick, both still:
   blocked waits.
 - **Done:** the lime disc grows from 0 (200ms); it turns idle when looked at.
@@ -272,7 +271,6 @@ rendered at 4x. It is a schematic, not a screenshot.
   layers whose width transitions, measured from each list's `on_size_change`.
 - Selection blocks need fixed row heights (spaces 38, machine header 28,
   login guidance 48, notes 30; agents 50, sub-agents 40, group header 28).
-- `.loop` goes there and back, so the working conveyor travels back and forth.
 - Flicker is a `.loop("opacity")` that a one-shot timer removes after three
   pulses. No repeating timer drives motion; the repeating timers are for data
   only (30s age labels, git and machine checks, a 3s session poll that runs

@@ -6,6 +6,10 @@
 
 - **Home base.** New spaces on this computer open in a workspace folder instead of your home folder, so an agent you start there treats that folder as its project, not your whole home folder. The default is `Projects` in your home folder if it exists. Set `homeBase` in `data/endfield/settings.json` to choose another folder. If that folder is missing, spaces open in your home folder and the sidebar says so. Spaces on other machines still open in that machine's home. The Spaces header shows the base, and the key command `endfield.newSpace` opens a space there. See [Home base](docs/SETUP.md#9-choose-where-new-spaces-open).
 
+### Changed
+
+- **One motion per working agent.** A generating row in Squads no longer has a blue segment sliding along its floor. The status glyph still animates, so a sidebar full of working agents is calmer.
+
 ## 0.2.0
 
 The game-UI release. Agents are now drawn as Arknights: Endfield operators in squads, and you can send them work from the skin. Follow [docs/SETUP.md](docs/SETUP.md) to install or update.
