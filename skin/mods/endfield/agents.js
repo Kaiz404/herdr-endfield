@@ -2,15 +2,15 @@
 // (a lead, then the agents it started, joined by right-angle connectors whatever their vendor),
 // each agent a party chip with its operator's callsign. Past 12 agents the rows go compact and the
 // agents that need input are also pinned above every squad. Behaviour kept from the shipped
-// `agents` mod: setAgentOrder, sort modes, pins, peek for sub-agents, title cleaning, time since the
-// last state change. Claude Code agents and their sub-agents also show how long they have run,
-// their model, effort and context (sessions.js, fleet.js rowMeta), their own sub-agents read from
+// `agents` mod: setAgentOrder, sort modes, pins, peek for sub-agents, title cleaning. Claude Code
+// agents and their sub-agents also show their model and effort, how long they have run and a
+// context gauge (sessions.js, fleet.js rowMeta), their own sub-agents read from
 // the transcript, and a session card while hovered (card.js). An idle row folds to one line.
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
-import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, duration, telling, wipe, marker, nudge, rings, cross, ticks, pill, Entrance, StatusFx, MOTION, IDENTITY, FONT } from "./kit.js";
+import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE } from "./kit.js";
 import { roster } from "./roster.js";
 import { BY, DENSE_AT, statusOf, subNumbers, subagentView, rowShape, rowMeta } from "./fleet.js";
 import { toggleReport, goTo } from "./report.js";
@@ -32,7 +32,8 @@ const LINE_PX = 20;
 const cwdOf = (a) => panes().find((p) => p.terminal === a.address)?.cwd ?? null;
 
 // A session or sub-agent (sessions.js; both carry these fields) as fleet.js rowMeta reads it.
-const runOf = (s, live, program) => ({ startedAt: s?.startedAt, lastAt: s?.lastAt, live, model: s?.model?.short, effort: s?.effort, used: s?.ctx?.used, program });
+const runOf = (s, live, program) => ({ startedAt: s?.startedAt, lastAt: s?.lastAt, live, model: s?.model?.short, modelId: s?.model?.id,
+  effort: s?.effort, used: s?.ctx?.used, total: s?.ctx?.total, program });
 
 const SORTS = [
   { id: "priority", label: "Priority", icon: "clock", by: BY.priority },
@@ -54,13 +55,6 @@ function leadPanes(all) {
 function title(tab, lead) {
   const live = telling(lead);
   return (tab.name === lead?.program?.name || !tab.named) && live ? live : tab.name;
-}
-
-/** Five 5x6 blocks: how full the context is, at a glance. */
-function miniGauge(C, ctx, inv) {
-  const on = Math.round((Math.min(100, ctx.pct) / 100) * 5);
-  const lit = inv ? C.selText : ctx.pct >= 75 ? C.error : C.text;
-  return h_flex().gap(2).flex_none().children(Array.from({ length: 5 }, (_, k) => div().w(5).h(6).bg(k < on ? lit : inv ? C.selMuted : C.hairStrong)));
 }
 
 export class SortMenu {
@@ -91,9 +85,7 @@ export class Agents {
     this.seen = null;
     this.entrance = new Entrance(2);
     this.entrance.start(cx);
-    try { this.changed = JSON.parse(localStorage.getItem("changed") ?? "{}"); } catch { this.changed = {}; }
-    if (!this.changed || typeof this.changed !== "object" || Array.isArray(this.changed)) this.changed = {};
-    // Data, not animation: the "3m" labels age, and the operator assignments are reread.
+    // Data, not animation: the "1h07" labels age, and the operator assignments are reread.
     IDENTITY.refresh();
     cx.timer.every(30000, (cx) => { IDENTITY.refresh(); cx.notify(); });
     this.bounds = {};
@@ -153,21 +145,6 @@ export class Agents {
       props: { role: "card", terminal: address, ...this.info[address], snap: s ?? null },
     });
     return { id, address };
-  }
-
-  // Stamps agents whose state changed. Done and idle count as one: looking at a finished agent isn't it doing anything.
-  track(list, now) {
-    let dirty = false;
-    for (const a of list) {
-      const s = a.status === "done" ? "idle" : a.status;
-      if (this.changed[a.address]?.s === s) continue;
-      this.changed[a.address] = { s, at: now };
-      dirty = true;
-    }
-    if (!dirty) return;
-    const listed = new Set(list.map((a) => a.address));
-    for (const [k, c] of Object.entries(this.changed)) if (!listed.has(k) && now - c.at > 30 * 86400000) delete this.changed[k];
-    localStorage.setItem("changed", JSON.stringify(this.changed));
   }
 
   // Keys seen for the first time draw once at their start (a connector at height 0, a pinned row
@@ -237,8 +214,7 @@ export class Agents {
     const sub = on ? C.selMuted : C.muted;
     const pad = D.pad[depth ? 1 : 0];
     const st = statusOf(m.status);
-    const session = r.native ? null : this.sessions.get(m.address);
-    const when = r.native ? 0 : this.changed[m.address]?.at ?? 0;
+    const { head, time, gauge: ctx } = r.meta;
     const fx = this.fx.of(m.address);
     const pin = this.pinButton(C, r, hot, on);
     // The connector: a 1px right angle from the parent chip's foot to this chip's side, drawn top-down when the child arrives.
@@ -254,11 +230,11 @@ export class Agents {
       ? h_flex().flex_none().items_center().child(statusMark(C, m.status, { inv: on, size: 11, id: `${r.key}-disc`, pop: fx.pop }) ?? div())
       : dense
       ? h_flex().h(12).flex_none().items_center().tooltip(st?.word ?? m.status).child(glyph(C, m.status, { inv: on, size: 11, id: `${r.key}-disc`, pop: fx.pop }) ?? div())
-      : v_flex().flex_none().items_end().gap(7)
+      : v_flex().flex_none().items_end().gap(5)
         .child(statusMark(C, m.status, { inv: on, size: 11, id: `${r.key}-disc`, pop: fx.pop }) ?? div())
-        .child(h_flex().gap(6).items_center()
-          .when(Boolean(when), (el) => el.child(micro(duration(Date.now() - when), sub)))
-          .when(Boolean(session?.ctx), (el) => el.child(miniGauge(C, session.ctx, on))));
+        .when(Boolean(time), (el) => el.child(h_flex().gap(4).items_center().text_color(sub)
+          .child(icon("clock", 10)).child(micro(time, sub).flex_none())))
+        .when(Boolean(ctx), (el) => el.child(gauge(C, ctx, { inv: on, id: `${r.key}-ctx` })));
     return h_flex()
       .id(r.key)
       .relative()
@@ -288,7 +264,7 @@ export class Agents {
         : nudge(v_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(dense ? 4 : 6)
           .child(h_flex().min_w(0).gap(6).items_center()
             .child(wide(m.ident.callsign, fg, dense ? 9 : 10).flex_none())
-            .child(micro(r.meta, sub).min_w(0).truncate()))
+            .child(micro(head, sub).min_w(0).truncate()))
           .child(div().min_w(0).truncate().font_medium().text_size(dense ? 11.5 : 13).child(r.title)))
       .when(Boolean(pin), (el) => el.child(pin))
       .child(right);
@@ -391,7 +367,6 @@ export class Agents {
     const sort = sortOf();
     const R = roster(sort.by);
     const list = agents();
-    this.track(list, Date.now());
     for (const m of R.all.values()) this.fx.track(m.address, m.status, cx);
     setAgentOrder(R.flat.filter((m) => m.agent).map((m) => m.address));
     this.share(R);
@@ -432,7 +407,7 @@ export class Agents {
       };
       const push = (r) => { rows.push(r); inner += r.h; };
       for (const m of q.members) {
-        const meta = rowMeta(runOf(this.sessions.get(m.address), m.status === "working", m.program?.name), now);
+        const meta = rowMeta(runOf(this.sessions.get(m.address), m.status === "working", m.program?.name), now, GAUGE.segments);
         const r = { key: `ag-${m.address}`, m, depth: m.depth, ...sized(m.status, m.depth), top: inner, on: m.agent ? m.focused : m.address === shown,
           title: label(m), meta, up: m.parent ? placed.get(m.parent) : null, click: () => this.focus(m) };
         placed.set(m.address, r);
@@ -450,7 +425,7 @@ export class Agents {
           const ident = IDENTITY.resolve(m.program, null, { parent: m.program });
           const n = nums.get(k.id);
           push({ key: `sa-${k.id}`, m: { address: `sa-${k.id}`, status: k.status, ident: { ...ident, callsign: `${ident.name.toUpperCase()}${n > 1 ? `·${n}` : ""}` } }, depth: m.depth + 1,
-            ...sized(k.status, m.depth + 1), top: inner, on: false, title: k.title, native: true, meta: rowMeta(runOf(k, k.status === "working"), now),
+            ...sized(k.status, m.depth + 1), top: inner, on: false, title: k.title, native: true, meta: rowMeta(runOf(k, k.status === "working"), now, GAUGE.segments),
             up: r, click: () => this.openTranscript(m, k) });
         }
         if (subs.earlier) {

@@ -18,7 +18,7 @@
 
 import * as fs from "fs/promises";
 import { exec, appHome, watchFolder, checking } from "herdr";
-import { DASH } from "./fleet.js";
+import { DASH, contextWindow } from "./fleet.js";
 
 const DATA = () => `${appHome()}/data/endfield`;
 const SIDECARS = () => `${DATA()}/sessions`;
@@ -35,11 +35,6 @@ function modelName(id, display = null) {
   const m = /(opus|sonnet|haiku|fable)-(\d+)(?:-(\d{1,2}))?(?=$|[-[@])/i.exec(id ?? "");
   const short = m ? `${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}${m[3] ? `.${m[3]}` : ""}` : display ?? id ?? null;
   return { id, display: display ?? (m ? `Claude ${short}` : id), short };
-}
-
-// The window is 1M for a "[1m]" model, else 200K; a context already past 200K must be in the larger one.
-function contextWindow(id, used) {
-  return /\[1m\]/i.test(id ?? "") || used > 200000 ? 1000000 : 200000;
 }
 
 // A sidecar's context (the statusline's own numbers) wins over the transcript's last usage.

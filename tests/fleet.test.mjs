@@ -92,20 +92,39 @@ test("with none working only the toggle is offered; with none finished there is 
 
 const MIN = 60000;
 
-test("a generating sub-agent's meta reads elapsed, model, effort and context, with no address or tool count", () => {
-  const meta = rowMeta({ startedAt: 1, lastAt: 3 * MIN, live: true, model: "Opus 5.5", effort: "high", used: 151000, program: "Claude Code" }, 1 + 12 * MIN);
-  assert.equal(meta, "12m · Opus 5.5 · high · 151K ctx");
+test("a generating run: model and effort beside the callsign, elapsed to now, and an 8-block gauge with its numbers", () => {
+  const meta = rowMeta({ startedAt: 1, lastAt: 3 * MIN, live: true, model: "Opus 5.5", effort: "medium", used: 157000, total: 1000000, program: "Claude Code" }, 1 + 67 * MIN, 8);
+  assert.deepEqual(meta, { head: "Opus 5.5 · med", time: "1h07", gauge: { lit: 1, hot: false, tip: "157K / 1M · 16%" } });
+});
+
+test("elapsed reads <1m, minutes, hours with minutes, then whole hours and days", () => {
+  const at = (ms) => rowMeta({ startedAt: 1, lastAt: 1 + ms }, 0, 8).time;
+  assert.deepEqual([20000, 27 * MIN, 60 * MIN, 67 * MIN, 599 * MIN, 12 * 60 * MIN, 3 * 24 * 60 * MIN].map(at),
+    ["<1m", "27m", "1h00", "1h07", "9h59", "12h", "3d"]);
 });
 
 test("a finished run's elapsed stops at its last write, not now", () => {
-  assert.equal(rowMeta({ startedAt: 1, lastAt: 1 + 65 * MIN, live: false }, 500 * MIN), "1h 05m");
-  assert.equal(rowMeta({ startedAt: 1, lastAt: 20000, live: false }, 500 * MIN), "<1m");
+  assert.equal(rowMeta({ startedAt: 1, lastAt: 1 + 65 * MIN, live: false }, 500 * MIN, 8).time, "1h05");
 });
 
-test("what isn't known is left out, and an agent with no session shows its program", () => {
-  assert.equal(rowMeta({ program: "Codex" }, 0), "Codex");
-  assert.equal(rowMeta({ model: "Opus 5.5", used: 0, program: "Claude Code" }, 0), "Opus 5.5", "no assistant turn yet: no context part");
-  assert.equal(rowMeta({ startedAt: 5, live: true, model: "Opus 5.5" }, 5 + 2 * MIN), "2m · Opus 5.5");
+test("past 75% of the window the gauge runs hot; a context over the window fills every block", () => {
+  const g = (used, total) => rowMeta({ used, total }, 0, 8).gauge;
+  assert.deepEqual([g(149000, 200000).hot, g(150000, 200000).hot], [false, true]);
+  assert.equal(g(250000, 200000).lit, 8);
+  assert.equal(g(100000, 200000).lit, 4);
+});
+
+test("with no total the window is inferred: 1M for a [1m] model or a context past 200K, else 200K", () => {
+  assert.equal(rowMeta({ used: 50000 }, 0, 8).gauge.tip, "50K / 200K · 25%");
+  assert.equal(rowMeta({ used: 50000, modelId: "claude-opus-5-5[1m]" }, 0, 8).gauge.tip, "50K / 1M · 5%");
+  assert.equal(rowMeta({ used: 300000 }, 0, 8).gauge.tip, "300K / 1M · 30%");
+});
+
+test("what isn't known is null or left out, and an agent with no session shows its program", () => {
+  assert.deepEqual(rowMeta({ program: "Codex" }, 0, 8), { head: "Codex", time: null, gauge: null });
+  assert.equal(rowMeta({ model: "Opus 5.5", used: 0 }, 0, 8).gauge, null, "no assistant turn yet: no gauge");
+  assert.deepEqual(["low", "high", "xhigh", "max", "ultra"].map((effort) => rowMeta({ model: "M", effort }, 0, 8).head),
+    ["M · low", "M · high", "M · xhigh", "M · max", "M · ultra"]);
 });
 
 test("only idle rows fold to one line; working, blocked, done and error keep their two-line height", () => {

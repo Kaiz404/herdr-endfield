@@ -42,13 +42,18 @@ rendered at 4x. It is a schematic, not a screenshot.
     a 1px halo in the operator's accent, a class badge bottom right: `C`
     Claude Code, `X` Codex, `Cu` Cursor, `O` OpenCode, `G` Gemini); the
     callsign in wide caps 10px (`PERLICA`; a repeat takes a spare operator,
-    then `PERLICA·2`) with a mono meta line beside it: how long the run has
-    gone (to now while generating, else to its last write), the model, the
-    effort level and the context held, as `12M · OPUS 5.5 · HIGH · 151K CTX`
-    (an agent with no Claude Code session shows its program; no terminal
+    then `PERLICA·2`) with a mono meta line beside it: the model and effort
+    level, as `OPUS 5.5 · MED` (effort reads LOW, MED, HIGH, XHIGH or MAX;
+    an agent with no Claude Code session shows its program; no terminal
     address, no tool count); the task (13px medium); at the right
-    "Generating ▶▶", a yellow "Needs input" pill or "✓ Claimed", over the
-    time since the last state change and a 5-block context gauge. An idle
+    "Generating ▶▶", a yellow "Needs input" pill or "✓ Claimed", over a
+    clock icon and how long the run has gone (to now while generating, else
+    to its last write: `<1M`, `27M`, `1H07`, `12H`, `3D`), over an 8-block
+    context gauge (5x6px blocks 2px apart; lit share = used / window, red
+    from 75%; its tooltip reads `157K / 1M · 16%`; an unknown window is 1M
+    for a `[1m]` model or a context past 200K, else 200K). Sub-agent rows
+    show the same. What isn't known is left out. Compact rows keep only the
+    status glyph at the right. An idle
     row folds to one 34px line (26px compact): a 22px chip (18px compact),
     the callsign, the task at 11.5px and "zZ Idle". Blocked rows carry 4px hazard stripes on the left edge; a
     generating row's floor has a 28px blue segment scanning across (1600ms).

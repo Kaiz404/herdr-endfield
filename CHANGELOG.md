@@ -9,7 +9,7 @@
 ### Changed
 
 - **Claude Code sub-agents.** Squads used to show at most four sub-agents under a parent, picked in no useful order. Now it shows every working sub-agent, newest first. A row under them, **+N earlier**, lists the finished ones too, newest first. **Show less** folds them away again. Each parent remembers its choice until Herdr reloads the skin. A long list scrolls.
-- **Squads rows say how a run is going.** Beside each callsign, an agent and each Claude Code sub-agent show how long it has run, its model, its effort level and the context it holds, for example `12M · OPUS 5.5 · HIGH · 151K CTX`. The terminal address (`T3H`) and the tool count are gone from the row. The session panel still shows them.
+- **Squads rows say how a run is going.** Beside each callsign, an agent and each Claude Code sub-agent show their model and effort level, for example `OPUS 5.5 · MED`. Under the status word sit how long the run has gone (`◷ 1H07`) and an 8-block context gauge that runs red past 75%. Hover the gauge for the numbers, such as `157K / 1M · 16%`. The time since the last state change, the terminal address (`T3H`) and the tool count are gone from the row. The session panel still shows the address and tool count.
 - **Idle agents take one line.** An idle agent's row folds to its callsign, task and **Idle**, so the agents that are working get the room. Working, blocked and claimed rows keep two lines.
 
 ## 0.2.0

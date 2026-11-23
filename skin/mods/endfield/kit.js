@@ -307,6 +307,16 @@ export function path(text, fg, slash, { size = 13, weight = 500 } = {}) {
 
 export const icon = (name, size = 14) => svg(`${ASSETS}/${name}.svg`).size(size).flex_none();
 
+// A Squads row's context gauge: `segments` blocks of w x h, `gap` apart.
+export const GAUGE = { segments: 8, w: 5, h: 6, gap: 2 };
+
+/** g: fleet.js rowMeta's gauge {lit, hot, tip}; `inv` on the selected row's plate. */
+export function gauge(C, g, { inv = false, id }) {
+  const lit = inv ? C.selText : g.hot ? C.error : C.text;
+  return h_flex().id(id).gap(GAUGE.gap).flex_none().tooltip(g.tip)
+    .children(Array.from({ length: GAUGE.segments }, (_, k) => div().w(GAUGE.w).h(GAUGE.h).bg(k < g.lit ? lit : inv ? C.selMuted : C.hairStrong)));
+}
+
 const RECT = () => PathBuilder.fill().move_to("0%", "0%").line_to("100%", "0%").line_to("100%", "100%").line_to("0%", "100%").close().build();
 
 /** Tone-on-tone 45° grain filling a relative parent: material, not pattern. */
@@ -392,14 +402,6 @@ export function basename(p) {
   if (!p) return "";
   if (p === home()) return "~";
   return p.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || p;
-}
-
-export function duration(ms) {
-  const m = Math.floor(ms / 60000);
-  if (m < 1) return "<1m";
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
 }
 
 /** The key bound to an action, as the person types it ("Ctrl+Shift+P"), or null. */

@@ -142,31 +142,51 @@ export const rowShape = (status, depth) => (STATUS[status]?.oneLine ? "idle" : d
 
 export const DASH = "—";
 
-/** 151000 -> "151K", 1200000 -> "1.2M". */
+/** 151000 -> "151K", 1200000 -> "1.2M", 1000000 -> "1M". */
 export function fmtTokens(n) {
   if (n == null) return DASH;
-  if (n >= 1e6) return `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, "")}M`;
   if (n >= 1e3) return `${Math.round(n / 1e3)}K`;
   return String(n);
 }
 
-/** 40s -> "<1m", 12 min -> "12m", 65 min -> "1h 05m". */
+/** 40s -> "<1m", 27 min -> "27m", 67 min -> "1h07", 12 h -> "12h", 3 days -> "3d". */
 export function elapsed(ms) {
-  const m = Math.floor(ms / 60000);
+  const m = Math.floor(ms / 60000), h = Math.floor(m / 60);
   if (m < 1) return "<1m";
-  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
+  if (m < 60) return `${m}m`;
+  if (h < 10) return `${h}h${String(m % 60).padStart(2, "0")}`;
+  return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
 }
 
-// A Squads row's meta line: how long the run has gone (to now while it works, else to its last
-// write), its model and effort, and the context it holds. What isn't known is left out, and an
-// agent with no session shows its program instead of a model.
-// run: {startedAt, lastAt, live, model, effort, used, program}, every field optional
-export function rowMeta(run, now) {
+// The window is 1M for a "[1m]" model, else 200K; a context already past 200K must be in the larger one.
+export function contextWindow(id, used) {
+  return /\[1m\]/i.test(id ?? "") || used > 200000 ? 1000000 : 200000;
+}
+
+// From this share of the window on, a context gauge runs red.
+export const CTX_HOT = 0.75;
+
+const EFFORT = { low: "low", medium: "med", high: "high", xhigh: "xhigh", max: "max" };
+
+/**
+ * What a Squads row says about a run. head: model (or, with no session, the program) and effort,
+ * beside the callsign. time: how long the run has gone, to now while it works, else to its last
+ * write. gauge: how full its context is, in `segments` blocks. What isn't known is null.
+ * run: {startedAt, lastAt, live, model, modelId, effort, used, total, program}, every field optional
+ * -> {head, time, gauge: {lit, hot, tip} | null}
+ */
+export function rowMeta(run, now, segments) {
   const end = run.live ? now : run.lastAt;
-  return [
-    run.startedAt && end ? elapsed(Math.max(0, end - run.startedAt)) : null,
-    run.model ?? run.program,
-    run.effort,
-    run.used ? `${fmtTokens(run.used)} ctx` : null,
-  ].filter(Boolean).join(" · ");
+  const total = run.total ?? contextWindow(run.modelId, run.used);
+  const share = run.used ? run.used / total : null;
+  return {
+    head: [run.model ?? run.program, EFFORT[run.effort] ?? run.effort].filter(Boolean).join(" · "),
+    time: run.startedAt && end ? elapsed(Math.max(0, end - run.startedAt)) : null,
+    gauge: share == null ? null : {
+      lit: Math.round(Math.min(1, share) * segments),
+      hot: share >= CTX_HOT,
+      tip: `${fmtTokens(run.used)} / ${fmtTokens(total)} · ${Math.round(share * 100)}%`,
+    },
+  };
 }
