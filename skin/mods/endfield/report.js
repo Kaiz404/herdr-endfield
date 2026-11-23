@@ -11,6 +11,7 @@ import { run, shared, layout } from "herdr";
 import { palette, root, statusMark, chip, micro, wide, pad2, barcode, growDisc, find, Entrance, FONT } from "./kit.js";
 import { roster } from "./roster.js";
 import { DENSE_AT, fmtTokens } from "./fleet.js";
+import { openArchived } from "./actions.js";
 
 export const REPORT = { stack: "work-stack", work: "main", report: "report" };
 export const toggleReport = (open) => run("layout.select", { stack: REPORT.stack, child: open ? REPORT.report : REPORT.work });
@@ -198,6 +199,9 @@ export class Report {
           .when(this.group, (el) => el.bg(C.selBg))
           .on_click((_e, cx) => { this.group = !this.group; this.keep(cx); })
           .child(micro(`Group · ${this.group ? "Squad" : "None"}`, this.group ? C.selText : C.text)))
+        .child(div().id("report-archived").px(10).py(6).rounded_full().border_1().border_color(C.hairStrong).cursor_pointer()
+          .tooltip("Chats archived from a session card, with Resume").on_click(() => openArchived())
+          .child(micro("Archived", C.text)))
         .child(div().flex_1())
         .child(micro("Click a heading to sort · click a row to focus it", C.muted)))
       .child(h_flex().h(32).flex_none().px(20).items_center().border_b(1).border_color(C.hair)

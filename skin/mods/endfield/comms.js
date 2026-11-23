@@ -1,6 +1,6 @@
 // comms: who sent what to whom, newest first, and the Comms pane that shows it.
 // A message is one delivery: { at (ms), from, to (a terminal address, "you" or "hc"),
-//   kind: task | msg | reply | screen | needs | error, via (the transport), text, unverified? }.
+//   kind: task | msg | reply | screen | needs | error | action, via (the transport), text, unverified? }.
 // Two sources, and the pane says so:
 //   1. the skin's own log, one JSON line per Dispatch, in data/endfield/comms.jsonl, kept under
 //      512 KB (messages.js) and removed by uninstall;
@@ -43,6 +43,7 @@ export const KIND = {
   screen: { tag: "Screen line", edge: "hairStrong" },
   needs: { tag: "Needs input", edge: "signal" },
   error: { tag: "Exited", edge: "red" },
+  action: { tag: "Action", edge: "hairStrong" },
 };
 
 /** The Comms pane in the shown tab, if one is open (the endfield mod's only pane). */
