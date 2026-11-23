@@ -200,7 +200,10 @@ rendered at 4x. It is a schematic, not a screenshot.
   `alt-down` follow the list's order.
 - **Session card:** after 250ms on an agent row it fades in and slides 16px
   right (300ms) and the context blocks light 18ms apart. Moving onto the card
-  keeps it; leaving both closes it after 160ms. Answer/Focus runs
+  keeps it; leaving both closes it after 160ms. A press outside the card
+  closes it at once, except on its own row. A hover-out Herdr never reports
+  closes nothing until the next press: the pointer's position is not read.
+  Answer/Focus runs
   `agent.focus`, Peek `terminal.peek`, Pin `terminal.pin`.
 - **Claude Code sub-agent row:** working while its transcript was written in
   the last 20s and its last step is a tool call or not a final answer; else
@@ -266,7 +269,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   "window"`, `frame: "none"`, props `{role: "card", terminal, title, where,
   snap}`). Shared keys: `endfield.card.open` (the one card the agents list
   owns), `endfield.card.hot` (the pointer is on the card),
-  `endfield.card.closed` (the card was pressed beside, or closed itself),
+  `endfield.card.closed` (the overlay id of a card pressed beside, or closed
+  by itself; a press on the card's own row is not a dismissal),
   `endfield.identity` (the identity table changed).
 - `herdr` calls: `spaces`, `agents`, `terminals`, `panes`, `focused`,
   `machines`, `layout`, `settings`, `keys`, `updates`, `fonts`, `shared`,

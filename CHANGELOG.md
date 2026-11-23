@@ -19,7 +19,7 @@
 
 ### Fixed
 
-- **The session panel no longer stays open after you move on.** It closes when you click anywhere outside it, when the pointer is no longer on the agent's row or the panel, and when the Herdr window stops being the active one. Clicking an agent's row now closes its panel too.
+- **The session panel no longer stays open after you move on.** It closes when you click anywhere outside it, such as on Files, Comms or Report, and when you fold the sidebar. Clicking the agent's own row keeps its panel. One case is not fixed: if the pointer leaves the row or the panel and Herdr does not report it, the panel stays until your next click.
 
 ## 0.2.0
 

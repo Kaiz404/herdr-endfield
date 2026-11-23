@@ -9,7 +9,7 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, window as appWindow } from "herdr";
+import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE } from "./kit.js";
 import { roster } from "./roster.js";
 import { BY, DENSE_AT, statusOf, subNumbers, subagentView, TRANSCRIPT, transcriptsIn, transcriptPlan, rowShape, rowMeta } from "./fleet.js";
@@ -17,7 +17,7 @@ import { toggleReport, goTo } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
 import { CARD, cardHeight } from "./card.js";
-import { wantedCard } from "./hovercard.js";
+import { wantedCard, dismissed } from "./hovercard.js";
 
 // Fixed heights, so the selection marker knows where the selected row starts (the row's own ink plate snaps).
 // Compact (DENSE_AT agents and up): 34px rows that keep the chip, badge and callsign over the task.
@@ -97,7 +97,7 @@ export class Agents {
     this.subNums = new Map();
     // Parents whose finished sub-agents are listed too; kept until the mod reloads.
     this.opened = new Set();
-    this.card = { open: null, hot: null, seq: 0, armed: false };
+    this.card = { open: null, hot: null, seq: 0, armed: false, kept: null };
     // The one card this list owns; a card that isn't it (left from a reload) closes itself.
     setShared("endfield.card.open", null);
     // Shared values outlive a restart and overlay ids may not: an old report must not close a new card.
@@ -114,12 +114,10 @@ export class Agents {
   }
 
   // What wantedCard reads, taken when a decision is made. The hovered row counts only while the
-  // list draws rows (the rail has none to report the pointer leaving).
+  // list draws rows (the rail has none to report the pointer leaving) and its agent is still listed.
   cardFacts() {
     const row = !narrow() && agents().some((a) => `ag-${a.address}` === this.hovered) ? this.hovered.slice(3) : null;
-    let pointer = null;
-    try { pointer = window.mouse_position(); } catch {}
-    return { row, rowRect: row ? this.bounds[`ag-${row}`] : null, hot: this.card.hot, open: this.card.open, pointer, active: appWindow()?.active !== false };
+    return { row, hot: this.card.hot, open: this.card.open };
   }
 
   setCard(address) {
@@ -146,13 +144,23 @@ export class Agents {
 
   /**
    * Each render: a card pressed beside (or closed by its own button) goes at once, and a card that
-   * is up but no longer wanted gets its close timer, whether or not a hover-out said so.
+   * is up but no longer wanted (the sidebar folded, its agent gone) gets its close timer. A press
+   * on the card's own row is beside the card too, and keeps it.
    */
   cardSync(cx) {
     const hot = shared("endfield.card.hot") ?? null;
     const moved = hot !== this.card.hot;
     this.card.hot = hot;
-    if (this.card.open && shared("endfield.card.closed") === this.card.open.id) this.setCard(null);
+    const kept = this.card.kept;
+    this.card.kept = null;
+    const closed = shared("endfield.card.closed") ?? null;
+    if (dismissed({ closed, open: this.card.open, kept })) {
+      // The press landed elsewhere, so a hover the row still claims is one whose exit went unreported.
+      if (this.hovered === `ag-${this.card.open.address}`) this.hovered = null;
+      this.card.seq++;
+      this.card.armed = false;
+      this.setCard(null);
+    } else if (closed && closed === this.card.open?.id) setShared("endfield.card.closed", null);
     const open = this.card.open;
     if (moved || (open && !this.card.armed && wantedCard(this.cardFacts()) !== open.address)) this.cardTick(cx);
   }
@@ -168,15 +176,14 @@ export class Agents {
     try { winH = window.bounds().height; } catch {}
     let y = b.y - 12 - CARD.pad;
     if (y + tall > winH - 8) y = b.y + b.height + 12 + CARD.pad - tall;
-    const rect = { x: Math.round(b.x + b.width - 12 - CARD.pad), y: Math.round(Math.max(0, y)), width: CARD.width + CARD.slide + 2 * CARD.pad, height: tall };
     const id = openOverlay({
       mod: "endfield", kind: "window", frame: "none",
-      at: { x: rect.x, y: rect.y },
-      width: rect.width,
-      height: rect.height,
+      at: { x: Math.round(b.x + b.width - 12 - CARD.pad), y: Math.round(Math.max(0, y)) },
+      width: CARD.width + CARD.slide + 2 * CARD.pad,
+      height: tall,
       props: { role: "card", terminal: address, ...this.info[address], snap: s ?? null },
     });
-    return { id, address, rect };
+    return { id, address };
   }
 
   // Keys seen for the first time draw once at their start (a connector at height 0, a pinned row
@@ -255,6 +262,7 @@ export class Agents {
     const { model, effort, time, gauge: ctx } = r.meta;
     const fx = this.fx.of(m.address);
     const pin = this.pinButton(C, r, hot, on);
+    const keep = (_e, cx) => { this.card.kept = this.card.open?.id ?? null; cx.notify(); };
     // The connector: a 1px right angle from the parent chip's foot to this chip's side, drawn top-down when the child arrives.
     let link = null;
     if (r.up) {
@@ -308,6 +316,8 @@ export class Agents {
       .on_hover(this.hover(r.key))
       .on_mouse_move((e) => { this.bounds[r.key] = e.bounds; })
       .on_click(r.click)
+      // Told to the list before its next render, where the card's report of the same press is read.
+      .when(r.key === `ag-${this.card.open?.address}`, (el) => el.on_mouse_down("left", keep).on_mouse_down("right", keep).on_mouse_down("middle", keep))
       .child(wipe(`${r.key}-wipe`, C.sunken, this.width, hot && !on))
       .when(st?.edge === "hazard", (el) => el.child(div().absolute().left(0).top(6).flex().child(hazard(C, 4, r.h - 12))))
       .when(Boolean(link), (el) => el.child(link))

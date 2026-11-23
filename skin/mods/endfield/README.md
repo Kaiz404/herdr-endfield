@@ -30,13 +30,15 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   many are kept, the log's size cap), `base.js` (the home base: which folder a
   new local space opens in), `usage.js` (the HUD footer's Claude usage limits:
   which windows show, when one has reset, how time to reset reads) and
-  `hovercard.js` (whose session card is up).
-- The session card closes on what is true now, not only on a hover-out, because
-  Herdr reports hover only when it changes and an exit can go unreported.
-  `agents.js` re-reads the facts each time it decides and on every render: the
-  hovered row, the card's `endfield.card.hot`, where the pointer is against the
-  row's and the card's rectangles, and whether the window is active. A press
-  beside the card closes it at once (`endfield.card.closed`).
+  `hovercard.js` (whose session card is up, and when a press takes it away).
+- The session card closes on events, not on where the pointer is. A press
+  outside the card closes it at once (`on_mouse_down_out` in `card.js`, reported
+  through `endfield.card.closed`), unless the press is on the card's own row.
+  Folding the sidebar to the rail and the hovered agent going away close it
+  after the usual delay. A hover-out that Herdr never delivers, with no press
+  after it, still leaves the card up: closing it would need the pointer's
+  position, and reading that against the row's and the card's rectangles has
+  not been checked in a live window.
 - `kit.js` `newSpace()` is the one way a space is made: every New space control in
   `spaces.js` and the `endfield.newSpace` key command (handled by the `status` role,
   which every Endfield window shows once). On this computer it passes the home base as
