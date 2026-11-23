@@ -241,6 +241,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   "window"`, `frame: "none"`, props `{role: "card", terminal, title, where,
   snap}`). Shared keys: `endfield.card.open` (the one card the agents list
   owns), `endfield.card.hot` (the pointer is on the card),
+  `endfield.card.closed` (the card was pressed beside, or closed itself),
   `endfield.identity` (the identity table changed).
 - `herdr` calls: `spaces`, `agents`, `terminals`, `panes`, `focused`,
   `machines`, `layout`, `settings`, `keys`, `updates`, `fonts`, `shared`,

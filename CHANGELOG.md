@@ -12,6 +12,10 @@
 - **Claude Code sub-agents.** Squads used to show at most four sub-agents under a parent, picked in no useful order. Now it shows every working sub-agent, newest first. A row under them, **+N earlier**, lists the finished ones too, newest first. **Show less** folds them away again. Each parent remembers its choice until Herdr reloads the skin. A long list scrolls.
 - **One motion per working agent.** A generating row in Squads no longer has a blue segment sliding along its floor. The status glyph still animates, so a sidebar full of working agents is calmer.
 
+### Fixed
+
+- **The session panel no longer stays open after you move on.** It closes when you click anywhere outside it, when the pointer is no longer on the agent's row or the panel, and when the Herdr window stops being the active one. Clicking an agent's row now closes its panel too.
+
 ## 0.2.0
 
 The game-UI release. Agents are now drawn as Arknights: Endfield operators in squads, and you can send them work from the skin. Follow [docs/SETUP.md](docs/SETUP.md) to install or update.

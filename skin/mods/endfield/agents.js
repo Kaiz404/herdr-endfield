@@ -8,7 +8,7 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
+import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, window as appWindow } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, duration, telling, wipe, marker, nudge, rings, cross, ticks, pill, Entrance, StatusFx, MOTION, IDENTITY, FONT } from "./kit.js";
 import { roster } from "./roster.js";
 import { BY, DENSE_AT, statusOf, subNumbers, subagentView, TRANSCRIPT, transcriptsIn, transcriptPlan } from "./fleet.js";
@@ -100,9 +100,11 @@ export class Agents {
     this.subNums = new Map();
     // Parents whose finished sub-agents are listed too; kept until the mod reloads.
     this.opened = new Set();
-    this.card = { open: null, hot: null, seq: 0 };
+    this.card = { open: null, hot: null, seq: 0, armed: false };
     // The one card this list owns; a card that isn't it (left from a reload) closes itself.
     setShared("endfield.card.open", null);
+    // Shared values outlive a restart and overlay ids may not: an old report must not close a new card.
+    setShared("endfield.card.closed", null);
     // Polled whether the sidebar is wide, a rail or hidden: the HUD footer, the report and the card read it.
     this.sessions = new Sessions("agents");
     this.sessions.start(cx, () => agents().filter(isClaude).map((a) => ({ terminal: a.address, cwd: cwdOf(a), status: a.status })));
@@ -114,23 +116,48 @@ export class Agents {
     setShared("endfield.card.open", null);
   }
 
+  // What wantedCard reads, taken when a decision is made. The hovered row counts only while the
+  // list draws rows (the rail has none to report the pointer leaving).
+  cardFacts() {
+    const row = !narrow() && agents().some((a) => `ag-${a.address}` === this.hovered) ? this.hovered.slice(3) : null;
+    let pointer = null;
+    try { pointer = window.mouse_position(); } catch {}
+    return { row, rowRect: row ? this.bounds[`ag-${row}`] : null, hot: this.card.hot, open: this.card.open, pointer, active: appWindow()?.active !== false };
+  }
+
+  setCard(address) {
+    if (this.card.open) closeOverlay(this.card.open.id);
+    this.card.open = address ? this.openCard(address) : null;
+    setShared("endfield.card.open", this.card.open?.id ?? null);
+  }
+
   /**
    * The card follows the pointer with a grace period: the wanted card is the hovered agent row's,
    * else the open one while the pointer is on it. Every hover change re-arms one timer.
    */
   cardTick(cx) {
     const seq = ++this.card.seq;
-    const rowOf = () => (agents().some((a) => `ag-${a.address}` === this.hovered) ? this.hovered.slice(3) : null);
-    const row = rowOf();
+    const { row } = this.cardFacts();
+    this.card.armed = true;
     cx.timer.after((row && row !== this.card.open?.address ? MOTION.card.open : MOTION.card.close).delay, () => {
       if (seq !== this.card.seq) return;
-      const open = this.card.open;
-      const want = wantedCard({ row: rowOf(), hot: this.card.hot, open });
-      if (want === open?.address) return;
-      if (open) closeOverlay(open.id);
-      this.card.open = want ? this.openCard(want) : null;
-      setShared("endfield.card.open", this.card.open?.id ?? null);
+      this.card.armed = false;
+      const want = wantedCard(this.cardFacts());
+      if (want !== (this.card.open?.address ?? null)) this.setCard(want);
     });
+  }
+
+  /**
+   * Each render: a card pressed beside (or closed by its own button) goes at once, and a card that
+   * is up but no longer wanted gets its close timer, whether or not a hover-out said so.
+   */
+  cardSync(cx) {
+    const hot = shared("endfield.card.hot") ?? null;
+    const moved = hot !== this.card.hot;
+    this.card.hot = hot;
+    if (this.card.open && shared("endfield.card.closed") === this.card.open.id) this.setCard(null);
+    const open = this.card.open;
+    if (moved || (open && !this.card.armed && wantedCard(this.cardFacts()) !== open.address)) this.cardTick(cx);
   }
 
   // Beside the row, its top 12px above the row's (or its bottom 12px below, near the window's foot).
@@ -144,14 +171,15 @@ export class Agents {
     try { winH = window.bounds().height; } catch {}
     let y = b.y - 12 - CARD.pad;
     if (y + tall > winH - 8) y = b.y + b.height + 12 + CARD.pad - tall;
+    const rect = { x: Math.round(b.x + b.width - 12 - CARD.pad), y: Math.round(Math.max(0, y)), width: CARD.width + CARD.slide + 2 * CARD.pad, height: tall };
     const id = openOverlay({
       mod: "endfield", kind: "window", frame: "none",
-      at: { x: Math.round(b.x + b.width - 12 - CARD.pad), y: Math.round(Math.max(0, y)) },
-      width: CARD.width + CARD.slide + 2 * CARD.pad,
-      height: tall,
+      at: { x: rect.x, y: rect.y },
+      width: rect.width,
+      height: rect.height,
       props: { role: "card", terminal: address, ...this.info[address], snap: s ?? null },
     });
-    return { id, address };
+    return { id, address, rect };
   }
 
   // Stamps agents whose state changed. Done and idle count as one: looking at a finished agent isn't it doing anything.
@@ -377,8 +405,7 @@ export class Agents {
 
   render(cx) {
     const C = palette();
-    const hot = shared("endfield.card.hot") ?? null;
-    if (hot !== this.card.hot) { this.card.hot = hot; this.cardTick(cx); }
+    this.cardSync(cx);
     const sort = sortOf();
     const R = roster(sort.by);
     const list = agents();

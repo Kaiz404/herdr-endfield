@@ -22,13 +22,19 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   parent and depth, and squads in tree order: pinned agents first (they also lead
   `agent.next`), then one per space. Priority ranks an agent by the most urgent
   status in its tree.
-- Three modules hold the rules with no Herdr import, so `tests/` runs them under
+- Five modules hold the rules with no Herdr import, so `tests/` runs them under
   `node --test` (CI and `verify.mjs --static` too): `fleet.js` (the `STATUS`
   table, agent status to word, glyph kind, bar colour, entrance effect and rank,
   and the roster), `orders.js` (Dispatch's argv, the command line it shows, and
-  what became of a run) and `messages.js` (which Comms screen tags count, how
-  many are kept, the log's size cap) and `base.js` (the home base: which folder a
-  new local space opens in).
+  what became of a run), `messages.js` (which Comms screen tags count, how
+  many are kept, the log's size cap), `base.js` (the home base: which folder a
+  new local space opens in) and `hovercard.js` (whose session card is up).
+- The session card closes on what is true now, not only on a hover-out, because
+  Herdr reports hover only when it changes and an exit can go unreported.
+  `agents.js` re-reads the facts each time it decides and on every render: the
+  hovered row, the card's `endfield.card.hot`, where the pointer is against the
+  row's and the card's rectangles, and whether the window is active. A press
+  beside the card closes it at once (`endfield.card.closed`).
 - `kit.js` `newSpace()` is the one way a space is made: every New space control in
   `spaces.js` and the `endfield.newSpace` key command (handled by the `status` role,
   which every Endfield window shows once). On this computer it passes the home base as
