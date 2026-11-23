@@ -1,4 +1,5 @@
 {
+  "homeBase": null,
   "sounds": {
     "alerts": true,
     "ticks": false

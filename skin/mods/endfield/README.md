@@ -27,7 +27,12 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   table, agent status to word, glyph kind, bar colour, entrance effect and rank,
   and the roster), `orders.js` (Dispatch's argv, the command line it shows, and
   what became of a run) and `messages.js` (which Comms screen tags count, how
-  many are kept, the log's size cap).
+  many are kept, the log's size cap) and `base.js` (the home base: which folder a
+  new local space opens in).
+- `kit.js` `newSpace()` is the one way a space is made: every New space control in
+  `spaces.js` and the `endfield.newSpace` key command (handled by the `status` role,
+  which every Endfield window shows once). On this computer it passes the home base as
+  the folder; on another machine it passes none, so that machine's home applies.
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
   `card.js` (the session panel), `dispatch.js` (the Dispatch dialog), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),
   `toast.js` (notifications; it decides between the cut-in, the Claimed slip and
@@ -194,7 +199,10 @@ hear them with Herdr's sounds on, point Herdr at them instead:
 `data/endfield/settings.json` (installed from `settings.example.json`, never
 overwritten) holds the skin's own switches: `sounds.alerts` (default `true`)
 and `sounds.ticks` (default `false`: very quiet clicks when Dispatch sends and
-when a panel opens).
+when a panel opens), and `homeBase`, the folder new local spaces open in (unset:
+`<home>/Projects` if it exists, else home; `~` means home; a missing folder falls
+back to home and the Spaces header says `NOT FOUND`). It is reread every 30 s and
+on every New space.
 
 ## Fonts and licences
 
