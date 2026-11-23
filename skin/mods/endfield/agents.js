@@ -17,6 +17,7 @@ import { toggleReport, goTo } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
 import { CARD, cardHeight } from "./card.js";
+import { wantedCard, dismissed } from "./hovercard.js";
 
 // Fixed heights, so the selection marker knows where the selected row starts (the row's own ink plate snaps).
 // Compact (DENSE_AT agents and up): 34px rows that keep the chip, badge and callsign over the task.
@@ -96,9 +97,11 @@ export class Agents {
     this.subNums = new Map();
     // Parents whose finished sub-agents are listed too; kept until the mod reloads.
     this.opened = new Set();
-    this.card = { open: null, hot: null, seq: 0 };
+    this.card = { open: null, hot: null, seq: 0, armed: false, kept: null };
     // The one card this list owns; a card that isn't it (left from a reload) closes itself.
     setShared("endfield.card.open", null);
+    // Shared values outlive a restart and overlay ids may not: an old report must not close a new card.
+    setShared("endfield.card.closed", null);
     // Polled whether the sidebar is wide, a rail or hidden: the HUD footer, the report and the card read it.
     this.sessions = new Sessions("agents");
     this.sessions.start(cx, () => agents().filter(isClaude).map((a) => ({ terminal: a.address, cwd: cwdOf(a), status: a.status })));
@@ -110,23 +113,58 @@ export class Agents {
     setShared("endfield.card.open", null);
   }
 
+  // What wantedCard reads, taken when a decision is made. The hovered row counts only while the
+  // list draws rows (the rail has none to report the pointer leaving) and its agent is still listed.
+  cardFacts() {
+    const row = !narrow() && agents().some((a) => `ag-${a.address}` === this.hovered) ? this.hovered.slice(3) : null;
+    return { row, hot: this.card.hot, open: this.card.open };
+  }
+
+  setCard(address) {
+    if (this.card.open) closeOverlay(this.card.open.id);
+    this.card.open = address ? this.openCard(address) : null;
+    setShared("endfield.card.open", this.card.open?.id ?? null);
+  }
+
   /**
    * The card follows the pointer with a grace period: the wanted card is the hovered agent row's,
    * else the open one while the pointer is on it. Every hover change re-arms one timer.
    */
   cardTick(cx) {
     const seq = ++this.card.seq;
-    const rowOf = () => (agents().some((a) => `ag-${a.address}` === this.hovered) ? this.hovered.slice(3) : null);
-    const row = rowOf();
+    const { row } = this.cardFacts();
+    this.card.armed = true;
     cx.timer.after((row && row !== this.card.open?.address ? MOTION.card.open : MOTION.card.close).delay, () => {
       if (seq !== this.card.seq) return;
-      const open = this.card.open;
-      const want = rowOf() ?? (open && this.card.hot === open.id ? open.address : null);
-      if (want === open?.address) return;
-      if (open) closeOverlay(open.id);
-      this.card.open = want ? this.openCard(want) : null;
-      setShared("endfield.card.open", this.card.open?.id ?? null);
+      this.card.armed = false;
+      const want = wantedCard(this.cardFacts());
+      if (want !== (this.card.open?.address ?? null)) this.setCard(want);
     });
+  }
+
+  /**
+   * Each render: a card pressed beside (or closed by its own button) goes at once, and a card that
+   * is up but no longer wanted (the sidebar folded, its agent gone) gets its close timer. A press
+   * on the card's own row is beside the card too, and keeps it.
+   */
+  cardSync(cx) {
+    const hot = shared("endfield.card.hot") ?? null;
+    const moved = hot !== this.card.hot;
+    this.card.hot = hot;
+    const kept = this.card.kept;
+    this.card.kept = null;
+    const closed = shared("endfield.card.closed") ?? null;
+    if (dismissed({ closed, open: this.card.open, kept })) {
+      // The press landed elsewhere, so a hover the row still claims is one whose exit went unreported.
+      if (this.hovered === `ag-${this.card.open.address}`) this.hovered = null;
+      this.card.seq++;
+      this.card.armed = false;
+      this.setCard(null);
+      // The press may have been on another agent's row: its card still opens after the usual delay.
+      if (this.cardFacts().row) { this.cardTick(cx); return; }
+    } else if (closed && closed === this.card.open?.id) setShared("endfield.card.closed", null);
+    const open = this.card.open;
+    if (moved || (open && !this.card.armed && wantedCard(this.cardFacts()) !== open.address)) this.cardTick(cx);
   }
 
   // Beside the row, its top 12px above the row's (or its bottom 12px below, near the window's foot).
@@ -180,7 +218,7 @@ export class Agents {
     const plan = transcriptPlan(panes(), tab, this.viewing[tab], k.path);
     if (plan.focus) return run("pane.focus", { pane: plan.focus });
     for (const pane of plan.close) run("pane.close", { pane });
-    run("pane.split", { direction: "right", pane: parent.pane, mod: TRANSCRIPT, props: { path: k.path, title: k.title } });
+    run("pane.split", { direction: "right", pane: parent.pane, mod: TRANSCRIPT, props: { path: k.path, title: k.title, id: k.id, parent: parent.address, via: parent.ident.callsign } });
     const all = panes();
     this.viewing = Object.fromEntries(Object.entries({ ...this.viewing, [tab]: k.path }).filter(([t]) => t === tab || transcriptsIn(all, t).length));
     localStorage.setItem("transcripts", JSON.stringify(this.viewing));
@@ -226,6 +264,7 @@ export class Agents {
     const { model, effort, time, gauge: ctx } = r.meta;
     const fx = this.fx.of(m.address);
     const pin = this.pinButton(C, r, hot, on);
+    const keep = (_e, cx) => { this.card.kept = this.card.open?.id ?? null; cx.notify(); };
     // The connector: a 1px right angle from the parent chip's foot to this chip's side, drawn top-down when the child arrives.
     let link = null;
     if (r.up) {
@@ -279,6 +318,8 @@ export class Agents {
       .on_hover(this.hover(r.key))
       .on_mouse_move((e) => { this.bounds[r.key] = e.bounds; })
       .on_click(r.click)
+      // Told to the list before its next render, where the card's report of the same press is read.
+      .when(r.key === `ag-${this.card.open?.address}`, (el) => el.on_mouse_down("left", keep).on_mouse_down("right", keep).on_mouse_down("middle", keep))
       .child(wipe(`${r.key}-wipe`, C.sunken, this.width, hot && !on))
       .when(st?.edge === "hazard", (el) => el.child(div().absolute().left(0).top(6).flex().child(hazard(C, 4, r.h - 12))))
       .when(Boolean(link), (el) => el.child(link))
@@ -381,8 +422,7 @@ export class Agents {
 
   render(cx) {
     const C = palette();
-    const hot = shared("endfield.card.hot") ?? null;
-    if (hot !== this.card.hot) { this.card.hot = hot; this.cardTick(cx); }
+    this.cardSync(cx);
     const sort = sortOf();
     const R = roster(sort.by);
     const list = agents();

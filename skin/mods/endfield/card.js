@@ -38,8 +38,11 @@ export class Card {
     });
   }
 
+  // Only this card's own claim: the next card may already be up, with the pointer on it.
   close() {
-    setShared("endfield.card.hot", null);
+    const id = props()?.overlay ?? this.p.overlay;
+    if (shared("endfield.card.hot") === id) setShared("endfield.card.hot", null);
+    setShared("endfield.card.closed", id);
   }
 
   act(name, args) {
@@ -86,6 +89,8 @@ export class Card {
         cx.timer.after(MOTION.settle.delay, (cx) => { this.entered = true; cx.notify(); });
       })
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      // A press anywhere else is the person moving on, whatever hover says. The list closes the card.
+      .on_mouse_down_out(() => setShared("endfield.card.closed", p.overlay))
       .on_hover((over) => setShared("endfield.card.hot", over ? p.overlay : null))
       .child(v_flex().id("card").relative().w(CARD.width).flex_none().self_start().overflow_hidden().rounded(4).border_1().border_color(C.hairStrong)
         .bg(C.raised).shadow_lg()

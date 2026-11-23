@@ -271,7 +271,7 @@ Dispatch and Comms use herdr-core's `hc` command, which Herdr installs. The skin
 1. Open Dispatch. Click the `+` on a squad header, or click **Dispatch** in an agent's session panel. With no agents running, the sidebar shows a **Dispatch** pill.
 2. Choose **Send to agent** to type into a running agent, or **New agent** to start one.
 3. For **Send to agent**, pick the target. Then pick the delivery:
-   - **Only if idle** sends only if the agent is idle. Otherwise hc types nothing, and the dialog says why. hc has no queue.
+   - **Only if idle** sends only if the agent is waiting at its prompt: idle, or finished its turn. While it is generating, needs input or stopped on an error, **Dispatch** is disabled and the dialog says why. hc has no queue.
    - **Now** sends at once. hc waits for a draft you are typing in that terminal, for up to 60 seconds.
    - **Now, wait for reply** sends at once, then waits for the turn to end and logs the agent's last screen line.
 4. For **New agent**, pick the program, the squad (click it for the next space) and the parent. Then pick the lifetime: **Ends with parent**, **Outlives parent** or **No parent**.
