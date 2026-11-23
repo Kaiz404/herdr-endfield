@@ -1,22 +1,27 @@
 // comms: who sent what to whom, newest first, and the Comms pane that shows it.
 // A message is one delivery: { at (ms), from, to (a terminal address, "you" or "hc"),
-//   kind: task | msg | reply | needs | error, via (the transport), text }.
+//   kind: task | msg | reply | screen | needs | error, via (the transport), text, unverified? }.
 // Two sources, and the pane says so:
-//   1. the skin's own log, one JSON line per Dispatch, in data/endfield/comms.jsonl;
+//   1. the skin's own log, one JSON line per Dispatch, in data/endfield/comms.jsonl, kept under
+//      512 KB (messages.js) and removed by uninstall;
 //   2. reports agents receive: hc delivers a child's `hc send` to an agent as a line tagged
-//      <hc from="t7 name">...</hc>, which `hc read` finds in the recipient's screen text.
+//      <hc from="t7 name">...</hc>, which `hc read` finds in the recipient's screen text. Anything can
+//      print such a line, so only a live sender counts and each is drawn "unverified" (messages.js).
 // Not visible: sends to plain programs (hc tags only what an agent receives), Claude Code's own
 // SendMessage, and anything that has scrolled out of a terminal's history.
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { readTextFile, writeTextFile, appHome, panes, spaces, run, hc, checking } from "herdr";
+import { readTextFile, writeTextFile, appHome, panes, spaces, run, exec, checking } from "herdr";
 import { palette, root, micro, wide, chip, barcode, dots, MOTION, FONT } from "./kit.js";
 import { roster } from "./roster.js";
+import { appendCapped, readTags, remember } from "./messages.js";
 
 const LOG = () => `${appHome()}/data/endfield/comms.jsonl`;
 const SCAN_MS = 15000;
-const TAG = /<hc from="([^"\s]+)[^"]*"[^>]*>(.*?)<\/hc>/g;
+// Screens read at once, and how long one may take: an unreachable machine must not hold a scan.
+const READS_AT_ONCE = 6;
+const READ_MS = 5000;
 
 export async function readLog() {
   let text = "";
@@ -24,17 +29,18 @@ export async function readLog() {
   return text.split("\n").filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } }).reverse();
 }
 
-/** Appends one message; passes the text it read as `expected`, so a concurrent writer is refused rather than overwritten. */
+/** Appends one message, the oldest dropped past the cap; passes the text it read as `expected`, so a concurrent writer is refused rather than overwritten. */
 export async function append(msg) {
   let text = null;
   try { text = await readTextFile(LOG()); } catch {}
-  await writeTextFile(LOG(), `${text ?? ""}${JSON.stringify(msg)}\n`, text);
+  await writeTextFile(LOG(), appendCapped(text, JSON.stringify(msg)), text);
 }
 
 export const KIND = {
   task: { tag: "Task", edge: "flow" },
   msg: { tag: "Message", edge: "flow" },
   reply: { tag: "Reply", edge: "lime" },
+  screen: { tag: "Screen line", edge: "hairStrong" },
   needs: { tag: "Needs input", edge: "signal" },
   error: { tag: "Exited", edge: "red" },
 };
@@ -58,7 +64,12 @@ export class Comms {
     this.filter = "all";
     this.fresh = null;
     if (checking()) return;
-    const load = (cx) => cx.spawn(async (cx) => { await this.load(); cx.notify(); });
+    // One scan at a time: a slow one is skipped over, never stacked.
+    const load = (cx) => {
+      if (this.loading) return;
+      this.loading = true;
+      cx.spawn(async (cx) => { try { await this.load(); } finally { this.loading = false; } cx.notify(); });
+    };
     load(cx);
     // Data, not animation: the log and the screens are read again every 15s while the pane exists.
     cx.timer.every(SCAN_MS, (cx) => load(cx));
@@ -68,16 +79,18 @@ export class Comms {
     const before = this.log[0]?.at;
     this.log = await readLog();
     if (before && this.log[0]?.at !== before) this.fresh = this.log[0]?.at;
-    for (const m of roster().flat.filter((x) => x.agent)) {
-      try {
-        const r = await hc(["read", m.address, "--lines", "400"]);
-        for (const [, from, text] of `${r.stdout ?? ""}`.matchAll(TAG)) {
-          const key = `${from}>${m.address}:${text}`;
-          // A tag has no time of its own: it is stamped when first seen.
-          if (!this.tagged.has(key)) this.tagged.set(key, { at: Date.now(), from, to: m.address, kind: m.kids.includes(from) ? "reply" : "msg", via: "hc send · tag in its screen (hc read)", text: text.trim() });
-        }
-      } catch {}
-    }
+    const R = roster();
+    const live = new Set(R.all.keys());
+    const queue = R.flat.filter((x) => x.agent);
+    const reader = async () => {
+      for (let m = queue.shift(); m; m = queue.shift()) {
+        try {
+          const r = await exec("hc", ["read", m.address, "--lines", "400"], { timeout: READ_MS });
+          remember(this.tagged, readTags(r.stdout, { to: m.address, live, kids: m.kids }), Date.now());
+        } catch {}
+      }
+    };
+    await Promise.all(Array.from({ length: READS_AT_ONCE }, reader));
   }
 
   person(C, R, who) {
@@ -91,7 +104,7 @@ export class Comms {
     const C = palette();
     const R = roster();
     const now = Date.now();
-    const all = [...this.log.map((x) => ({ ...x, src: "log" })), ...[...this.tagged.values()].map((x) => ({ ...x, src: "tag" }))].sort((a, b) => b.at - a.at);
+    const all = [...this.log.map((x) => ({ ...x, src: "log" })), ...[...this.tagged.values()].map((x) => ({ ...x, src: "tag", via: "hc send · tag read from its screen (hc read) · unverified" }))].sort((a, b) => b.at - a.at);
     const list = all.filter((x) => this.filter === "all" || (this.filter === "you" ? x.from === "you" || x.to === "you" : x.src === "tag"));
     const space = spaces().find((s) => s.active);
     const filterBtn = (k, label) => {
@@ -111,7 +124,9 @@ export class Comms {
           .child(h_flex().gap(8).items_center().min_w(0)
             .child(this.person(C, R, x.from)).child(div().text_size(9).text_color(C.flow).child("▶▶")).child(this.person(C, R, x.to))
             .child(div().flex_1())
-            .child(div().h(16).px(6).flex().items_center().bg(x.kind === "task" || x.kind === "msg" ? C.sunken : C[k.edge]).child(micro(k.tag, x.kind === "task" || x.kind === "msg" ? C.text : C.ink, 9))))
+            .when(Boolean(x.unverified), (el) => el.child(div().id(`${id}-unv`).h(16).px(6).flex().items_center().border_1().border_color(C.hairStrong)
+              .tooltip("Read from the recipient's screen: any program there could have printed it").child(micro("Unverified", C.muted, 9))))
+            .child(div().h(16).px(6).flex().items_center().bg(k.edge === "flow" || k.edge === "hairStrong" ? C.sunken : C[k.edge]).child(micro(k.tag, k.edge === "flow" || k.edge === "hairStrong" ? C.text : C.ink, 9))))
           .child(h_flex().gap(8).items_stretch()
             .child(div().w(4).flex_none().border_t(1.5).border_b(1.5).border_l(1.5).border_color(C.text))
             .child(div().flex_1().min_w(0).py(5).font_family("JetBrains Mono").text_size(12).line_height(1.45).child(x.text))

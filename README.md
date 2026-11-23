@@ -41,7 +41,16 @@ herdr-app do layout.switch --name main
 node scripts/uninstall.mjs
 ```
 
-This removes what the installer added and restores anything it backed up. It leaves `data/endfield/` (cached session data and your operator settings) for you to delete by hand.
+This removes what the installer added and restores anything it backed up. It also deletes the files the skin wrote while it ran: the Comms log and the session cache (listed below). It leaves your operator and skin settings in `data/endfield/`, and the statusline's session files, for you to delete by hand.
+
+## What the skin keeps on your machine
+
+Everything stays in your Herdr home (`~/.config/herdr-app`). Nothing is sent anywhere.
+
+- `data/endfield/comms.jsonl`: the Comms log, one line per Dispatch. Each line holds the time, the target terminal, the hc command and the text you typed, so a token you type into a task is stored here in plain text. With "Now, wait for reply" it also stores the last line on the agent's screen after its turn. The file is kept under 512 KB by dropping the oldest lines. Uninstall deletes it.
+- `data/endfield/probe-cache.json` and `probe-agents.json`: a summary of each Claude Code transcript the skin read (model, token counts, last tool and its file or command, first prompt line), so a poll reads only new lines. Entries for files that are gone or untouched for a week are dropped. Uninstall deletes them.
+- `data/endfield/operators.json` and `settings.json`: your settings. Uninstall keeps them.
+- `data/endfield/sessions/`: written by the opt-in statusline extra, not by the skin. Uninstall keeps it.
 
 ## Opt-in extras
 
