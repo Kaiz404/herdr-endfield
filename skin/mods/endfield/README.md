@@ -154,6 +154,21 @@ and harmless runs in a throwaway `ef-*` space whose terminal was a plain PowerSh
 
 The design board's "When idle" meant "queued until the turn ends". hc has no queue,
 so the option is "Only if idle" and the dialog says what happens when it isn't.
+`deliverPlan(status, onlyIfIdle)` in `orders.js` is the one rule for what a send to
+an agent runs and what the dialog says, and the transcript pane's relay uses it too:
+
+| Status | Only if idle | Now |
+| --- | --- | --- |
+| idle | `--if idle` | plain |
+| done | plain | plain |
+| working | disabled | plain |
+| error | disabled | plain |
+| blocked | disabled | disabled |
+| not listed | disabled | disabled |
+
+`done` goes plain because `--if idle` refuses it (exit 10) and hc has no
+`--if done`, while a Claude Code agent that finished its turn waits at its prompt
+until someone looks at it.
 
 Dispatch runs an order once. When hc exits 0 the order is sent: the Comms log is
 written in its own step, and a failure there is shown but never re-enables
@@ -182,24 +197,35 @@ agents can take one:
   box asks its parent instead: `hc send <parent> -- "Use SendMessage to send your
   sub-agent <id> (<description>) this follow-up, word for word: <text>"`. The
   pane says so ("sent via PERLICA") and shows that exact command before Send.
-  `<id>` is the transcript's `agent-<id>.jsonl` name, the id SendMessage takes.
+  `<id>` is the transcript's `agent-<id>.jsonl` name. That this is the id
+  SendMessage takes is an assumption, not checked against Claude Code.
 
-The parent must be waiting at its prompt. Idle goes with `--if idle`. Done (a
-Claude Code agent that finished its turn reports `done` until someone looks, and
-`--if idle` refuses it with exit 10; `hc` has no `--if done`) goes plain. Working
-or blocked parents, or a parent Herdr no longer lists, leave Send disabled with
-the reason. The pane never forces. The run and its refusals are `relayOrder()`
-and `deliver()` in `orders.js`, as for Dispatch: a refusal (exit 2, 3, 7, 9, 10)
-may be retried, any other failure leaves Send disabled until the text changes.
-Each sent follow-up is a Comms `Message` from you to the parent, `via` the relay
-and the command.
+The parent must be waiting at its prompt: `deliverPlan(status, true)`, the
+Dispatch rule above with "Only if idle". Idle goes with `--if idle`, done goes
+plain, and any other status leaves Send disabled with the reason. The pane never
+forces. Send runs exactly the command the pane last drew. The pane reads the
+parent's status while it draws, so Herdr redraws it when that status changes. A
+click that lands before the redraw, while a send may already have arrived, or
+with nothing to run, sends nothing and says why (`relayRefusal()`). The run and
+its refusals are `relayOrder()` and `deliver()` in `orders.js`, as for Dispatch:
+a refusal (exit 2, 3, 7, 9, 10) may be retried, any other failure leaves Send
+disabled until the text changes. Each sent follow-up is a Comms `Message` from
+you to the parent, `via` "Follow-up via PERLICA to sub-agent `<id>`".
+
+A done parent has a race that `--if idle` would close for an idle one. Between
+the status read and hc's paste, the parent can start a turn (a background task
+reporting in, say), and the relay is then typed mid-turn. Claude Code is believed
+to queue input typed during a turn and read it when the turn ends. That is not
+tested. After a send the pane says only that the text was typed into the parent,
+not that the parent passed it on.
 
 A mod can't import outside its folder, so `mods/endfield-transcript` holds
 byte-identical copies of `orders.js` and `messages.js`; `tests/relay.test.mjs`
 fails when they differ. Copy the endfield ones over after editing either.
 
-Not verified live: that Claude Code's SendMessage reaches a finished sub-agent,
-and how the parent words what it does with the relay.
+Not verified live: that Claude Code's SendMessage takes the transcript's id and
+reaches a finished sub-agent, how the parent words what it does with the relay,
+and what Claude Code does with a relay typed mid-turn.
 
 ## Native limits
 

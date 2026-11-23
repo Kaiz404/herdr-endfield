@@ -6,15 +6,16 @@
 // tools/probe.mjs (node) reads them, from the byte it last reached.
 // Its foot takes a follow-up for the sub-agent. A Claude Code sub-agent has no terminal, so the text
 // goes to its parent (terminal `parent`, callsign `via`) with `hc send`, asking it to pass the text
-// on with SendMessage; the argv and its refusals are orders.js, a copy of the endfield mod's. The exact
-// command shows before Send, nothing goes without the person's click or Enter, and each send is
-// logged to Comms the way Dispatch logs (comms.js append).
+// on with SendMessage; the argv and its refusals are orders.js, a copy of the endfield mod's. Send runs
+// exactly the command last drawn: render reads agents(), so it redraws when the parent's status
+// changes, and a click that beats that redraw is refused with the reason. Nothing goes without the
+// person's click or Enter, and each send is logged to Comms the way Dispatch logs (comms.js append).
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle, TextView, InputState, Input } from "gpui-base";
 import { props, exec, appHome, watchFolder, settings, checking, agents, readTextFile, writeTextFile, window as appWindow } from "herdr";
 import * as fs from "fs/promises";
-import { relayOrder, commandLine, deliver, timeoutFor } from "./orders.js";
+import { relayOrder, relayRefusal, commandLine, deliver, timeoutFor } from "./orders.js";
 import { appendCapped } from "./messages.js";
 
 /** comms.js append: the expected text makes a concurrent writer fail rather than be overwritten. */
@@ -44,8 +45,10 @@ export default class Transcript extends View {
     this.req = `${appHome()}/data/endfield-transcript/req-${Math.random().toString(36).slice(2, 10)}.json`;
     // edit -> busy -> sent | refused (may send again) | uncertain (Send waits until the text changes): deliver() in orders.js.
     this.send = { phase: "edit", error: null };
+    // The order prompt() last drew; Send runs its args and nothing else.
+    this.shown = null;
     this.input = InputState.new({ placeholder: "Follow-up for this sub-agent" });
-    this.input.on("change", (_e, cx) => { if (this.send.phase !== "busy" && this.input.value()) this.send = { phase: "edit", error: null }; cx.notify(); });
+    this.input.on("change", (_e, cx) => { if (this.send.phase !== "busy" && this.input.value()) this.send = { phase: "edit", error: null }; this.notice = null; cx.notify(); });
     this.input.on("submit", (_e, cx) => this.trySend(cx));
     this.input.on("focus", (_e, cx) => { this.typing = true; cx.notify(); });
     this.input.on("blur", (_e, cx) => { this.typing = false; cx.notify(); });
@@ -96,25 +99,27 @@ export default class Transcript extends View {
   order() {
     const p = props() ?? this.p;
     const status = agents().find((a) => a.address === p.parent)?.status ?? null;
-    return relayOrder({ parent: p.parent, status, id: p.id, title: p.title ?? base(p.path), text: this.input.value() });
+    return { ...relayOrder({ parent: p.parent, status, id: p.id, title: p.title ?? base(p.path), text: this.input.value() }), status };
   }
 
   trySend(cx) {
-    const { args } = this.order();
-    if (!args || this.send.phase === "busy" || this.send.phase === "uncertain") return;
+    const shown = this.shown ?? this.order();
+    const notice = relayRefusal({ phase: this.send.phase, shown, now: this.order() });
+    if (notice) { this.notice = notice; cx.notify(); return; }
+    const { args } = shown;
+    this.notice = null;
     const p = props() ?? this.p;
     const text = this.input.value().trim();
-    const platform = appWindow()?.platform;
     this.send = { phase: "busy", error: null };
     cx.notify();
     cx.spawn(async (cx) => {
       const r = await deliver({
         args,
         exec: (a) => exec("hc", a, { timeout: timeoutFor({ mode: "send", delivery: "now" }) }),
-        log: () => append({ at: Date.now(), from: "you", to: p.parent, kind: "msg", via: `Transcript, relayed by ${p.via ?? p.parent} to sub-agent ${p.id}: ${commandLine(args.slice(0, -1), platform)}`, text }),
+        log: () => append({ at: Date.now(), from: "you", to: p.parent, kind: "msg", via: `Follow-up via ${p.via ?? p.parent} to sub-agent ${p.id}`, text }),
       });
       if (r.phase === "sent") this.input.set_value("");
-      this.send = r.phase === "sent" ? { phase: "sent", error: r.logged ? null : "Sent. The Comms log could not be written." } : r;
+      this.send = r.phase === "sent" ? { phase: "sent", error: r.logged ? null : `Typed into ${p.via ?? "its parent"}. The Comms log could not be written.` } : r;
       cx.notify();
     });
   }
@@ -122,14 +127,16 @@ export default class Transcript extends View {
   /** The foot: who carries the follow-up, the input and Send, then the exact command or why it can't go. */
   prompt() {
     const p = props() ?? this.p;
-    const { args, problem } = this.order();
+    this.shown = this.order();
+    const { args, problem } = this.shown;
     const { phase, error } = this.send;
     const ready = Boolean(args) && phase !== "busy" && phase !== "uncertain";
     // Yellow marks only what is yours right now: Send, while it would go and the input has focus.
     const primary = ready && this.typing;
-    const [line, tone] = phase === "uncertain" ? [`${error} It may have arrived: read the parent's screen before sending again.`, C.red]
+    const [line, tone] = this.notice ? [this.notice, C.red]
+      : phase === "uncertain" ? [`${error} It may have arrived: read the parent's screen before sending again.`, C.red]
       : error ? [error, phase === "sent" ? C.muted : C.red]
-      : phase === "sent" ? ["Sent. The parent passes it on at its next turn.", C.muted]
+      : phase === "sent" ? [`Typed into ${p.via ?? "its parent"}. Check its pane to see whether it passed it on.`, C.muted]
       : args ? [commandLine(args, appWindow()?.platform), C.dim]
       : [problem, C.muted];
     return v_flex().id("transcript-prompt").flex_none().gap(8).px(14).pt(10).pb(12).border_t(1).border_color(C.rule).bg(C.raised)
@@ -143,7 +150,8 @@ export default class Transcript extends View {
           .when(primary, (el) => el.bg(C.signal).text_color("#141414"))
           .when(!primary, (el) => el.border_1().border_color(C.dim).text_color(C.text))
           .when(!ready, (el) => el.opacity(0.45))
-          .when(ready, (el) => el.cursor_pointer().on_click((_e, cx) => this.trySend(cx)))
+          .when(ready, (el) => el.cursor_pointer())
+          .on_click((_e, cx) => this.trySend(cx))
           .child(div().text_size(12).font_semibold().child(phase === "busy" ? "Sending" : "Send"))))
       // Every argument, wrapped rather than cut: this is exactly what Send runs.
       .child(div().id("transcript-cmd").min_w(0).max_h(48).overflow_y_scrollbar().font_family(MONO).text_size(10.5).line_height(1.4).text_color(tone).child(line));

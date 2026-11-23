@@ -18,6 +18,7 @@
 - **Claimed is now Finished.** The status word for an agent that finished its turn reads **Finished** in Squads, the Report, the HUD footer (`01 FINISHED`) and the slip a finished agent gets. The status words are now Generating, Needs input, Finished, Idle and Error. The sound file keeps its name, `claimed.mp3`, so a `sounds.done` setting that points at it still works.
 - **Idle agents take one line.** An idle agent's row folds to its callsign, task and **Idle**, so the agents that are working get the room. Generating, Needs input, Finished and Error rows keep two lines.
 - **One motion per working agent.** A generating row in Squads no longer has a blue segment sliding along its floor. The status glyph still animates, so a sidebar full of working agents is calmer.
+- **Dispatch's Only if idle and finished agents.** With **Only if idle**, a target that finished its turn used to read "Idle. Delivered now.", and then hc refused the send. A finished agent waits at its prompt, so it now gets a plain send, and the preview says it finished its turn. While the target is generating or stopped on an error, **Only if idle** now disables **Dispatch** and says why, instead of letting hc refuse. The sub-agent follow-up box uses the same rule.
 
 ## 0.2.0
 
