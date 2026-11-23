@@ -13,10 +13,12 @@
 // Session = {sessionId, terminal, cwd, transcriptPath, approx, model:{id, display, short} | null,
 //   ctx:{used, total, pct} | null, tokens:{total, delta} | null, tools, turns, effort, mode,
 //   lastAction:{tool, arg} | null, lastAt, startedAt, question, subagents: Sub[]}
-// Sub = {id, path, title, model, tools, status: working | done | idle, lastAt, startedAt, lastAction}, in no order (fleet.js subagentView orders them)
+// Sub = {id, path, title, model, effort, ctx, tools, status: working | done | idle, lastAt, startedAt, lastAction},
+//   in no order (fleet.js subagentView orders them)
 
 import * as fs from "fs/promises";
 import { exec, appHome, watchFolder, checking } from "herdr";
+import { DASH } from "./fleet.js";
 
 const DATA = () => `${appHome()}/data/endfield`;
 const SIDECARS = () => `${DATA()}/sessions`;
@@ -40,19 +42,27 @@ function contextWindow(id, used) {
   return /\[1m\]/i.test(id ?? "") || used > 200000 ? 1000000 : 200000;
 }
 
+// A sidecar's context (the statusline's own numbers) wins over the transcript's last usage.
+function contextOf(id, used, side = null) {
+  used = side?.used ?? used ?? null;
+  if (used == null) return null;
+  const total = side?.total ?? contextWindow(id, used);
+  return { used, total, pct: side?.pct ?? Math.round((used / total) * 100) };
+}
+
 function shape(t, raw, parentStatus) {
   const sidecar = raw?.sidecar ?? null;
   const id = sidecar?.model?.id ?? raw?.model ?? null;
   const model = id ? modelName(id, sidecar?.model?.display_name ?? null) : null;
-  const used = sidecar?.context?.used ?? raw?.used ?? null;
-  const total = sidecar?.context?.total ?? (used != null ? contextWindow(id, used) : null);
-  const ctx = used != null ? { used, total, pct: sidecar?.context?.pct ?? Math.round((used / total) * 100) } : null;
+  const ctx = contextOf(id, raw?.used, sidecar?.context);
   const now = Date.now();
   const subs = (raw?.subagents ?? []).map((s) => ({
     id: s.id,
     path: s.path,
     title: s.description || (s.prompt ?? "").split("\n").find((l) => l.trim())?.trim() || `agent-${s.id}`,
     model: s.model ? modelName(s.model) : null,
+    effort: s.effort ?? null,
+    ctx: s.used ? contextOf(s.model, s.used) : null,
     tools: s.tools ?? 0,
     status: now - s.mtime < LIVE_MS && (s.pending || !s.final) ? "working" : parentStatus === "idle" ? "idle" : "done",
     lastAt: s.mtime,
@@ -189,16 +199,6 @@ async function sweepCardRequests() {
 }
 
 // ---- formatting the card and rows share
-
-export const DASH = "—";
-
-/** 151000 -> "151K", 1200000 -> "1.2M". */
-export function fmtTokens(n) {
-  if (n == null) return DASH;
-  if (n >= 1e6) return `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M`;
-  if (n >= 1e3) return `${Math.round(n / 1e3)}K`;
-  return String(n);
-}
 
 /** 252000 ms -> "04m 12s"; hours as "2h 06m". */
 export function longDuration(ms) {

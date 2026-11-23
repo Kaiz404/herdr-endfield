@@ -42,10 +42,15 @@ rendered at 4x. It is a schematic, not a screenshot.
     a 1px halo in the operator's accent, a class badge bottom right: `C`
     Claude Code, `X` Codex, `Cu` Cursor, `O` OpenCode, `G` Gemini); the
     callsign in wide caps 10px (`PERLICA`; a repeat takes a spare operator,
-    then `PERLICA·2`) with the model or `◀ T3` beside it; the task (13px
-    medium); at the right "Generating ▶▶", a yellow "Needs input" pill,
-    "✓ Claimed" or "zZ Idle", over the elapsed time and a 5-block context
-    gauge. Blocked rows carry 4px hazard stripes on the left edge; a
+    then `PERLICA·2`) with a mono meta line beside it: how long the run has
+    gone (to now while generating, else to its last write), the model, the
+    effort level and the context held, as `12M · OPUS 5.5 · HIGH · 151K CTX`
+    (an agent with no Claude Code session shows its program; no terminal
+    address, no tool count); the task (13px medium); at the right
+    "Generating ▶▶", a yellow "Needs input" pill or "✓ Claimed", over the
+    time since the last state change and a 5-block context gauge. An idle
+    row folds to one 34px line (26px compact): a 22px chip (18px compact),
+    the callsign, the task at 11.5px and "zZ Idle". Blocked rows carry 4px hazard stripes on the left edge; a
     generating row's floor has a 28px blue segment scanning across (1600ms).
     Children (terminals started with `hc run`, and Claude Code's own
     sub-agents read from its transcript) hang under their parent with a 1px
@@ -275,8 +280,8 @@ rendered at 4x. It is a schematic, not a screenshot.
 - Mods have no colour transition: hover and selection fills are absolute
   layers whose width transitions, measured from each list's `on_size_change`.
 - Selection blocks need fixed row heights (spaces 38, machine header 28,
-  login guidance 48, notes 30; agents 56, children 50, sub-agent toggle 26,
-  squad header 28; compact 34, 34, 22, 26).
+  login guidance 48, notes 30; agents 56, children 50, idle rows 34,
+  sub-agent toggle 26, squad header 28; compact 34, 34, 26, 22, 26).
 - `.loop` goes there and back, so the working conveyor travels back and forth.
 - Flicker is a `.loop("opacity")` that a one-shot timer removes after three
   pulses. No repeating timer drives motion; the repeating timers are for data

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildRoster, BY, PINNED, subNumbers, subagentView } from "../skin/mods/endfield/fleet.js";
+import { buildRoster, BY, PINNED, subNumbers, subagentView, rowMeta, rowShape } from "../skin/mods/endfield/fleet.js";
 
 // Every claude agent is PERLICA unless spares are free; a repeat takes a spare, then a number.
 const identity = (spares = []) => ({
@@ -88,6 +88,30 @@ test("with none working only the toggle is offered; with none finished there is 
   assert.deepEqual(subagentView([sub("a1", "done", 1), sub("a2", "idle", 2)], false), { shown: [], earlier: 2 });
   const busy = subagentView([sub("a1", "working", 1)], false);
   assert.deepEqual([busy.shown.map((k) => k.id), busy.earlier], [["a1"], 0]);
+});
+
+const MIN = 60000;
+
+test("a generating sub-agent's meta reads elapsed, model, effort and context, with no address or tool count", () => {
+  const meta = rowMeta({ startedAt: 1, lastAt: 3 * MIN, live: true, model: "Opus 5.5", effort: "high", used: 151000, program: "Claude Code" }, 1 + 12 * MIN);
+  assert.equal(meta, "12m · Opus 5.5 · high · 151K ctx");
+});
+
+test("a finished run's elapsed stops at its last write, not now", () => {
+  assert.equal(rowMeta({ startedAt: 1, lastAt: 1 + 65 * MIN, live: false }, 500 * MIN), "1h 05m");
+  assert.equal(rowMeta({ startedAt: 1, lastAt: 20000, live: false }, 500 * MIN), "<1m");
+});
+
+test("what isn't known is left out, and an agent with no session shows its program", () => {
+  assert.equal(rowMeta({ program: "Codex" }, 0), "Codex");
+  assert.equal(rowMeta({ model: "Opus 5.5", used: 0, program: "Claude Code" }, 0), "Opus 5.5", "no assistant turn yet: no context part");
+  assert.equal(rowMeta({ startedAt: 5, live: true, model: "Opus 5.5" }, 5 + 2 * MIN), "2m · Opus 5.5");
+});
+
+test("only idle rows fold to one line; working, blocked, done and error keep their two-line height", () => {
+  assert.deepEqual([rowShape("idle", 0), rowShape("idle", 2)], ["idle", "idle"]);
+  assert.deepEqual(["working", "blocked", "done", "error"].map((s) => [rowShape(s, 0), rowShape(s, 1)]),
+    [["lead", "child"], ["lead", "child"], ["lead", "child"], ["lead", "child"]]);
 });
 
 test("a sub-agent whose transcript has no timestamp yet sorts by its last write", () => {

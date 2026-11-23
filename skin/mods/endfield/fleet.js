@@ -2,13 +2,13 @@
 // them in node). roster.js feeds buildRoster() Herdr's live lists; kit.js re-exports the table.
 
 // Every role reads a status through this table: its word, how its glyph draws, its bar colour,
-// its entrance effect and its rank (how urgent).
+// its entrance effect, its rank (how urgent) and whether its Squads row folds to one line.
 export const STATUS = {
   blocked: { word: "Needs input", kind: "pill", bar: "signal", edge: "hazard", rank: 4 },
   error: { word: "Error", kind: "text", glyph: "×", hue: "error", bar: "red", rank: 4 },
   done: { word: "Claimed", kind: "disc", glyph: "✓", bar: "lime", fresh: true, enter: ["flash", "pop"], rank: 3 },
   working: { word: "Generating", kind: "march", hue: "flow", bar: "flowInv", conveyor: true, rank: 2 },
-  idle: { word: "Idle", kind: "mono", glyph: "zZ", bar: "hairStrong", quiet: true, rank: 1 },
+  idle: { word: "Idle", kind: "mono", glyph: "zZ", bar: "hairStrong", quiet: true, oneLine: true, rank: 1 },
 };
 export const statusOf = (s) => STATUS[s] ?? null;
 export const rank = (s) => STATUS[s]?.rank ?? 0;
@@ -134,4 +134,39 @@ export function subNumbers(prev, shown) {
     taken.add(n);
   }
   return next;
+}
+
+// A Squads row's height class: an idle agent folds to one line, any other keeps two. agents.js
+// sizes each class in its H table, so the selection marker can add the heights up.
+export const rowShape = (status, depth) => (STATUS[status]?.oneLine ? "idle" : depth ? "child" : "lead");
+
+export const DASH = "—";
+
+/** 151000 -> "151K", 1200000 -> "1.2M". */
+export function fmtTokens(n) {
+  if (n == null) return DASH;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M`;
+  if (n >= 1e3) return `${Math.round(n / 1e3)}K`;
+  return String(n);
+}
+
+/** 40s -> "<1m", 12 min -> "12m", 65 min -> "1h 05m". */
+export function elapsed(ms) {
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return "<1m";
+  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
+}
+
+// A Squads row's meta line: how long the run has gone (to now while it works, else to its last
+// write), its model and effort, and the context it holds. What isn't known is left out, and an
+// agent with no session shows its program instead of a model.
+// run: {startedAt, lastAt, live, model, effort, used, program}, every field optional
+export function rowMeta(run, now) {
+  const end = run.live ? now : run.lastAt;
+  return [
+    run.startedAt && end ? elapsed(Math.max(0, end - run.startedAt)) : null,
+    run.model ?? run.program,
+    run.effort,
+    run.used ? `${fmtTokens(run.used)} ctx` : null,
+  ].filter(Boolean).join(" · ");
 }
