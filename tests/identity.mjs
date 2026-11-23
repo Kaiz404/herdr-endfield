@@ -10,7 +10,7 @@ export function identityOf({ operators = [], defaults = {}, overrides = {}, term
     as,
     resolve(program, terminal = null, opts = {}) {
       const c = choose(pack, program, terminal, opts);
-      return { ...as(c.slug, program, c.pinned), pool: c.pool };
+      return { ...as(c.slug, program, c.pinned), pool: c.pool, claim: c.claim };
     },
   };
 }

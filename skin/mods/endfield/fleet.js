@@ -165,7 +165,7 @@ export const poolFor = (model) => (model ? CASTING.pools[tierOf(model)] ?? [CAST
  * same-program child ("sub-agent") or for its program, its model's pool (the members the art pack
  * has), then the pack's defaults: "sub-agent" for a same-program child, its program, "shell".
  * cast: {terminals, overrides, defaults: {key: slug | null}, operators: {slug: any}, spares: slug[]}
- * -> {slug (null: the program's own tile), pinned, pool: the draw order, spares last}
+ * -> {slug (null: the program's own tile), pinned, claim: a pin or override named it, pool: the draw order, spares last}
  */
 export function choose(cast, program, terminal, { parent = null, model = null } = {}) {
   const pinned = cast.terminals[terminal];
@@ -175,7 +175,7 @@ export function choose(cast, program, terminal, { parent = null, model = null } 
   const slug = chosen !== undefined ? chosen : tier[0] ?? [child ? cast.defaults["sub-agent"] : undefined, cast.defaults[program?.key], cast.defaults.shell].find((v) => v !== undefined);
   const own = slug && cast.operators[slug] ? slug : null;
   const pool = own ? [...new Set([...(tier.length ? tier : [own]), ...(pinned === undefined ? cast.spares : [])])] : [`program:${program?.key}`];
-  return { slug: own, pinned: pinned !== undefined, pool };
+  return { slug: own, pinned: pinned !== undefined, claim: chosen !== undefined && Boolean(own), pool };
 }
 
 const slot = ({ slug, n }) => `${slug}·${n}`;
@@ -199,19 +199,24 @@ export function cast(identity, ident, program, taken) {
 }
 
 /**
- * Draws a crew (a session's sub-agents, or the pane agents): each keeps what it drew while it stays
- * and draws from the same pool, so a new model tier, pin or override redraws it. Newcomers, in
+ * Draws a crew (a session's sub-agents, or the pane agents). Claims draw first: an agent a pin or
+ * override names (ident.claim) takes that operator ahead of the rest, so a new pin gets the bare
+ * callsign. Every other agent keeps what it drew while it stays and draws from the same pool,
+ * unless a claim now holds its slot; a new model tier, pin or override redraws it. Newcomers, in
  * start order, draw around `taken`, so siblings differ and a number appears only once a pool is
  * spent: ARDELIA·2, never ARDELIA·30. prev: Map<id, ident> from the last render;
  * crew: [{id, startedAt?, ident, program}] -> Map<id, ident + { callsign, drawn }>
  */
 export function castCrew(identity, prev, crew, taken) {
   const out = new Map();
+  const started = [...crew].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0));
+  for (const k of started) if (k.ident.claim) out.set(k.id, cast(identity, k.ident, k.program, taken));
+  const claimed = new Set(held([...out.values()]));
   for (const k of crew) {
     const d = prev?.get(k.id)?.drawn;
-    if (d?.from === k.ident.pool.join()) { taken.add(slot(d)); out.set(k.id, named(identity, k.ident, k.program, d)); }
+    if (!out.has(k.id) && d?.from === k.ident.pool.join() && !claimed.has(slot(d))) { taken.add(slot(d)); out.set(k.id, named(identity, k.ident, k.program, d)); }
   }
-  for (const k of [...crew].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0))) if (!out.has(k.id)) out.set(k.id, cast(identity, k.ident, k.program, taken));
+  for (const k of started) if (!out.has(k.id)) out.set(k.id, cast(identity, k.ident, k.program, taken));
   return out;
 }
 

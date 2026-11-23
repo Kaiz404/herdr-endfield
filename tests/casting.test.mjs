@@ -92,10 +92,10 @@ test("a session's sub-agents differ from each other and the fleet, and keep thei
 });
 
 // Pane agents keep their operator across renders: `prev` is the last render's cast.
-const panes = (addrs, models, prev, avoid) => {
+const panes = (addrs, models, prev, avoid, pack = full) => {
   const listed = addrs.map((address) => ({ address, program: claude, status: "idle", title: address, space: "s1", space_name: "s1", tab: "x", tab_index: 1, pane: address, seq: 0, pinned: false, focused: false }));
   const terms = listed.map((a) => ({ address: a.address, created_ms: Number(a.address.slice(1)), parent: null, state: "live", program: claude }));
-  return buildRoster({ listed, terms, spaces: [{ id: "s1", name: "s1" }], identity: identityOf(full), models, prev, avoid });
+  return buildRoster({ listed, terms, spaces: [{ id: "s1", name: "s1" }], identity: identityOf(pack), models, prev, avoid });
 };
 const callsigns = (R) => Object.fromEntries([...R.all].map(([a, m]) => [a, m.ident.callsign]));
 const opus = "claude-opus-5-5";
@@ -132,4 +132,14 @@ test("a new pane agent avoids operators sub-agents hold; a kept one stays put", 
   const R = panes(["t1", "t2"], { t1: opus, t2: opus }, first.cast, ["laevatain·1", "yvonne·1"]);
   assert.deepEqual(callsigns(R), { t1: "LAEVATAIN", t2: "ARDELIA" });
   assert.ok(R.taken.has("yvonne·1"), "taken carries the avoided slots on to the sub-agents' draw");
+});
+
+test("a newly pinned agent takes its operator's bare callsign; only the agent that held it redraws", () => {
+  const models = { t1: opus, t2: opus, t3: opus };
+  const first = panes(["t1", "t2", "t3"], models);
+  assert.deepEqual(callsigns(first), { t1: "LAEVATAIN", t2: "YVONNE", t3: "ARDELIA" });
+  const pinned = panes(["t1", "t2", "t3"], models, first.cast, [], { ...full, terminals: { t1: "yvonne" } });
+  assert.deepEqual(callsigns(pinned), { t1: "YVONNE", t2: "LAEVATAIN", t3: "ARDELIA" }, "t2 gave Yvonne up and drew the first operator free");
+  const override = panes(["t1", "t2", "t3"], models, first.cast, [], { ...full, overrides: { claude: "ardelia" } });
+  assert.equal(override.all.get("t1").ident.callsign, "ARDELIA", "an override that names an operator claims it the same way");
 });

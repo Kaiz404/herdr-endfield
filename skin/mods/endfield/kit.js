@@ -212,14 +212,15 @@ export const IDENTITY = {
 
   /**
    * An agent's identity: { operator, name, accent, avatar: {32, 64, 128, round, bust, signal}, badge,
-   * fallbackIcon, pinned, pool }. choose() in fleet.js decides it: the terminal's pin, the person's
+   * fallbackIcon, pinned, claim, pool }. choose() in fleet.js decides it: the terminal's pin, the person's
    * overrides, the model's pool (CASTING), then the pack's defaults. A null operator means "no
    * operator": accent and avatar come back null, and fallbackIcon (the program) is what the surface
-   * draws. `pinned` says the terminal override chose it; `pool` is its draw order (fleet.js cast()).
+   * draws. `pinned` says the terminal override chose it; `claim` says a pin or override named it, so it draws
+   * ahead of the rest (fleet.js castCrew()); `pool` is its draw order (fleet.js cast()).
    */
   resolve(program, terminal = null, { parent = null, model = null } = {}) {
     const c = choose(cast, program, terminal, { parent, model });
-    return { ...this.as(c.slug, program, c.pinned), pool: c.pool };
+    return { ...this.as(c.slug, program, c.pinned), pool: c.pool, claim: c.claim };
   },
 
   /** The identity of a given operator slug (null: none), drawn for `program`. */
