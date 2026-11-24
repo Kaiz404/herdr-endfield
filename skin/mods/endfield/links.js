@@ -14,7 +14,6 @@
 import { lifeKey } from "./archive.js";
 import { sendArgs } from "./orders.js";
 
-export const DOC = "https://code.claude.com/docs/en/cross-session-messaging.md";
 
 export function parseLinks(text) {
   try {
@@ -130,9 +129,13 @@ export async function tell({ steps, idle, told, send }) {
   for (const step of steps) {
     if (!idle(step.who)) { out[step.who] = "busy"; continue; }
     const r = await send(step);
-    if (r.phase === "sent" || r.phase === "uncertain") await told(step);
     out[step.who] = r.phase === "refused" ? "busy" : r.phase;
     if (r.phase === "uncertain") errors[step.who] = r.error;
+    if (r.phase === "sent" || r.phase === "uncertain") {
+      // Recording it is what hides Send note: try twice, and say so if it still didn't stick.
+      const t = (await told(step)) ?? { ok: true };
+      if (!t.ok && !((await told(step)) ?? { ok: true }).ok) errors[step.who] = "The note went in, but it couldn't be recorded: don't send it again.";
+    }
   }
   return { out, errors };
 }
@@ -155,7 +158,8 @@ export async function linkThenTell({ steps, idle, keep, told, send }) {
 export function outcome({ out, errors = {}, names, linked = true }) {
   const head = linked ? "Linked." : "Sent.";
   const busy = Object.keys(out).filter((w) => out[w] === "busy").map((w) => names[w]);
-  const unsure = Object.keys(out).filter((w) => out[w] === "uncertain").map((w) => `${names[w]} may not have its note (${errors[w]}).`);
+  const unsure = Object.keys(out).filter((w) => out[w] === "uncertain").map((w) => `${names[w]} may not have its note (${errors[w]}).`)
+    .concat(Object.keys(out).filter((w) => out[w] === "sent" && errors[w]).map((w) => `${names[w]}: ${errors[w]}`));
   if (!linked && busy.length) return `${busy[0]} isn't idle any more. Nothing was typed. Send its note when it's free.`;
   const wait = busy.length === 1 ? `${busy[0]} is busy. Send its note from its card when it's free.`
     : busy.length > 1 ? `${busy.join(" and ")} are busy. Send each note from its card when it's free.` : "";

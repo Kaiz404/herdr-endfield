@@ -211,3 +211,11 @@ test("Send note types only that side's note, only while it is idle, and saves no
   assert.deepEqual(late.log, []);
   assert.match(outcome({ ...l, names: NAMES, linked: false }), /TYPHOEUS isn't idle any more\. Nothing was typed/);
 });
+
+test("a note that went in but couldn't be recorded says so, so it isn't sent twice", async () => {
+  let calls = 0;
+  const r = await tell({ steps: [{ who: "lead" }], idle: () => true, send: async () => ({ phase: "sent" }), told: async () => { calls++; return { ok: false }; } });
+  assert.equal(r.out.lead, "sent");
+  assert.equal(calls, 2);
+  assert.match(r.errors.lead, /don't send it again/);
+});

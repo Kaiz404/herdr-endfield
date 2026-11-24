@@ -248,7 +248,8 @@ export class Card {
             .child(micro(m.linked ? `helper of ${roster().all.get(m.linked)?.label ?? ""} ${m.linked}` : `helpers ${m.helpers.join(", ")}`, C.text).min_w(0).truncate())
             .child(div().flex_1())
             // A note it wasn't idle for at Link: one Send note per link that still owes it one.
-            .children(untold(shared("endfield.links") ?? [], lifeOf(m)).map((n, i, all) => {
+            // Only while the other agent is still listed: a gone one has nothing to be told about.
+            .children(untold(shared("endfield.links") ?? [], lifeOf(m)).filter((n) => roster().all.has(n.lead) && roster().all.has(n.helper)).map((n, i, all) => {
               const other = roster().all.get(n.side === "lead" ? n.helper : n.lead);
               return h_flex().id(`card-note-${i}`).h(24).px(7).flex_none().items_center().rounded_full().border_1().border_color(C.hairStrong)
                 .text_size(11).font_medium().cursor_pointer().hover((h) => h.bg(C.sunken)).tooltip("It wasn't idle when linked. Types only its note, while it is idle.")
