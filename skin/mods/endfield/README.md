@@ -9,7 +9,7 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
 ## Files
 
 - `main.js` routes a role to its class: `boot`, `brand`, `footer`, `spaces`,
-  `agents`, `sortmenu`, `squadmenu`, `card`, `tabs`, `pane`, `status`, `toast`,
+  `agents`, `sortmenu`, `squadmenu`, `squad`, `card`, `tabs`, `pane`, `status`, `toast`,
   `cutin`, `report`, `dispatch`, `comms`, `transcript`, `action`, `archived`,
   `account`.
 - Two roles open as panes, `comms` and `transcript` (`pane.split` with `mod:
@@ -109,7 +109,13 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   (`chatBlocks`), and a squad header's right-click items. `squadmenu.js` is the popup that draws them.
   A squad menu's Rename squad reaches the list through the shared key
   `endfield.squad.rename` (`{id, at}`), since only the list holds the header's
-  name field. GPUI's drag helpers here carry files or dock tabs only, so a
+  name field. Archive squad and Close squad open `squadactions.js` (role
+  `squad`). What ends with the space is `archive.js` `spaceTerminals` (Herdr's
+  lists, not the roster); who Archive squad takes, why it refuses, when the
+  space closes and what a fresh read may hold before it does are
+  `squadPlan`, `squadEnd` and `unconfirmed`; each chat goes through the
+  card's own `actions.js` `archiveChat` and `markEnded`, so there is one
+  Archive flow. GPUI's drag helpers here carry files or dock tabs only, so a
   squad or chat drags on mouse down, move and up, as Spaces does. Squads and
   rows are drawn at computed tops (`agents.js` `arrange`), so a drag shifts
   tops with `MOTION.drag` and no height changes.

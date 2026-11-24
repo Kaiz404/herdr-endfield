@@ -24,7 +24,7 @@ import { showWork } from "./report.js";
 import { actionsFor, gate, MODE_WORD } from "./orders.js";
 import { openAction } from "./actions.js";
 import { unlink, openLink } from "./linkdialog.js";
-import { lifeOf, helperUntold } from "./links.js";
+import { lifeOf, untold } from "./links.js";
 import { CARD, PANEL, CARD_KINDS, questionOf, headerOf, toolsView, recentView } from "./hovercard.js";
 
 const SEGS = 20;
@@ -247,11 +247,15 @@ export class Card {
             .child(micro("Linked", C.muted).flex_none())
             .child(micro(m.linked ? `helper of ${roster().all.get(m.linked)?.label ?? ""} ${m.linked}` : `helpers ${m.helpers.join(", ")}`, C.text).min_w(0).truncate())
             .child(div().flex_1())
-            // The helper's note was refused and its dialog closed: offer it again, in the same confirm.
-            .when(Boolean(m.linked) && helperUntold((shared("endfield.links") ?? []).find((l) => l.b === lifeOf(m))), (el) => el.child(h_flex().id("card-renote").h(24).px(7).flex_none().items_center().rounded_full().border_1().border_color(C.hairStrong)
-              .text_size(11).font_medium().cursor_pointer().hover((h) => h.bg(C.sunken)).tooltip("It was never told it is a helper. Types only its note, while it is idle, on Confirm.")
-              .on_click(() => { closeOverlay(p.overlay); openLink({ lead: m.linked, helper: m.address, from: 1 }); })
-              .child("Send note again")))
+            // A note it wasn't idle for at Link: one Send note per link that still owes it one.
+            // Only while the other agent is still listed: a gone one has nothing to be told about.
+            .children(untold(shared("endfield.links") ?? [], lifeOf(m)).filter((n) => roster().all.has(n.lead) && roster().all.has(n.helper)).map((n, i, all) => {
+              const other = roster().all.get(n.side === "lead" ? n.helper : n.lead);
+              return h_flex().id(`card-note-${i}`).h(24).px(7).flex_none().items_center().rounded_full().border_1().border_color(C.hairStrong)
+                .text_size(11).font_medium().cursor_pointer().hover((h) => h.bg(C.sunken)).tooltip("It wasn't idle when linked. Types only its note, while it is idle.")
+                .on_click(() => { closeOverlay(p.overlay); openLink(n); })
+                .child(all.length > 1 ? `Send note ${other?.ident?.callsign ?? other?.label ?? ""}` : "Send note");
+            }))
             .when(Boolean(m.linked), (el) => el.child(h_flex().id("card-unlink").h(24).px(7).flex_none().items_center().rounded_full().border_1().border_color(C.hairStrong)
               .text_size(11).font_medium().cursor_pointer().hover((h) => h.bg(C.sunken)).tooltip("Back to the top of its own squad. Nothing is typed into either agent.")
               .on_click((_e, cx) => cx.spawn(async (cx) => { await unlink(m); cx.notify(); }))
