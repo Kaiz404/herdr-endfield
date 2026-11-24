@@ -63,7 +63,8 @@ rendered at 4x. It is a schematic, not a screenshot.
     Children (terminals started with `hc run`, and Claude Code's own
     sub-agents read from its transcript) hang under their parent with a 1px
     right angle from the parent chip's foot, whatever their vendor. Claude
-    Code sub-agents show while working, newest started first; below them a
+    Code sub-agents show while working or waiting ("Waiting" beside two still
+    bars in the working blue, no march), newest started first; below them a
     26px row (22px compact) reads "▾ +N earlier" and lists the finished ones
     too, newest first, or "▴ Show less" to fold them back. Each parent keeps
     its choice until the mod reloads; there is no cap, the list scrolls. From 12
@@ -232,9 +233,15 @@ rendered at 4x. It is a schematic, not a screenshot.
   of Squads (`endfield.archived`). Resume runs `tab.new {name, space, folder,
   argv}` with the program's `run` argv plus `--resume <id>` (Claude Code),
   `resume --last` (Codex) or `resume` (Cursor), and drops the record.
-- **Claude Code sub-agent row:** working while its transcript was written in
-  the last 20s and its last step is a tool call or not a final answer; else
-  done, or idle once its parent is idle. Click opens its transcript
+- **Claude Code sub-agent row:** read from its transcript, not from how long
+  ago it wrote. Working while a tool call has no result or its turn has not
+  ended. Waiting when that tool call only waits (a shell that sleeps, loops
+  or reads a background task's output), or when its turn has ended with a
+  background shell, agent or monitor it started still running. Else done,
+  or idle once its parent is idle. A turn ends with a last message, a
+  handback or an interrupt. A foreground shell call quiet past its own
+  time limit (its timeout, else 2 minutes, at most 10) is over. Once the session's Claude Code process has
+  exited, every sub-agent is done. Click opens its transcript
   read-only in a pane right of the parent: the prompt on a
   yellow edge, the assistant's words as markdown, each tool call as
   `● Tool · arg` with its result folded to its first line. It follows the

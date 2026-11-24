@@ -125,6 +125,12 @@ const GLYPH = {
       .transition("width", MOTION.done.check).transition("height", MOTION.done.check)
       .flex_none().rounded_full().bg(C.lime).flex().items_center().justify_center().overflow_hidden()
       .text_size(size - 3).font_weight(700).text_color(C.ink).child(st.glyph)),
+  // Two bars that never move, beside the march's two stepping triangles: the run is live, but
+  // no work is happening in it. Drawn, so it depends on no font having the glyph.
+  pause: (st, { C, inv, size }) => {
+    const bar = () => div().w(Math.max(2, Math.round(size * 0.2))).h(size - 3).flex_none().bg(C[inv ? `${st.hue}Inv` : st.hue]);
+    return h_flex().w(size + 2).h(size + 2).flex_none().gap(Math.max(2, Math.round(size * 0.2))).items_center().justify_center().child(bar()).child(bar());
+  },
   mono: (st, { C, inv, size }) => div().flex_none().font_family(FONT.mono).text_size(size - 1.5).text_color(inv ? C.selMuted : C.muted).child(st.glyph),
   text: (st, { C, inv, size }) => div().flex_none().text_size(size + 1).font_medium().text_color(C[inv ? `${st.hue}Inv` : st.hue]).child(st.glyph),
   pill: (st, { C, size }) => div().flex_none().w(size + 5).h(size).flex().items_center().justify_center().bg(C.signal).text_color(C.ink)
