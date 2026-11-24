@@ -25,6 +25,8 @@ ICONS = {
     "sidebar": stroke('<rect x="1.5" y="2.5" width="13" height="11"/><path d="M6 2.5v11"/>'),
     "pin": stroke('<path d="M6 2h4M6.5 2v4.5L4 9h8L9.5 6.5V2M8 9v5"/>'),
     "pin-off": stroke('<path d="M6 2h4M6.5 2v4.5L4 9h8L9.5 6.5V2M8 9v5M2 2l12 12"/>'),
+    # Two agents linked as peers (Squads rows): two chain links on the diagonal.
+    "link": stroke('<path d="M7 9.5L5.25 11.25a2.47 2.47 0 0 1-3.5-3.5L4.5 5a2.47 2.47 0 0 1 3.5 0M9 6.5l1.75-1.75a2.47 2.47 0 0 1 3.5 3.5L11.5 11a2.47 2.47 0 0 1-3.5 0M6 10l4-4"/>', width=1.4),
     "clock": stroke('<circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/>'),
     "layers": stroke('<path d="M8 2L14 5L8 8L2 5z"/><path d="M2 8l6 3l6-3M2 11l6 3l6-3"/>'),
     "split-right": stroke('<rect x="1.5" y="1.5" width="13" height="13"/><path d="M8 1.5v13"/>', width=1.2),

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseLinks, withLink, withoutLink, withNoted, untold, lifeOf, byLife, linkProblem, linkNotes, linkSteps, linkThenTell, tell, outcome } from "../skin/mods/endfield/links.js";
+import { parseLinks, withLink, withoutLink, withNoted, untold, lifeOf, byLife, linkProblem, linkedWith, linkNotes, linkSteps, linkThenTell, tell, outcome } from "../skin/mods/endfield/links.js";
 import { buildRoster, BY } from "../skin/mods/endfield/fleet.js";
 import { identityOf } from "./identity.mjs";
 
@@ -18,16 +18,39 @@ const TERMS = [term("t1", 10), term("t2", 20), term("t3", 30), term("t5", 50), t
 const SID = { "t1@10": "S1", "t2@20": "S2", "t3@30": "S3", "t5@50": "S5", "t9@90": null };
 const link = (a, b, extra = {}) => ({ a, b, sa: SID[a], sb: SID[b], at: 1, ...extra });
 
-test("a linked helper shows under its lead, while its hc parent stays unset", () => {
-  const R = build(LISTED, TERMS, [link("t1@10", "t2@20")]);
+test("linked agents show as peers: both top-level, the helper right after its lead's block", () => {
+  const R = build(LISTED, TERMS, [link("t1@10", "t3@30")]);
   const s1 = R.squads.find((q) => q.id === "s1");
-  assert.deepEqual(s1.members.map((m) => [m.address, m.depth]), [["t1", 0], ["t2", 1], ["t9", 1], ["t3", 0]], "the helper sorts among the lead's children");
-  const b = R.all.get("t2");
+  assert.deepEqual(s1.members.map((m) => [m.address, m.depth, m.group]), [["t1", 0, "t1"], ["t9", 1, null], ["t3", 0, "t1"], ["t2", 0, null]],
+    "the lead keeps its own sub-agent, and t2 (tab order before t3) waits until the group ends");
+  const b = R.all.get("t3");
   assert.equal(b.linked, "t1");
   assert.equal(b.parent, null, "the hc parent is hc's");
   assert.deepEqual(R.all.get("t1").kids, ["t9"], "kids are hc children only");
-  assert.deepEqual(R.all.get("t1").helpers, ["t2"]);
-  assert.equal(R.all.get("t1").urgency, 4, "a lead whose helper needs input sorts as needing input");
+  assert.deepEqual(R.all.get("t1").helpers, ["t3"]);
+  assert.deepEqual(linkedWith(R.all.get("t1")), ["t3"]);
+  assert.deepEqual(linkedWith(b), ["t1"]);
+});
+
+test("in Priority a linked group sorts as urgent as its most urgent member, and stays together", () => {
+  const R = buildRoster({ listed: LISTED, terms: TERMS, spaces, identity, sort: BY.priority, links: [link("t1@10", "t3@30")], sessions: SESSIONS });
+  const blocked = buildRoster({ listed: LISTED.map((a) => (a.address === "t3" ? { ...a, status: "blocked" } : a)), terms: TERMS, spaces, identity, sort: BY.priority, links: [link("t1@10", "t3@30")], sessions: SESSIONS });
+  const tops = (X) => X.squads.find((q) => q.id === "s1").members.filter((m) => m.depth === 0).map((m) => m.address);
+  assert.deepEqual(tops(R), ["t2", "t1", "t3"], "t2 needs input, so it leads");
+  assert.deepEqual(tops(blocked), ["t1", "t3", "t2"], "the helper needs input: its group leads, lead first");
+});
+
+test("a lead's helpers follow it in one group, a helper's own helper right after it", () => {
+  const R = build(LISTED, TERMS, [link("t1@10", "t3@30"), link("t3@30", "t2@20")]);
+  const s1 = R.squads.find((q) => q.id === "s1");
+  assert.deepEqual(s1.members.map((m) => [m.address, m.group]), [["t1", "t1"], ["t9", null], ["t3", "t1"], ["t2", "t1"]]);
+});
+
+test("a link between a pinned and an unpinned agent groups nothing: each stays in its squad", () => {
+  const R = build(LISTED.map((a) => (a.address === "t3" ? { ...a, pinned: true } : a)), TERMS, [link("t1@10", "t3@30")]);
+  assert.deepEqual(R.squads.map((q) => [q.id, q.members.map((m) => [m.address, m.group])]),
+    [["pinned", [["t3", null]]], ["s1", [["t1", null], ["t9", null], ["t2", null]]], ["s2", [["t5", null]]]]);
+  assert.equal(R.all.get("t3").linked, "t1", "still linked: its glyph and card say so");
 });
 
 test("a link drops when either terminal ends, or when its address comes back in a new life", () => {
@@ -75,7 +98,7 @@ test("a drop links only two Claude Code sessions in one squad on one machine, an
   assert.match(linkProblem(R.all, "t9", "t2"), /sub-agent of t1/);
   assert.match(linkProblem(R.all, "t3", "t1"), /already linked/);
   assert.match(linkProblem(R.all, "t3", "t2"), /helper of t1/);
-  assert.match(linkProblem(R.all, "t1", "t3"), /under it already/, "a lead can't become its own helper's helper");
+  assert.match(linkProblem(R.all, "t1", "t3"), /already joined/, "a lead can't become its own helper's helper");
   assert.equal(linkProblem(R.all, "t1", "gone") != null, true);
 });
 

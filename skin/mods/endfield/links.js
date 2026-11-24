@@ -5,8 +5,8 @@
 // is archive.js lifeKey (address@created), so a link drops when either terminal ends and never comes
 // back on an address reused after a restart; the session ids drop it when a new session (or another
 // program) starts in the same shell. Both agents sit in one space, so a helper never leaves its own
-// squad (dock.js won't move a linked chat out of it). Squads nests the helper under its
-// lead (fleet.js buildRoster); the hc parent, the Report tree and parent notes are untouched.
+// squad (dock.js won't move a linked chat out of it). Squads shows the two as peers, side by side
+// and joined by a link rail (fleet.js grouped); the hc parent, the Report tree and parent notes are untouched.
 // The two agents talk through Claude Code's own cross-session messaging (ListAgents, SendMessage),
 // which the note typed into each idle one on Link points them at:
 // https://code.claude.com/docs/en/cross-session-messaging.md
@@ -21,6 +21,9 @@ export function parseLinks(text) {
     return Array.isArray(links) ? links.filter((l) => l && typeof l.a === "string" && typeof l.b === "string" && l.a !== l.b) : [];
   } catch { return []; }
 }
+
+/** The addresses a roster member (fleet.js) is linked with: its lead, then its helpers. */
+export const linkedWith = (m) => [m.linked, ...(m.helpers ?? [])].filter(Boolean);
 
 /** The life of a roster member (fleet.js), as a link names it. */
 export const lifeOf = (m) => lifeKey(m.address, m.created);
@@ -84,7 +87,7 @@ export function linkProblem(all, b, a) {
   if (A.space !== B.space) return "Link agents in the same squad. Drag one onto the other's squad first.";
   if (B.parent) return `It is already a sub-agent of ${B.parent}.`;
   if (B.linked) return B.linked === a ? "It is already linked to that agent." : `It is already a helper of ${B.linked}. Unlink it first.`;
-  for (let up = A; up; up = all.get(up.parent ?? up.linked)) if (up.address === b) return "That agent is under it already.";
+  for (let up = A; up; up = all.get(up.parent ?? up.linked)) if (up.address === b) return "They are already joined, through a link or a sub-agent.";
   if (!A.session || !B.session) return "Wait until both sessions show on their cards: a link is kept to the session.";
   return null;
 }
@@ -141,7 +144,7 @@ export async function tell({ steps, idle, told, send }) {
 }
 
 /**
- * Link: the link is saved first, so Squads nests the helper at once whatever either agent is doing;
+ * Link: the link is saved first, so Squads groups the two at once whatever either agent is doing;
  * then each note goes to its agent if idle (tell). A save that fails types nothing.
  * keep: updateFile over links.json. -> {ok, error} | {ok, out, errors}
  */
