@@ -48,7 +48,7 @@ export function chatMenu(member) {
   return [
     ...(actions.rename ? [{ key: "rename", label: "Rename", why: null }] : []),
     { key: "pin", label: member.agent.pinned ? "Unpin" : "Pin to the top", why: null },
-    ...(actions.archive ? [{ key: "archive", label: "Archive", why: gate(member.status) }] : []),
+    ...(actions.archive ? [{ key: "archive", label: "Archive", why: gate(member.herdrStatus ?? member.status) }] : []),
   ];
 }
 
