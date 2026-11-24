@@ -4,8 +4,8 @@
 // Claude Code session each ran when linked, at, noted: {lead, helper}: whose note was typed}. A life
 // is archive.js lifeKey (address@created), so a link drops when either terminal ends and never comes
 // back on an address reused after a restart; the session ids drop it when a new session (or another
-// program) starts in the same shell. Both agents sit in one space: Herdr can't move a chat between
-// spaces, so a helper from another would leave its own squad. Squads nests the helper under its
+// program) starts in the same shell. Both agents sit in one space, so a helper never leaves its own
+// squad (dock.js won't move a linked chat out of it). Squads nests the helper under its
 // lead (fleet.js buildRoster); the hc parent, the Report tree and parent notes are untouched.
 // The two agents talk through Claude Code's own cross-session messaging (ListAgents, SendMessage),
 // which the note typed into each on Confirm points them at:
@@ -76,7 +76,7 @@ export function linkProblem(all, b, a) {
   if (!B || !A || b === a) return "Drop it on another agent.";
   if (B.program?.key !== "claude" || A.program?.key !== "claude") return "Both must be Claude Code sessions: they talk through its cross-session messaging.";
   if (machineOf(a) !== machineOf(b)) return "Both must be on the same machine: cross-session messaging between machines needs Remote Control.";
-  if (A.space !== B.space) return "Link agents in the same squad; Herdr can't move a chat between squads.";
+  if (A.space !== B.space) return "Link agents in the same squad. Drag one onto the other's squad first.";
   if (B.parent) return `It is already a sub-agent of ${B.parent}.`;
   if (B.linked) return B.linked === a ? "It is already linked to that agent." : `It is already a helper of ${B.linked}. Unlink it first.`;
   for (let up = A; up; up = all.get(up.parent ?? up.linked)) if (up.address === b) return "That agent is under it already.";

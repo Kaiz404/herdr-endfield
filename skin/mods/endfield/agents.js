@@ -23,6 +23,8 @@ import { holding, slotTops, chatBlocks } from "./squads.js";
 import { openSquadMenu } from "./squadmenu.js";
 import { openLink, loadLinks } from "./linkdialog.js";
 import { linkProblem } from "./links.js";
+import { exitSide, movePlan, dockPlan } from "./dock.js";
+import { openDock, moveChat, chatOf, anchorOf } from "./docking.js";
 
 // Fixed heights, so the selection marker knows where the selected row starts (the row's own ink plate snaps).
 // Compact (DENSE_AT agents and up): 34px rows that keep the chip, badge and label over the task.
@@ -135,7 +137,11 @@ export class Agents {
     }
     // A held squad header, a chat in Tab order, or an agent in Priority dragged onto another to link
     // it as a helper: {kind: "squad" | "chat" | "link", scope (the chat's squad),
-    // from (the space or tab id, or the agent's address), target (link: the row under it, {address, problem}), grip (link: the press's offset into its row), y0 and y (the pointer, pressed and now), live (moved past
+    // from (the space or tab id, or the agent's address), terminal (chat and link: the held row's agent),
+    // target (link: the row under it, {address, problem}), squad (chat and link: the other squad
+    // header under the pointer, {id, problem}), grip (the press's offset into its row, {x, y}), y0
+    // and y (the pointer, pressed and now), pt and list (the pointer and the list's bounds, in the
+    // window, so leaving by the right edge docks), live (moved past
     // DRAG_START_PX), to and move (the gap and command the last frame showed), ids (the list's block
     // order then), back (the pane that had the keyboard), done (released, sliding into place),
     // moved (Herdr's order has the move)}. Cleared once the slide has run.
@@ -149,6 +155,8 @@ export class Agents {
     this.nameInput = InputState.new({ placeholder: "Squad name" });
     this.nameInput.on("submit", (_e, cx) => this.rename(cx));
     setShared("endfield.squad.rename", null);
+    setShared("endfield.dock.ask", null);
+    setShared("endfield.dock.done", null);
   }
 
   close() {
@@ -343,12 +351,14 @@ export class Agents {
   tap(fn) { return (e, cx) => { if (!this.swallow && !this.dragging()) fn(e, cx); }; }
 
   /** A press on a squad header, a chat in Tab order or an agent in Priority: held, it drags once the pointer moves. */
-  press(kind, scope, from, e) {
+  press(kind, scope, from, e, terminal = null) {
     if (e.click_count !== 1) return;
     const y = e.position?.y ?? 0;
-    // grip: how far into its row the press landed, so a link drop reads the row under the pointer itself.
-    const top = (e.bounds ?? this.bounds[`ag-${from}`])?.y;
-    this.drag = { kind, scope, from, target: null, grip: top == null ? null : y - top, y0: y, y, live: false, to: null, move: null, ids: null, back: null, done: false, moved: false };
+    // grip: how far into its row the press landed, so a drop reads the row under the pointer itself
+    // and the docking ghost hangs from the pointer where the row was taken.
+    const b = e.bounds ?? this.bounds[`ag-${terminal ?? from}`];
+    this.drag = { kind, scope, from, terminal, target: null, squad: null, grip: b ? { x: (e.position?.x ?? 0) - b.x, y: y - b.y } : null, y0: y, y, pt: e.position ?? null, list: null,
+      live: false, to: null, move: null, ids: null, back: null, done: false, moved: false };
   }
 
   /** The pointer moving over the list: the held block follows it. */
@@ -356,6 +366,8 @@ export class Agents {
     const d = this.drag;
     if (!d || d.done) return;
     const y = e.position?.y ?? d.y;
+    d.pt = e.position ?? d.pt;
+    d.list = e.bounds ?? d.list;
     if (!d.live) {
       // A press only becomes a drag once the pointer has moved a few pixels: a shaky click stays a click.
       if (Math.abs(y - d.y0) < DRAG_START_PX) return;
@@ -379,13 +391,53 @@ export class Agents {
     if (!d.live) { this.drag = null; return; }
     d.done = true;
     this.swallow = true;
+    // A drop on another squad's header moves the chat there (its ghost shrinks into the header).
     // A link drop only opens its confirm: the dialog saves and types, on its own Confirm.
-    if (d.kind === "link") { if (commit && d.target && !d.target.problem) openLink({ lead: d.target.address, helper: d.from }); }
+    if (d.squad) {
+      d.to = null;
+      const chat = commit && !d.squad.problem ? chatOf(d.terminal) : null;
+      const plan = chat ? movePlan(chat, spaces(), panes(), d.squad.id) : null;
+      if (plan?.steps) cx.spawn(async (cx) => this.moveNow(cx, chat, plan.steps));
+      else d.squad = null;
+    } else if (d.kind === "link") { if (commit && d.target && !d.target.problem) openLink({ lead: d.target.address, helper: d.from }); }
     else if (commit && d.move) run(d.kind === "squad" ? "space.move" : "tab.move", d.move);
     else d.to = null;
     if (d.back && this.keys.is_focused()) run("pane.focus", { pane: d.back });
     cx.timer.after(MOTION.drag.slide.duration + MOTION.settle.delay, (cx) => { if (this.drag === d) { this.drag = null; cx.notify(); } });
     cx.notify();
+  }
+
+  /**
+   * The pointer left the list. A held agent row that leaves by the right edge, into the work area,
+   * goes on in the dock overlay (docking.js), which draws its ghost from here on; any other exit cancels.
+   */
+  leave(cx) {
+    const d = this.drag;
+    const b = d?.terminal ? this.bounds[`ag-${d.terminal}`] : null;
+    if (d?.live && !d.done && b && d.grip && d.list && exitSide(d.pt, d.list) === "right") {
+      openDock({ terminal: d.terminal, anchor: d.back, left: d.list.x + d.list.width, from: { x: b.x, y: b.y, w: b.width, h: b.height },
+        grip: d.grip, pointer: d.pt, title: this.info[`ag-${d.terminal}`]?.title ?? "" });
+    }
+    this.release(cx, false);
+  }
+
+  /** One move at a time: a second drop while one runs is refused. -> whether it landed. */
+  async moveNow(cx, chat, steps) {
+    if (this.moving) return false;
+    this.moving = true;
+    try { return await moveChat(cx, chat, steps); } finally { this.moving = false; }
+  }
+
+  // The dock overlay's drop: planned again here on Herdr's lists now, run, and answered.
+  docked(ask, cx) {
+    if (!ask || ask.at === this.dockAt) return;
+    this.dockAt = ask.at;
+    const chat = chatOf(ask.terminal);
+    const plan = chat ? dockPlan(chat, anchorOf(ask.anchor), ask.zone) : null;
+    cx.spawn(async (cx) => {
+      const ok = plan?.steps ? await this.moveNow(cx, chat, plan.steps) : false;
+      setShared("endfield.dock.done", { at: ask.at, ok });
+    });
   }
 
   /**
@@ -513,8 +565,8 @@ export class Agents {
       .on_hover(this.hover(r.key))
       .on_mouse_move((e) => { this.bounds[r.key] = e.bounds; })
       .on_click(this.tap(r.click))
-      .when(Boolean(r.grab), (el) => el.on_mouse_down("left", (e) => this.press("chat", r.grab, m.tab, e)))
-      .when(Boolean(r.linkable), (el) => el.on_mouse_down("left", (e) => this.press("link", null, m.address, e)))
+      .when(Boolean(r.grab), (el) => el.on_mouse_down("left", (e) => this.press("chat", r.grab, m.tab, e, m.address)))
+      .when(Boolean(r.linkable), (el) => el.on_mouse_down("left", (e) => this.press("link", null, m.address, e, m.address)))
       .when(Boolean(r.held), (el) => el.opacity(0.45))
       .when(Boolean(r.drop), (el) => el.border_1().border_color(r.drop.problem ? C.hairStrong : C.text))
       // Told to the list before its next render, where the card's report of the same press is read.
@@ -570,8 +622,10 @@ export class Agents {
       .when(!q.pinned, (el) => el
         .on_mouse_down("left", (e) => this.press("squad", null, q.id, e))
         .on_mouse_down("right", () => openSquadMenu(q.id)))
-      .tooltip(q.pinned ? "Pinned agents, from every space. Click to fold." : `Squad ${q.num} ${q.name}. Click to fold, drag to reorder, double-click the name to rename, right-click for more.`)
+      .tooltip(q.pinned ? "Pinned agents, from every space. Click to fold." : `Squad ${q.num} ${q.name}. Click to fold, drag to reorder, double-click the name to rename, right-click for more. Drop a chat here to move it into this squad.`)
       .child(wipe(`${id}-wipe`, C.sunken, this.width, hot))
+      // A held chat would land here: the header lifts, with the yellow edge of where it lands.
+      .when(Boolean(s.target), (el) => el.bg(C.raised).shadow_lg().child(div().absolute().left(0).top(4).w(2).h(D.head - 8).bg(C.signal)))
       .child(div().relative().w(22).h(16).flex_none().flex().items_center().justify_center().rounded(3).bg(C.selBg)
         .font_family(FONT.mono).text_size(9).text_color(C.selText).child(q.pinned ? icon("pin", 10).text_color(C.selText) : q.num))
       .child(name)
@@ -678,6 +732,7 @@ export class Agents {
     for (const m of R.all.values()) this.fx.track(m.address, m.status, cx);
     setAgentOrder(R.flat.filter((m) => m.agent).map((m) => m.address));
     this.share(R);
+    this.docked(shared("endfield.dock.ask"), cx);
     if (narrow()) return this.rail(C, R);
 
     const shown = focused()?.agent;
@@ -788,21 +843,34 @@ export class Agents {
       s.lift = rowsAt.held >= 0 ? { y: rowsAt.tops[rowsAt.held], h: chats[rowsAt.held].h, travel: rowsAt.travel } : null;
     });
 
-    // An agent held in Priority stays in place, dimmed; a ghost carries it to the row under the
-    // pointer, which says whether a drop links it there (links.js linkProblem). Nothing slides.
+    // A held agent row: over another squad's header, a drop moves it there (dock.js movePlan); in
+    // Priority, over another row, a drop links it (links.js linkProblem). An agent held in Priority
+    // stays in place, dimmed, and a ghost carries it; a chat held in Tab order slides in its squad
+    // and shows the ghost only over a header. Dropped on a header, the ghost shrinks into it.
     const d = this.drag;
     let ghost = null;
-    if (d?.kind === "link" && d.live && !d.done) {
-      const shownRows = sections.filter((s) => !s.folded).flatMap((s) => s.rows.filter((r) => !r.more && !r.native).map((r) => ({ r, top: s.y + D.head + r.y })));
-      const held = shownRows.find((x) => x.r.m.address === d.from);
+    if ((d?.kind === "link" || d?.kind === "chat") && d.live && d.done && d.squad) {
+      const head = sections.find((s) => s.q.id === d.squad.id);
+      if (head) { head.target = true; ghost = { y: head.y + D.head / 2, label: d.label, text: `Move to ${head.q.name}`, shrink: true }; }
+    } else if ((d?.kind === "link" || d?.kind === "chat") && d.live && !d.done) {
+      const shownRows = sections.filter((s) => !s.folded).flatMap((s) => s.rows.filter((r) => !r.more && !r.native).map((r) => ({ r, top: s.y + D.head + r.top })));
+      const held = shownRows.find((x) => x.r.m.address === d.terminal);
       // The pointer, in list coordinates: where it pressed in the held row, moved as far as it has.
-      const y = held ? held.top + (d.grip ?? held.r.h / 2) + d.y - d.y0 : 0;
-      const over = held ? shownRows.find((x) => x !== held && y >= x.top && y < x.top + x.r.h) : null;
+      const y = held ? held.top + (d.grip?.y ?? held.r.h / 2) + d.y - d.y0 : 0;
+      const head = held ? sections.find((s) => !s.q.pinned && s.q.id !== held.r.m.space && y >= s.y && y < s.y + D.head) : null;
+      const chat = head ? chatOf(d.terminal, R.all.get(d.terminal)) : null;
+      d.squad = head ? { id: head.q.id, problem: chat ? movePlan(chat, spaces(), panes(), head.q.id).problem ?? null : "It has ended" } : null;
+      const over = held && !head && d.kind === "link" ? shownRows.find((x) => x !== held && y >= x.top && y < x.top + x.r.h) : null;
       d.target = over ? { address: over.r.m.address, problem: linkProblem(R.all, d.from, over.r.m.address) } : null;
-      if (held) {
+      d.label = held?.r.label ?? d.label;
+      if (head) head.target = !d.squad.problem;
+      if (held && d.kind === "link") {
         held.r.held = true;
         if (over) over.r.drop = d.target;
-        ghost = { y, label: held.r.label, text: !over ? "Drop on another Claude Code agent to link it as its helper"
+      }
+      if (held && (d.kind === "link" || head)) {
+        ghost = { y, label: held.r.label, text: head ? d.squad.problem ?? `Move to ${head.q.name}`
+          : !over ? "Drop on an agent to link, a squad to move, past the sidebar to split"
           : d.target.problem ?? `Link as helper of ${over.r.label} ${over.r.m.address}` };
       }
     }
@@ -850,7 +918,7 @@ export class Agents {
         .child(div().flex_1())
         .child(micro(`${pad2(active)}/${pad2(R.flat.length)} active`, C.muted))
         .child(h_flex().id("ag-sort").h(20).px(8).flex_none().items_center().rounded_full().border_1().border_color(C.hairStrong)
-          .hover((h) => h.bg(C.raised)).tooltip(sort.id === "order" ? "Sort within each squad. Drag a chat to move its tab." : "Sort within each squad. Drag an agent onto another to link it as a helper. Switch to Tab order to drag chats into a new order.")
+          .hover((h) => h.bg(C.raised)).tooltip(sort.id === "order" ? "Sort within each squad. Drag a chat to move its tab, onto another squad to move it there, or into the work area to split it there." : "Sort within each squad. Drag an agent onto another to link it as a helper, onto a squad to move it there, or into the work area to split it there. Switch to Tab order to drag chats into a new order.")
           .on_click(() => openOverlay({ mod: "endfield", kind: "popup", width: 210, height: 112, props: { role: "sortmenu" } }))
           .child(micro(`${sort.label} ▾`, C.text))))
       .when(R.flat.length === 0, (el) => el.child(v_flex().relative().h(210).flex_none().items_center().justify_center().gap(8).overflow_hidden()
@@ -870,7 +938,7 @@ export class Agents {
         .on_mouse_move((e, cx) => this.follow(e, cx))
         .on_mouse_down("left", () => { this.swallow = false; })
         .on_mouse_up("left", (_e, cx) => this.release(cx, true))
-        .on_hover((over, cx) => { if (!over) this.release(cx, false); })
+        .on_hover((over, cx) => { if (!over) this.leave(cx); })
         .when(this.dragging(), (el) => el.child(div().id("ag-drag-keys").track_focus(this.keys)
           .on_key_down((e, cx) => { if (e.key === "escape") this.release(cx, false); })))
         // The squads are drawn at their tops, so this holds the list's height for the scroll.
@@ -878,7 +946,9 @@ export class Agents {
         // The held squad last, so it is drawn over the ones it passes.
         .children([...sections.filter((s) => !s.lifted), ...sections.filter((s) => s.lifted)].map((s) => this.squad(C, D, s)))
         .child(marker("ag-mark", C, sel?.top ?? 0, sel?.h ?? 0, sel?.travel).when(!sel, (el) => el.opacity(0)))
-        .when(Boolean(ghost), (el) => el.child(h_flex().id("ag-ghost").absolute().left(10).right(10).top((ghost?.y ?? 0) - 14).h(28).px(10).gap(8).items_center()
+        .when(Boolean(ghost), (el) => el.child(h_flex().id("ag-ghost").absolute().left(10).top((ghost?.y ?? 0) - 14).h(28).px(10).gap(8).items_center().overflow_hidden()
+          .w(ghost?.shrink ? 28 : Math.max(0, (this.width || 248) - 20)).opacity(ghost?.shrink ? 0 : 1)
+          .spring("top", MOTION.dock.ghost).transition("width", MOTION.dock.shrink).transition("opacity", MOTION.dock.shrink)
           .rounded(3).bg(C.raised).border_1().border_color(C.hairStrong).shadow_lg()
           .child(wide(ghost?.label ?? "", C.text, 9).flex_none())
           .child(div().min_w(0).truncate().text_size(11).text_color(C.muted).child(ghost?.text ?? "")))))

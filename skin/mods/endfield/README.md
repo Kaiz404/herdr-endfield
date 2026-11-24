@@ -11,7 +11,7 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
 - `main.js` routes a role to its class: `boot`, `brand`, `footer`, `spaces`,
   `agents`, `sortmenu`, `squadmenu`, `card`, `tabs`, `pane`, `status`, `toast`,
   `cutin`, `report`, `dispatch`, `comms`, `transcript`, `action`, `archived`,
-  `account`.
+  `account`, `link`, `dock`.
 - Two roles open as panes, `comms` and `transcript` (`pane.split` with `mod:
   "endfield"` and the role in props). `panes()` reports a mod pane's mod but not
   its props, so `fleet.js` keeps a registry in the shared key `endfield.panes`:
@@ -113,6 +113,24 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   squad or chat drags on mouse down, move and up, as Spaces does. Squads and
   rows are drawn at computed tops (`agents.js` `arrange`), so a drag shifts
   tops with `MOTION.drag` and no height changes.
+- `dock.js` holds the rules for moving a chat, with no Herdr in it
+  (`tests/dock.test.mjs`): the drop zone under the pointer (`zoneAt`), the
+  work area's rectangle from the layout tree (`workRect`), the slab each zone
+  previews (`landing`, `collapsed`), and the steps a drop runs (`dockPlan`
+  beside the focused pane, `movePlan` into another squad), each with what
+  `panes()` shows once Herdr has applied it (`applied`). Herdr has no "move
+  pane to tab": `terminal.park` takes the pane away with the program still
+  running, `pane.focus` shows the tab it lands in, and `terminal.keep` with a
+  `place` gives it a pane beside the focused one. `docking.js` is the `dock`
+  overlay (a popup over the whole window, opened by the list when a held row
+  leaves by its right edge, since an element only hears the pointer while it
+  is over it) and `moveChat`, which runs the steps. The Squads list runs every
+  move, the overlay's through the shared key `endfield.dock.ask`, because a
+  closing overlay cancels its tasks and a move must not stop between the park
+  and the keep. Not checked in a live window: that the overlay, opened while
+  the button is held, hears the moves and the release (a release it misses
+  leaves it open, and the next click drops), and Esc, which Herdr handles for
+  a popup, closes it at once without the ghost's spring home.
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
   `card.js` (the session panel), `actions.js` (a card action's confirm dialog
   and the Archived list), `dispatch.js` (the Dispatch dialog), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),
