@@ -362,13 +362,13 @@ The section applies only while Endfield shows. Choose a key that `keys.json` doe
 
 ## 10. Manage chats and squads
 
-The session panel and the right-click menus in Squads change a chat or a squad. Each change that types into an agent opens a dialog first. The dialog shows the exact command and runs it once, when you click **Confirm**.
+The session panel and a squad header's right-click menu change a chat or a squad. Each change that types into an agent opens a dialog first. The dialog shows the exact command and runs it once, when you click **Confirm**.
 
 ### Change a chat from its session panel
 
 The **Chat** row of an agent's session panel shows its model, effort and mode, and has one button per action. Claude Code has **Rename**, **Plan**, **Next mode**, **Model**, **Effort** and **Archive**. Codex has **Rename**, **Model** and **Archive**. Cursor has **Rename**, **Plan** and **Archive**.
 
-1. Hover the agent in Squads, then click an action. The panel closes and a dialog opens. Nothing has run yet.
+1. Hover the agent in Squads, or right-click it to keep the panel open until you click outside it or press Esc. Then click an action. The panel closes and a dialog opens. Nothing has run yet.
 2. Fill in what the dialog asks for, such as the new name or the model.
 3. Read the **Needs** and **Does** lines and the command at the foot of the dialog. The command is exactly what runs.
 4. Click **Confirm** (**Archive** for Archive).
@@ -400,7 +400,8 @@ A squad is a Herdr space with agents in it. Its name and its place in the list a
 - **Reorder a squad.** Drag its header up or down. A line shows where it will land. Release over another squad's header or rows to move it there. You can't drag a squad onto a squad on another machine, or onto **Pinned**. A worktree space stays under its main checkout, because the Spaces list moves it back there.
 - **Reorder without dragging.** Right-click the header, then click **Move up** or **Move down**. Empty spaces have no squad, so a squad moves past them.
 - **Rename a squad.** Double-click its name, or right-click it and click **Rename squad**. Type the name and press Enter. Press Esc, or click somewhere else, to keep the old name.
-- **Act on a chat.** Right-click an agent row. **Rename** and **Archive** open the same dialogs as the session panel's buttons, and nothing runs until you click **Confirm** or **Archive** there. **Archive** is dimmed until the agent is idle. **Pin to the top** (or **Unpin**) runs at once. A child without a pane of its own and a Claude Code sub-agent have no menu.
+- **Act on a chat.** Right-click an agent row. Its session panel opens and stays open. **Rename**, **Archive** and the other chat actions are in its **Chat** row, and **Pin** (or **Unpin**) is in its footer. See [Change a chat from its session panel](#change-a-chat-from-its-session-panel).
+- **Look at a sub-agent.** Hover or right-click a Claude Code sub-agent's row. Its panel shows its status, model, effort, run time, context, last action and background tasks. **Open transcript** opens its transcript pane. **Follow-up** opens the pane with the follow-up box ready, and the text goes through its parent. A sub-agent has no Rename, Pin or Archive, because it is not a terminal.
 
 Squads can't move a chat to another squad, because Herdr has no command that moves a tab to another space.
 
