@@ -357,7 +357,7 @@ To go back to the default, set `"homeBase": null` or remove the line.
 
 The section applies only while Endfield shows. Choose a key that `keys.json` does not already use. Herdr's own `ctrl-shift-n` still opens a space in the folder Herdr chooses. To make `ctrl-shift-n` use the home base in Endfield, bind `ctrl-shift-n` in the same section instead.
 
-**Fold Spaces.** Click the `▾` at the right of the Spaces header to fold Spaces to its header, so Squads gets the height. The `+` stays. Click the `▸` to unfold Spaces to the size it had. Endfield remembers the fold when Herdr restarts. On the narrow sidebar rail, Spaces always shows its list. To fold and unfold with a key, add `endfield.toggleSpaces` to the same section. This example uses `alt-shift-s`:
+**Fold Spaces.** Click anywhere on the Spaces header, like a squad's, to fold Spaces to its header, so Squads gets the height. The chevron `▾` shows the state, the header lights on hover, and the tooltip says "Click to fold". The `+` stays and still opens a new space without folding. Click the header again (the chevron is then `▸`) to unfold Spaces to the size it had. Endfield remembers the fold when Herdr restarts. On the narrow sidebar rail, Spaces always shows its list. To fold and unfold with a key, add `endfield.toggleSpaces` to the same section. This example uses `alt-shift-s`:
 
 ```json
 "layout:endfield": { "alt-shift-n": "endfield.newSpace", "alt-shift-s": "endfield.toggleSpaces" }
