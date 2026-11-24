@@ -4,7 +4,7 @@
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { run, updates, setShared, openOverlay, closeOverlay, props, checking, window as appWindow } from "herdr";
-import { palette, root, narrow, toggleSidebar, stop, icon, micro, wide, freshDot, binding, rings, cross, growDisc, Entrance, MOTION } from "./kit.js";
+import { palette, root, narrow, toggleSidebar, stop, icon, micro, spaced, wide, freshDot, binding, rings, cross, growDisc, Entrance, MOTION } from "./kit.js";
 
 // The mark: an ink tile whose bars rise in turn (height, 80ms apart), the last a ramp at half strength.
 const BARS = [
@@ -39,7 +39,7 @@ export class Brand {
     const key = binding("app.palette");
     const shown = this.entrance.shown;
     const button = div().id("brand-mark").flex_none().cursor_pointer().on_mouse_down("left", stop)
-      .on_click(() => run("app.palette")).tooltip(key ? `Commands · ${key}` : "Commands")
+      .on_click(() => run("app.palette")).tooltip(key ? `Commands (${key})` : "Commands")
       .hover((s) => s.opacity(0.85))
       .child(mark(C, collapsed ? 26 : 30, shown));
     if (collapsed) return root(C, this.entrance.apply(h_flex().size_full().bg(C.ground).border_b(1).border_color(C.hair).justify_center().items_center().when(mac, (el) => el.items_end().pb(8)).child(button)));
@@ -48,7 +48,7 @@ export class Brand {
       .child(button)
       .child(v_flex().flex_1().min_w(0).pt(2).gap(7)
         .child(wide("Herdr", C.text, 15))
-        .child(micro(`Field ops · local${version ? ` · v${version}` : ""}`, C.muted).truncate()))
+        .child(spaced(["Field ops", "Local", version && `v${version}`], C.muted, { rest: C.dim })))
       // The window's single tri-colour mark: hard stops, right-aligned, wiping in after the bars.
       .child(h_flex().absolute().right(16).bottom(10).h(3).w(28).justify_end()
         .child(h_flex().id("tri-bar").h_full().w(shown ? 28 : 0).overflow_hidden()
@@ -82,7 +82,7 @@ export class Footer {
         .child(icon(name, 15).relative())
         .when(Boolean(extra), (el) => el.child(extra));
     };
-    const settings = button("ef-settings", "settings", ready ? "Settings · an update is ready" : "Settings", () => run("app.settings"),
+    const settings = button("ef-settings", "settings", ready ? "Settings, an update is ready" : "Settings", () => run("app.settings"),
       ready ? freshDot(C, 7).absolute().top(4).right(4) : null);
     if (collapsed) return root(C, this.entrance.apply(h_flex().size_full().bg(C.ground).border_t(1).border_color(C.hair).justify_center().items_center().child(settings)));
     return root(C, this.entrance.apply(h_flex().size_full().bg(C.ground).border_t(1).border_color(C.hair).px(12).gap(6).items_center()
@@ -138,7 +138,7 @@ export class Boot {
           .child(wide(g, "#F2F2F2", 28)))))
         .child(div().relative().w(W).h(14).flex().justify_center()
           .child(div().id("boot-sub").absolute().top(4).opacity(go ? 1 : 0).transition("opacity", MOTION.boot.sub)
-            .child(micro("// Field ops · establishing link", "#A9A9A3")))
+            .child(spaced(["// Field ops", "Establishing link"], "#A9A9A3")))
           .child(div().id("boot-rule").absolute().top(0).h(2).bg(C.signal).left(go ? W : 0).w(go ? 0 : W)
             .transition("left", MOTION.boot.rule).transition("width", MOTION.boot.rule))))
       .child(div().absolute().left(0).top(0).bottom(0).w(10).bg("#2C2C2C")
