@@ -6,6 +6,7 @@
 //   spaces    spaces by machine, worktrees nested, drag to reorder
 //   agents    agents by priority or space, sub-agents as a production chain
 //   sortmenu  the agents list's sort popup
+//   squadmenu the right-click menu on a Squads chat row or squad header
 //   card      a session card beside the agents list, an overlay window the list opens
 //   tabs      the tab strip, + menu, Files/Changes, window buttons
 //   pane      a pane's header (the layout's pane frame)
@@ -35,8 +36,9 @@ import { Dispatch } from "./dispatch.js";
 import { Comms } from "./comms.js";
 import { Transcript } from "./transcript.js";
 import { ActionDialog, Archived } from "./actions.js";
+import { SquadMenu } from "./squadmenu.js";
 
-const ROLES = { boot: Boot, brand: Brand, footer: Footer, spaces: Spaces, agents: Agents, sortmenu: SortMenu, card: Card, tabs: Tabs, pane: PaneHeader, status: Status, toast: Toast, cutin: CutIn, report: Report, dispatch: Dispatch, comms: Comms, transcript: Transcript, action: ActionDialog, archived: Archived };
+const ROLES = { boot: Boot, brand: Brand, footer: Footer, spaces: Spaces, agents: Agents, sortmenu: SortMenu, squadmenu: SquadMenu, card: Card, tabs: Tabs, pane: PaneHeader, status: Status, toast: Toast, cutin: CutIn, report: Report, dispatch: Dispatch, comms: Comms, transcript: Transcript, action: ActionDialog, archived: Archived };
 // Herdr opens the layout's toast mod with notification props and no role.
 const roleOf = (p) => p.role ?? (p.overlay && "title" in p ? "toast" : null);
 
