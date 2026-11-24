@@ -411,7 +411,7 @@ export function rowMeta(run, now, segments) {
     gauge: share == null ? null : {
       lit: Math.round(Math.min(1, share) * segments),
       hot: share >= CTX_HOT,
-      tip: `${fmtTokens(run.used)} / ${fmtTokens(total)} · ${Math.round(share * 100)}%`,
+      tip: `${fmtTokens(run.used)} / ${fmtTokens(total)}, ${Math.round(share * 100)}%`,
     },
   };
 }

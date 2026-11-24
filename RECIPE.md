@@ -51,7 +51,7 @@ rendered at 4x. It is a schematic, not a screenshot.
     yellow "Needs input" pill or "✓ Finished". The second line is the task
     (13px medium) with, at its right, an 8-block context gauge (5x6px blocks
     2px apart; lit share = used / window, red from 75%; its tooltip reads
-    `157K / 1M · 16%`; an unknown window is 1M for a `[1m]` model or a
+    `157K / 1M, 16%`; an unknown window is 1M for a `[1m]` model or a
     context past 200K, else 200K). The status and elapsed never shrink; the
     model and effort give way first, then the callsign truncates. While a
     generating row under a minute is on screen the list redraws each second
@@ -277,7 +277,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   exited, every sub-agent is done. Click opens its transcript
   read-only in a pane right of the parent: the prompt on a
   yellow edge, the assistant's words as markdown, each tool call as
-  `● Tool · arg` with its result folded to its first line. It follows the
+  `● Tool arg` with its result folded to its first line. It follows the
   file and keeps the newest entry in view. A tab has one transcript pane:
   clicking another sub-agent replaces it, clicking the one shown focuses it.
   The shown sub-agent's row wears the selected plate, and the yellow marker

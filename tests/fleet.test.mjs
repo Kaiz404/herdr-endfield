@@ -82,7 +82,7 @@ const MIN = 60000;
 
 test("a generating run: model and effort beside the callsign, elapsed to now, and an 8-block gauge with its numbers", () => {
   const meta = rowMeta({ startedAt: 1, lastAt: 3 * MIN, live: true, model: "Opus 5.5", effort: "medium", used: 157000, total: 1000000, program: "Claude Code" }, 1 + 67 * MIN, 8);
-  assert.deepEqual(meta, { model: "Opus 5.5", effort: "med", time: "1h07", ticking: false, running: 0, gauge: { lit: 1, hot: false, tip: "157K / 1M · 16%" } });
+  assert.deepEqual(meta, { model: "Opus 5.5", effort: "med", time: "1h07", ticking: false, running: 0, gauge: { lit: 1, hot: false, tip: "157K / 1M, 16%" } });
 });
 
 test("elapsed reads seconds, minutes, hours with minutes, then whole hours and days", () => {
@@ -110,9 +110,9 @@ test("past 75% of the window the gauge runs hot; a context over the window fills
 });
 
 test("with no total the window is inferred: 1M for a [1m] model or a context past 200K, else 200K", () => {
-  assert.equal(rowMeta({ used: 50000 }, 0, 8).gauge.tip, "50K / 200K · 25%");
-  assert.equal(rowMeta({ used: 50000, modelId: "claude-opus-5-5[1m]" }, 0, 8).gauge.tip, "50K / 1M · 5%");
-  assert.equal(rowMeta({ used: 300000 }, 0, 8).gauge.tip, "300K / 1M · 30%");
+  assert.equal(rowMeta({ used: 50000 }, 0, 8).gauge.tip, "50K / 200K, 25%");
+  assert.equal(rowMeta({ used: 50000, modelId: "claude-opus-5-5[1m]" }, 0, 8).gauge.tip, "50K / 1M, 5%");
+  assert.equal(rowMeta({ used: 300000 }, 0, 8).gauge.tip, "300K / 1M, 30%");
 });
 
 test("what isn't known is null or left out, and an agent with no session shows its program", () => {
