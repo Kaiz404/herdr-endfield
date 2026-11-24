@@ -11,7 +11,7 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, settings } from "herdr";
+import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, settings, checking } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, spaced, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE } from "./kit.js";
 import { roster, holdCrew } from "./roster.js";
 import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, subLabel, siblingLabels, PANE_ROLES, opening, transcriptsIn, transcriptPlan, rowShape, rowMeta, tasksOf } from "./fleet.js";
@@ -21,6 +21,8 @@ import { Sessions, isClaude } from "./sessions.js";
 import { CARD, cardKind, wantedCard, dismissed, cardHeight, cardPlace, windowHeight, resized } from "./hovercard.js";
 import { holding, slotTops, chatBlocks } from "./squads.js";
 import { openSquadMenu } from "./squadmenu.js";
+import { openLink, loadLinks } from "./linkdialog.js";
+import { linkProblem } from "./links.js";
 
 // Fixed heights, so the selection marker knows where the selected row starts (the row's own ink plate snaps).
 // Compact (DENSE_AT agents and up): 34px rows that keep the chip, badge and label over the task.
@@ -36,6 +38,7 @@ const PIN = { max: 3, row: 34, more: 22 };
 const LINE_PX = 20;
 // How far a held squad header or chat must move before it counts as a drag.
 const DRAG_START_PX = 4;
+const LINKS_POLL_MS = 5000;
 // The squad name field takes the keyboard again once the menu that asked for it has closed.
 const NAME_FOCUS_MS = 300;
 
@@ -125,8 +128,14 @@ export class Agents {
     // Polled whether the sidebar is wide, a rail or hidden: the HUD footer, the report and the card read it.
     this.sessions = new Sessions("agents");
     this.sessions.start(cx, () => agents().filter(isClaude).map((a) => ({ terminal: a.address, cwd: cwdOf(a), status: a.status })));
-    // A held squad header, or a chat in Tab order: {kind: "squad" | "chat", scope (the chat's squad),
-    // from (the space or tab id), y0 and y (the pointer, pressed and now), live (moved past
+    // Read again on a slow beat too, so a link made or dropped in another window shows here.
+    if (!checking()) {
+      cx.spawn(async (cx) => { if (await loadLinks()) cx.notify(); });
+      cx.timer.every(LINKS_POLL_MS, (cx) => cx.spawn(async (cx) => { if (await loadLinks()) cx.notify(); }));
+    }
+    // A held squad header, a chat in Tab order, or an agent in Priority dragged onto another to link
+    // it as a helper: {kind: "squad" | "chat" | "link", scope (the chat's squad),
+    // from (the space or tab id, or the agent's address), target (link: the row under it, {address, problem}), grip (link: the press's offset into its row), y0 and y (the pointer, pressed and now), live (moved past
     // DRAG_START_PX), to and move (the gap and command the last frame showed), ids (the list's block
     // order then), back (the pane that had the keyboard), done (released, sliding into place),
     // moved (Herdr's order has the move)}. Cleared once the slide has run.
@@ -333,11 +342,13 @@ export class Agents {
   // A release that ended a drag is not a click on what was held.
   tap(fn) { return (e, cx) => { if (!this.swallow && !this.dragging()) fn(e, cx); }; }
 
-  /** A press on a squad header, or on a chat in Tab order: held, it drags once the pointer moves. */
+  /** A press on a squad header, a chat in Tab order or an agent in Priority: held, it drags once the pointer moves. */
   press(kind, scope, from, e) {
     if (e.click_count !== 1) return;
     const y = e.position?.y ?? 0;
-    this.drag = { kind, scope, from, y0: y, y, live: false, to: null, move: null, ids: null, back: null, done: false, moved: false };
+    // grip: how far into its row the press landed, so a link drop reads the row under the pointer itself.
+    const top = (e.bounds ?? this.bounds[`ag-${from}`])?.y;
+    this.drag = { kind, scope, from, target: null, grip: top == null ? null : y - top, y0: y, y, live: false, to: null, move: null, ids: null, back: null, done: false, moved: false };
   }
 
   /** The pointer moving over the list: the held block follows it. */
@@ -368,7 +379,9 @@ export class Agents {
     if (!d.live) { this.drag = null; return; }
     d.done = true;
     this.swallow = true;
-    if (commit && d.move) run(d.kind === "squad" ? "space.move" : "tab.move", d.move);
+    // A link drop only opens its confirm: the dialog saves and types, on its own Confirm.
+    if (d.kind === "link") { if (commit && d.target && !d.target.problem) openLink({ lead: d.target.address, helper: d.from }); }
+    else if (commit && d.move) run(d.kind === "squad" ? "space.move" : "tab.move", d.move);
     else d.to = null;
     if (d.back && this.keys.is_focused()) run("pane.focus", { pane: d.back });
     cx.timer.after(MOTION.drag.slide.duration + MOTION.settle.delay, (cx) => { if (this.drag === d) { this.drag = null; cx.notify(); } });
@@ -441,6 +454,8 @@ export class Agents {
     const pin = this.pinButton(C, r, hot, on);
     const keep = (_e, cx) => { this.card.kept = this.card.open?.id ?? null; cx.notify(); };
     const carded = r.key === this.card.open?.key;
+    // A helper linked to its lead (links.js), not started by it: the connector alone would say hc parent.
+    const linked = () => micro("linked", sub, 9).flex_none();
     // The connector: a 1px right angle from the parent chip's foot to this chip's side, drawn top-down when the child arrives.
     let link = null;
     if (r.up) {
@@ -461,16 +476,19 @@ export class Agents {
     const label = one
       ? nudge(h_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(8).items_center()
         .child(wide(r.label, fg, 9).flex_none())
+        .when(Boolean(m.linked), (el) => el.child(linked()))
         .child(div().min_w(0).truncate().font_medium().text_size(11.5).child(r.title))
       : dense
       ? nudge(v_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(D.lines)
         .child(h_flex().min_w(0).gap(6).items_center()
           .child(wide(r.label, fg, 9).flex_none())
+          .when(Boolean(m.linked), (el) => el.child(linked()))
           .child(head))
         .child(div().min_w(0).truncate().font_medium().text_size(11.5).child(r.title))
       : nudge(v_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(D.lines)
         .child(h_flex().min_w(0).gap(8).items_center()
           .child(wide(r.label, fg, 10).flex_shrink(1).min_w(0).truncate())
+          .when(Boolean(m.linked), (el) => el.child(linked()))
           .child(head)
           .when(Boolean(pin), (el) => el.child(pin))
           .when(running > 0, (el) => el.child(h_flex().id(`${r.key}-tasks`).flex_none().gap(3).items_center().text_color(sub)
@@ -496,6 +514,9 @@ export class Agents {
       .on_mouse_move((e) => { this.bounds[r.key] = e.bounds; })
       .on_click(this.tap(r.click))
       .when(Boolean(r.grab), (el) => el.on_mouse_down("left", (e) => this.press("chat", r.grab, m.tab, e)))
+      .when(Boolean(r.linkable), (el) => el.on_mouse_down("left", (e) => this.press("link", null, m.address, e)))
+      .when(Boolean(r.held), (el) => el.opacity(0.45))
+      .when(Boolean(r.drop), (el) => el.border_1().border_color(r.drop.problem ? C.hairStrong : C.text))
       // Told to the list before its next render, where the card's report of the same press is read.
       .when(carded, (el) => el.on_mouse_down("left", keep).on_mouse_down("middle", keep))
       .on_mouse_down("right", (e, cx) => {
@@ -638,7 +659,11 @@ export class Agents {
     const models = Object.fromEntries(R.flat.flatMap((m) => { const id = this.sessions.get(m.address)?.model?.id; return id ? [[m.address, id]] : []; }).sort(([a], [b]) => (a < b ? -1 : 1)));
     // Every surface reads an idle or finished agent whose session waits on background work as waiting (fleet.js memberStatus).
     const waiting = R.flat.filter((m) => this.sessions.get(m.address)?.waiting).map((m) => m.address).sort();
-    for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all], ["endfield.card.session", card], ["endfield.limits", limits], ["endfield.models", models], ["endfield.waiting", waiting]]) {
+    // Every surface's roster keys a link to its two sessions (links.js stands).
+    // A guessed id (no statusline sidecar: the folder's newest transcript) moves when another session
+    // there writes, so it counts as unknown and a link isn't dropped on it.
+    const sessionIds = Object.fromEntries(R.flat.flatMap((m) => { const s = this.sessions.get(m.address); const id = s?.approx ? null : s?.sessionId; return id ? [[m.address, id]] : []; }).sort(([a], [b]) => (a < b ? -1 : 1)));
+    for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all], ["endfield.card.session", card], ["endfield.limits", limits], ["endfield.models", models], ["endfield.waiting", waiting], ["endfield.sessionIds", sessionIds]]) {
       const text = JSON.stringify(value);
       if (text !== this.published?.[key]) { (this.published ??= {})[key] = text; setShared(key, value); }
     }
@@ -695,7 +720,7 @@ export class Agents {
       for (const m of q.members) {
         const meta = rowMeta(runOf(this.sessions.get(m.address), inFlight(m.status)), now, GAUGE.segments);
         const r = { key: `ag-${m.address}`, m, depth: m.depth, ...sized(m.status, m.depth), top: inner, on: m.agent ? m.focused : m.address === shown,
-          label: m.label, title: label(m), meta, up: m.parent ? placed.get(m.parent) : null, click: () => this.focus(m) };
+          label: m.label, title: label(m), meta, up: placed.get(m.parent ?? m.linked) ?? null, linkable: sort.id !== "order" && Boolean(m.agent), click: () => this.focus(m) };
         placed.set(m.address, r);
         if (m.agent) {
           const where = [m.address.includes("/") ? m.address.split("/")[0] : null, m.spaceName, m.agent.tab_name && !/^\d+$/.test(m.agent.tab_name) ? m.agent.tab_name : pad2(m.tabIndex)].filter(Boolean);
@@ -735,6 +760,9 @@ export class Agents {
     });
     this.subNums = nextNums;
     this.subs = subRows;
+    // The task each agent row shows, which a link's note quotes (linkdialog.js).
+    const titles = JSON.stringify(Object.fromEntries(sections.flatMap((s) => s.rows.filter((r) => r.m?.agent && !r.native && !r.more).map((r) => [r.m.address, r.title]))));
+    if (titles !== this.published?.titles) { (this.published ??= {}).titles = titles; setShared("endfield.rowTitles", JSON.parse(titles)); }
     holdCrew(held([...nextNums.values()].flatMap((c) => [...c.values()])));
     this.arrive([...sections.flatMap((s) => [...s.rows.map((r) => r.key), ...(s.folded ? [`sq-${s.q.id}-stack`] : [])]), ...blocked.map((m) => `pin-${m.address}`)], cx);
 
@@ -759,6 +787,25 @@ export class Agents {
       }));
       s.lift = rowsAt.held >= 0 ? { y: rowsAt.tops[rowsAt.held], h: chats[rowsAt.held].h, travel: rowsAt.travel } : null;
     });
+
+    // An agent held in Priority stays in place, dimmed; a ghost carries it to the row under the
+    // pointer, which says whether a drop links it there (links.js linkProblem). Nothing slides.
+    const d = this.drag;
+    let ghost = null;
+    if (d?.kind === "link" && d.live && !d.done) {
+      const shownRows = sections.filter((s) => !s.folded).flatMap((s) => s.rows.filter((r) => !r.more && !r.native).map((r) => ({ r, top: s.y + D.head + r.y })));
+      const held = shownRows.find((x) => x.r.m.address === d.from);
+      // The pointer, in list coordinates: where it pressed in the held row, moved as far as it has.
+      const y = held ? held.top + (d.grip ?? held.r.h / 2) + d.y - d.y0 : 0;
+      const over = held ? shownRows.find((x) => x !== held && y >= x.top && y < x.top + x.r.h) : null;
+      d.target = over ? { address: over.r.m.address, problem: linkProblem(R.all, d.from, over.r.m.address) } : null;
+      if (held) {
+        held.r.held = true;
+        if (over) over.r.drop = d.target;
+        ghost = { y, label: held.r.label, text: !over ? "Drop on another Claude Code agent to link it as its helper"
+          : d.target.problem ?? `Link as helper of ${over.r.label} ${over.r.m.address}` };
+      }
+    }
 
     const here = (r) => r.here ?? r.on;
     const selIn = sections.find((s) => !s.folded && s.rows.some(here));
@@ -803,7 +850,7 @@ export class Agents {
         .child(div().flex_1())
         .child(micro(`${pad2(active)}/${pad2(R.flat.length)} active`, C.muted))
         .child(h_flex().id("ag-sort").h(20).px(8).flex_none().items_center().rounded_full().border_1().border_color(C.hairStrong)
-          .hover((h) => h.bg(C.raised)).tooltip(sort.id === "order" ? "Sort within each squad. Drag a chat to move its tab." : "Sort within each squad. Switch to Tab order to drag chats into a new order.")
+          .hover((h) => h.bg(C.raised)).tooltip(sort.id === "order" ? "Sort within each squad. Drag a chat to move its tab." : "Sort within each squad. Drag an agent onto another to link it as a helper. Switch to Tab order to drag chats into a new order.")
           .on_click(() => openOverlay({ mod: "endfield", kind: "popup", width: 210, height: 112, props: { role: "sortmenu" } }))
           .child(micro(`${sort.label} ▾`, C.text))))
       .when(R.flat.length === 0, (el) => el.child(v_flex().relative().h(210).flex_none().items_center().justify_center().gap(8).overflow_hidden()
@@ -830,7 +877,11 @@ export class Agents {
         .child(div().h(y).flex_none())
         // The held squad last, so it is drawn over the ones it passes.
         .children([...sections.filter((s) => !s.lifted), ...sections.filter((s) => s.lifted)].map((s) => this.squad(C, D, s)))
-        .child(marker("ag-mark", C, sel?.top ?? 0, sel?.h ?? 0, sel?.travel).when(!sel, (el) => el.opacity(0))))
+        .child(marker("ag-mark", C, sel?.top ?? 0, sel?.h ?? 0, sel?.travel).when(!sel, (el) => el.opacity(0)))
+        .when(Boolean(ghost), (el) => el.child(h_flex().id("ag-ghost").absolute().left(10).right(10).top((ghost?.y ?? 0) - 14).h(28).px(10).gap(8).items_center()
+          .rounded(3).bg(C.raised).border_1().border_color(C.hairStrong).shadow_lg()
+          .child(wide(ghost?.label ?? "", C.text, 9).flex_none())
+          .child(div().min_w(0).truncate().text_size(11).text_color(C.muted).child(ghost?.text ?? "")))))
       .when(below > 0, (el) => el.child(h_flex().h(28).flex_none().pl(16).pr(12).gap(8).items_center().border_t(1).border_color(C.hairStrong)
         .child(micro(`▾ ${below} more agent${below === 1 ? "" : "s"} below`, C.muted)).child(div().flex_1().h(1).bg(C.hair)).child(micro("Scroll", C.muted))))));
   }
