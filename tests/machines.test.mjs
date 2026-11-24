@@ -47,7 +47,9 @@ test("an agent on another machine is read from that machine's home, with no word
   assert.equal(s.model, "claude-opus-5-5");
   assert.equal(s.turns, 1);
   assert.equal(s.live, null, "this computer's registry can't say whether a process on another machine runs");
-  assert.ok(out.watch.includes(path.join(remote, ".claude", "projects", "-srv-proj")), "its project folder is watched");
+  const project = path.join(remote, ".claude", "projects", "-srv-proj");
+  assert.ok(out.missing.includes(project), "its project folder is polled");
+  assert.ok(!out.watch.includes(project), "Herdr is never asked to watch another machine's folder");
 });
 
 test("an agent with no home is read from this computer's home only", () => {

@@ -121,7 +121,7 @@ export class Sessions {
     // Folder -> its pending watch; the folders are the ones the last probe said its answer reads.
     this.watches = new Map();
     // Folders whose watch was refused: polled every SLOW_EVERY ticks instead, and watched again then.
-    // A project folder that doesn't exist yet (no session has run there) is polled the same way.
+    // A project folder that doesn't exist yet (no session has run there), or one on another machine, is polled the same way.
     this.blind = new Set();
     this.missing = false;
     // Machine -> its home as a path this computer reads, or null when it has none (not WSL).

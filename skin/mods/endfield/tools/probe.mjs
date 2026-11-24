@@ -5,7 +5,8 @@
 //     home: the home of the machine the agent runs on, as a path this computer reads (a WSL
 //     distro's \\wsl.localhost share); absent for this computer.
 //     -> {sessions: {terminal: Parsed & {sidecar, live, subagents: Parsed[]}}, watch: [the folders whose writes
-//         change this answer], missing: [project folders that don't exist yet, so can't be watched],
+//         change this answer], missing: [project folders that can't be watched, so are polled: not made
+//         yet, or on another machine, whose folders Herdr can't watch],
 //         limits: the newest rate_limits any sidecar carries, {five_hour, seven_day, updated_at} | null,
 //         accountLimits: the same per account name, "" for the default login,
 //         email: the normal login's email (~/.claude.json oauthAccount) | null}
@@ -361,8 +362,8 @@ function sessions(req) {
     const sidecar = side.get(t.terminal) ?? null;
     let transcript = sidecar?.transcript_path ?? null, approx = false;
     const project = t.cwd ? path.join(t.home ?? os.homedir(), ".claude", "projects", slug(t.cwd)) : null;
-    if (project) (stat(project) ? watch : missing).add(project);
-    if (transcript) watch.add(path.dirname(transcript));
+    if (project) (stat(project) && !t.home ? watch : missing).add(project);
+    if (transcript && !t.home) watch.add(path.dirname(transcript));
     if (!transcript && project) {
       // No sidecar names the session: take the project's most recently written transcript.
       let best = null;
