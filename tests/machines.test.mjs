@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROBE = path.join(HERE, "..", "skin", "mods", "endfield", "tools", "probe.mjs");
-const CWD = "/home/u/proj";
+const CWD = "/srv/proj";
 
 // A made-up transcript in the line shapes Claude Code writes, trimmed to what the fold reads.
 const LINES = [
@@ -23,7 +23,7 @@ before(() => {
   // Another machine's home as this computer reads it (a WSL distro's \\wsl.localhost share), and an empty home here.
   remote = path.join(dir, "remote-home");
   local = path.join(dir, "local-home");
-  const project = path.join(remote, ".claude", "projects", "-home-u-proj");
+  const project = path.join(remote, ".claude", "projects", "-srv-proj");
   fs.mkdirSync(project, { recursive: true });
   fs.mkdirSync(local);
   fs.writeFileSync(path.join(project, "session-remote.jsonl"), LINES.map((l) => JSON.stringify(l)).join("\n") + "\n");
@@ -47,7 +47,7 @@ test("an agent on another machine is read from that machine's home, with no word
   assert.equal(s.model, "claude-opus-5-5");
   assert.equal(s.turns, 1);
   assert.equal(s.live, null, "this computer's registry can't say whether a process on another machine runs");
-  assert.ok(out.watch.includes(path.join(remote, ".claude", "projects", "-home-u-proj")), "its project folder is watched");
+  assert.ok(out.watch.includes(path.join(remote, ".claude", "projects", "-srv-proj")), "its project folder is watched");
 });
 
 test("an agent with no home is read from this computer's home only", () => {
