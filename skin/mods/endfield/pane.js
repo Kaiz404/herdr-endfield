@@ -9,10 +9,12 @@
 
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { panes, props, run, layout, shared, focused, openOverlay, closeOverlay, agents } from "herdr";
+import { panes, props, run, layout, shared, focused, openOverlay, closeOverlay, agents, terminals } from "herdr";
 
 // A pane as the plate rules read it, with whether Herdr lists its terminal as an agent (plate.js kindOf).
 export const listed = (x) => (x ? { ...x, listed: agents().some((a) => a.address === x.terminal) } : x);
+/** Herdr's lists now, as tabplate.js plans a close on them (its World). */
+export const world = () => ({ panes: panes().map(listed), listed: agents(), terms: terminals() });
 import { palette, root, stop, midTrunc, statusMark, badge, chip, hazard, micro, spaced, wide, icon, basename, telling, growDisc, binding, Entrance, StatusFx, MOTION } from "./kit.js";
 import { roster } from "./roster.js";
 import { PANE_ROLES, paneRole } from "./fleet.js";

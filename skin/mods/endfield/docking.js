@@ -11,10 +11,11 @@
 // a beat, then fades and draws nothing again.
 //   endfield.dock.drag  {terminal, anchor (the pane focused when the drag began), grip (the press
 //         inside the held row) and size (the row's, {w, h}), both in the px a mod lays out in, title, at}
-// A pane plate's Hide and Pop out, a click on a hidden agent in Squads, and a tab's Close and Move
-// to squad (tabs.js) ask the list the same way (askPane), so a move outlives the plate whose pane it takes away:
-//   endfield.pane.ask  {kind: "hide" | "popout" | "show" | "move", terminal, at, and for a tab's Close
-//         terminals (every agent to hide) and close (the other panes to close), for a move space (the squad it joins)}
+// A pane plate's Hide and Pop out, a click on a hidden agent in Squads, and a tab's Move to squad
+// (tabs.js) ask the list the same way (askPane), so a move outlives the plate whose pane it takes
+// away. A tab's Close asks with the tab alone (askTab): the list plans it on Herdr's lists when it runs.
+//   endfield.pane.ask  {kind: "hide" | "popout" | "show" | "move", terminal, at, and for a move space (the squad it joins)}
+//                      {kind: "close", tab, at}
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -42,6 +43,8 @@ export function paneChat(terminal) {
 
 export const PANE_ASK = "endfield.pane.ask";
 export const askPane = (kind, terminal, more = {}) => { if (terminal) setShared(PANE_ASK, { ...more, kind, terminal, at: Date.now() }); };
+/** A tab's Close (tabplate.js runClose), run by the list. */
+export const askTab = (tab) => { if (tab) setShared(PANE_ASK, { kind: "close", tab, at: Date.now() }); };
 
 /** The Place of pane `pane`, or null when it is gone. */
 export function anchorOf(pane) {
@@ -52,7 +55,7 @@ export function anchorOf(pane) {
 }
 
 // A data wait inside a spawned task: it reads Herdr's lists and never repaints, so cx.sleep is not a motion timer.
-async function until(cx, ok) {
+export async function until(cx, ok) {
   for (let t = 0; t <= WAIT.ms; t += WAIT.poll) {
     if (ok()) return true;
     await cx.sleep(WAIT.poll);

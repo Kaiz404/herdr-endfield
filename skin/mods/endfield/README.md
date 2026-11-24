@@ -180,10 +180,14 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   (`tests/tabplate.test.mjs`), built on `plate.js`: the tab's focused pane
   (`paneOfTab`), its right-click menu (`tabActions`: Rename, that pane's plate
   actions without its ✕, Move to squad by `movePlan`, Close), and its Close
-  (`closePlan`). Herdr's `tab.close` ends every terminal in the tab, so it runs
-  only on a tab with no agent; on any other, Close asks the list for a Hide of
-  every agent with the other panes closed alongside (`askPane("hide", ...,
-  {terminals, close})`). Move to squad asks the same way (`{space}`).
+  (`closePlan`, `runClose`, `closeToast`). Herdr's `tab.close` ends every
+  terminal in the tab and `pane.close` a terminal's dependent children, so
+  Close only asks the list with the tab (`docking.js` `askTab`). The list plans
+  on Herdr's lists then, parks each agent pane and waits to see it parked,
+  plans again, closes only a pane no agent runs under, and runs `tab.close`
+  only when no agent terminal belongs to the tab (`archive.js`
+  `tabTerminals`). `runClose` takes its Herdr calls as `io`, so the tests run
+  it on a fake. Move to squad asks through `askPane` (`{space}`).
   `tabs.js` draws the strip and the `tabmenu` popup.
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
   `card.js` (the session panel), `actions.js` (a card action's confirm dialog

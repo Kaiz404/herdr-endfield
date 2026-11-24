@@ -549,13 +549,19 @@ rendered at 4x. It is a schematic, not a screenshot.
   Hover grows a 24px, 2px underline from the left. Close buttons grow a red disc behind the ×.
   They act like VS Code's tabs (`tabplate.js`), on the tab's focused pane with the name plate's own
   actions: double-click toggles Zoom (selecting the tab first; a one-pane tab doesn't zoom) and
-  never starts a drag. Middle-click and the × close the tab without selecting it: a tab with no
-  agent runs `tab.close`; a tab with an agent (`kindOf`, Herdr's `listed` included) never does.
-  Its agents hide as the plate's Hide does and its other panes close, and a toast says how many.
+  never starts a drag. Middle-click and the × close the tab without selecting it, and never end
+  an agent. The click only asks (`askTab`); the Squads list plans the close on Herdr's lists when it
+  runs (`closePlan`) and runs it as one job (`runClose`). Each agent pane (`kindOf`, Herdr's
+  `listed` included) is parked as the plate's Hide does, one at a time, and the job waits until
+  `panes()` and `terminals()` show the park. It plans again after each. Only then do the other panes
+  close, and never one an agent runs under (`pane.close` ends a terminal's dependent children).
+  `tab.close` runs only when no agent terminal belongs to the tab, with a pane or without
+  (`tabTerminals`: its `herdr.tab` label, or a descendant of a terminal in it). A park not seen in
+  time stops the job before any close. The toast comes from the job and says what it did.
   Right-click opens a menu at the pointer: Rename (`tab.rename`, also F2), Split right, Split
   down, Zoom, Pop out (only out of a split), Move to squad (every other squad, numbered, the
   focused pane's chat joining it by `movePlan`, greyed with why), Close. Each row names its key.
-  The ×'s tooltip names `tab.close`'s key only on a tab with no agent, since that key ends agents.
+  The ×'s tooltip names `tab.close`'s key only where `tab.close` is what runs, since that key ends agents.
 - **Ink buttons:** on hover the yellow side tab fades as a yellow ▶ fades in
   and slides from 2px to 9px, and the label slides 5px right (200ms).
 - **Footer:** round icon buttons fill signal yellow on hover (a disc grows from

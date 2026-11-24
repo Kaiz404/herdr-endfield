@@ -1,21 +1,22 @@
 // tabs: the tab strip (window drag). Behaviour ported from the shipped `tabs` mod: drag reorder,
 // wheel switching, the + menu, Files/Changes with per-space memory, and window buttons where the
 // system draws none. A tab acts like a VS Code tab (tabplate.js says what it offers): double-click
-// zooms its focused pane, middle-click and its ✕ close it without ending an agent, right-click opens
+// zooms its focused pane, middle-click and its ✕ close it without ending an agent (the Squads list
+// runs the close, docking.js askTab), right-click opens
 // the `tabmenu` popup. Rename is in that menu and on F2 (Herdr's tab.rename).
 // Ours: a held tab carried out under the strip docks its lead agent in the work area (docking.js).
 
 import { div, svg, image } from "gpui-kit";
 import { h_flex, v_flex, ScrollHandle } from "gpui-base";
-import { spaces, panes, focused, run, openOverlay, closeOverlay, props, notify, window as appWindow, shared, layout, settings } from "herdr";
+import { spaces, focused, run, openOverlay, closeOverlay, props, window as appWindow, shared, layout, settings } from "herdr";
 import { palette, root, find, stop, glyph, freshDot, micro, icon, pad2, telling, growDisc, pill, cue, binding, Entrance, MOTION } from "./kit.js";
 import { statusOf } from "./fleet.js";
 import { REPORT, toggleReport } from "./report.js";
 import { commsPane, openComms } from "./comms.js";
 import { underStrip } from "./dock.js";
-import { startDock, askPane, chatOf, paneChat } from "./docking.js";
+import { startDock, askTab, chatOf, paneChat } from "./docking.js";
 import { markAt } from "./tabmark.js";
-import { listed, perform, menuRow, MENU } from "./pane.js";
+import { world, perform, menuRow, MENU } from "./pane.js";
 import { tipOf } from "./plate.js";
 import { closePlan, closeAction, tabActions, paneOfTab } from "./tabplate.js";
 
@@ -33,26 +34,19 @@ function label(tab, lead) {
 
 const leadOf = (id, ps) => ps.find((p) => p.tab === id && p.program?.agent) ?? ps.find((p) => p.tab === id);
 
-/** Closes a tab as closePlan planned it: tab.close on a tab with no agent, else its agents hide and a toast says so. */
-function safeClose(plan) {
-  if (plan.closeTab) { run("tab.close", { id: plan.tab }); return; }
-  askPane("hide", plan.hide[0], { terminals: plan.hide, close: plan.close });
-  notify(plan.toast);
-}
-
 /** Tab `id`'s menu (tabplate.js tabActions) on Herdr's lists now, with its space and tab. */
 function menuOf(id) {
-  const all = spaces(), ps = panes().map(listed);
+  const all = spaces(), w = world(), ps = w.panes;
   const space = all.find((s) => s.tabs.some((t) => t.id === id));
   const lead = leadOf(id, ps);
   const focus = paneOfTab(id, ps);
   const chat = focus?.terminal ? chatOf(focus.terminal) ?? paneChat(focus.terminal) : null;
-  return { tab: space?.tabs.find((t) => t.id === id) ?? null, lead, ...tabActions({ id, space: space?.id }, ps, { spaces: all, chat }) };
+  return { tab: space?.tabs.find((t) => t.id === id) ?? null, lead, ...tabActions({ id, space: space?.id }, w, { spaces: all, chat }) };
 }
 
-/** Runs a tab menu action: Close as closePlan says, a pane action on the tab's focused pane, shown first. */
+/** Runs a tab menu action: Close through the list, which plans it then; a pane action on the tab's focused pane, shown first. */
 function act(m, a) {
-  if (a.plan) return safeClose(a.plan);
+  if (a.id === "close") return askTab(m.tab.id);
   if (a.select && !m.tab?.active) run("tab.select", { id: m.tab.id });
   perform(a, m.pane);
 }
@@ -171,13 +165,14 @@ export default class Tabs {
     return st.fresh ? freshDot(C, 7) : glyph(C, s, { size: 10 });
   }
 
-  item(C, space, shown, active, c, i, ps) {
+  item(C, space, shown, active, c, i, w) {
+    const ps = w.panes;
     const lead = leadOf(c.id, ps);
     const name = label(c, lead);
     const on = c.active;
     // VS Code: the ✕ shows on the active tab and the hovered one. Its slot is always there, so a hover never shifts the strip.
     const shut = on || this.over === c.id;
-    const close = closeAction(closePlan(c.id, ps));
+    const close = closeAction(closePlan(c.id, w));
     // The selected tab is its own yellow plate, so the plate is the tab's box at any zoom and its
     // ink text always has yellow behind it. On yellow, hues would vanish: its glyphs go ink.
     const K = on ? { ...C, flow: C.ink, signal: C.ink, ink: C.signal } : C;
@@ -211,7 +206,7 @@ export default class Tabs {
         cx.notify();
       })
       // Middle-click closes this tab where it is: no select first, so no other tab is shown or closed.
-      .on_mouse_down("middle", (_e, cx) => { cx.stop_propagation(); safeClose(closePlan(c.id, panes().map(listed))); })
+      .on_mouse_down("middle", (_e, cx) => { cx.stop_propagation(); askTab(c.id); })
       .on_mouse_up("left", () => {
         const from = this.pressed;
         this.pressed = null;
@@ -227,7 +222,7 @@ export default class Tabs {
       .child(div().id(`close-${c.id}`).relative().size(18).flex().items_center().justify_center().opacity(shut ? 1 : 0)
         .text_color(on || this.hot === `close-${c.id}` ? C.ink : C.text).on_hover(hover(`close-${c.id}`))
         .tooltip(tipOf(close, binding)).on_mouse_down("left", stop).on_mouse_down("middle", stop)
-        .on_click((_e, cx) => { cx.stop_propagation(); safeClose(closePlan(c.id, panes().map(listed))); })
+        .on_click((_e, cx) => { cx.stop_propagation(); askTab(c.id); })
         .child(growDisc(`close-disc-${c.id}`, 18, 18, 18, this.hot === `close-${c.id}`, C.red))
         .child(icon("close", 10).relative()));
   }
@@ -278,7 +273,7 @@ export default class Tabs {
       .on_scroll_wheel((e) => this.wheel(e))
       .child(h_flex().id("tab-scroll").flex_shrink(1).min_w(0).h_full().items_center().overflow_x_scrollbar().track_scroll(this.scroll)
         .on_size_change((_size, cx) => { if (active >= 0) this.scroll.scroll_to_item(active); cx.notify(); })
-        .children((() => { const ps = panes().map(listed); return shown.map((c, i) => this.item(C, space, shown, active, c, i, ps)); })())
+        .children((() => { const w = world(); return shown.map((c, i) => this.item(C, space, shown, active, c, i, w)); })())
         .child(mark))
       .child(h_flex().h_full().px(10).flex_none().items_center()
         .child(pill(C, "tab-new", "New tab", { knob: "+", hot: this.hot === "tab-new", on_hover: this.hover("tab-new"),
