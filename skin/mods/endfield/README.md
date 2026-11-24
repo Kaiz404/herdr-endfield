@@ -61,6 +61,14 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   `spaces.js` and the `endfield.newSpace` key command (handled by the `status` role,
   which every Endfield window shows once). On this computer it passes the home base as
   the folder; on another machine it passes none, so that machine's home applies.
+- `squads.js` holds the squad list's rules with no Herdr in them
+  (`tests/squads.test.mjs`): the `space.move` a dropped or stepped squad runs
+  (it takes the target's place, within one machine, past empty spaces) and the
+  right-click items per row kind. `squadmenu.js` is the popup that draws them.
+  A squad menu's Rename squad reaches the list through the shared key
+  `endfield.squad.rename` (`{id, at}`), since only the list holds the header's
+  name field. GPUI's drag helpers here carry files or dock tabs only, so a
+  squad drags on mouse down, move and up, as Spaces does.
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
   `card.js` (the session panel), `actions.js` (a card action's confirm dialog
   and the Archived list), `dispatch.js` (the Dispatch dialog), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),

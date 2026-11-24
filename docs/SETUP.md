@@ -302,6 +302,19 @@ Every action that types into the agent waits until it is idle. If the agent is w
 
 To bring one back, open the **Report**, click **Archived**, and click **Resume** on the chat. Each chat shows the exact command Resume runs, such as `claude --resume <session id>`. A new tab opens in its space and folder and runs it. The list warns when the command may reopen a different chat. This happens for Codex and Cursor, which resume their newest chat, and for a Claude Code chat whose session id was matched by its folder. **Resume** is dimmed while the chat is still running.
 
+### Arrange squads and chats in Squads
+
+A squad is a Herdr space with agents in it. Its name and its place in the list are the space's, so the Spaces list changes with it.
+
+- **Reorder a squad.** Drag its header up or down. A line shows where it will land. Release over another squad's header or rows to move it there. You can't drag a squad onto a squad on another machine, or onto **Pinned**. A worktree space stays under its main checkout, because the Spaces list moves it back there.
+- **Reorder without dragging.** Right-click the header, then click **Move up** or **Move down**. Empty spaces have no squad, so a squad moves past them.
+- **Rename a squad.** Double-click its name, or right-click it and click **Rename squad**. Type the name and press Enter. Press Esc, or click somewhere else, to keep the old name.
+- **Act on a chat.** Right-click an agent row. **Rename** and **Archive** open the same dialogs as the session panel's buttons, and nothing runs until you click **Confirm** or **Archive** there. **Archive** is dimmed until the agent is idle. **Pin to the top** (or **Unpin**) runs at once. A child without a pane of its own and a Claude Code sub-agent have no menu.
+
+Squads can't move a chat to another squad: Herdr has no command that moves a tab to another space.
+
+**Undo.** Drag the squad back, or rename it again.
+
 ### Read Comms
 
 Click the **Comms** pill at the top right. Comms opens as a pane beside the focused one. Its tabs are **All**, **You** and **Reports**.

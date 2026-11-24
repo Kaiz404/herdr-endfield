@@ -225,7 +225,15 @@ rendered at 4x. It is a schematic, not a screenshot.
   opens the space menu; the machine header folds its group.
 - **Squads:** click focuses the pane (the plate snaps, the yellow marker
   travels, 300ms); a child without a pane opens as a peek; a Claude Code
-  sub-agent opens its transcript beside its parent. A squad header folds it.
+  sub-agent opens its transcript beside its parent. A squad header folds it;
+  dragging it reorders the squads within a machine (`space.move`, the dragged
+  header at half opacity and a 2px ink line on the edge it lands at, drawn
+  over the rows so no height changes); a double-click on its name (which never folds) edits the name in place; a
+  drag starts only after 4px of travel
+  (`space.rename` on Enter). Right-click opens a popup menu: on a squad header
+  Rename squad, Move up, Move down; on an agent row with a pane Rename and
+  Archive (the card's confirm dialogs) and Pin. No item moves a chat to
+  another squad: Herdr has no cross-space tab move.
   The sort pill opens Priority or Tab order. A new child draws its connector
   top-down (240ms); a newly pinned agent fades in. `alt-up` /
   `alt-down` follow the list's order.
