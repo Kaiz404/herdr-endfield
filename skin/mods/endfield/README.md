@@ -144,7 +144,7 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   once without the ghost's spring home.
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
   `card.js` (the session panel), `actions.js` (a card action's confirm dialog
-  and the Archived list), `dispatch.js` (the Dispatch dialog), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),
+  and the Archived list), `dispatch.js` (the Dispatch dialog), `tabs.js` (its marker's place is `tabmark.js`, no Herdr in it, `tests/tabmark.test.mjs`), `pane.js` (the name plate), `status.js` (the HUD footer),
   `toast.js` (notifications; it decides between the cut-in, the Finished slip and
   the plain slab), `cutin.js` (the needs-input skill caption), `comms.js` (the
   message log Dispatch writes and the Comms pane), `report.js` (the oversight screen: a block in the
