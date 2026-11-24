@@ -9,6 +9,7 @@ import { spaces, machines, panes, run, openOverlay, exec, hc, watchFolder, layou
 import { palette, root, narrow, find, midTrunc, glyph, freshDot, micro, spaced, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT, basename, homeBase, newSpace } from "./kit.js";
 import { roster } from "./roster.js";
 import { DENSE_AT, statusOf } from "./fleet.js";
+import { HEAD, spacesSize, openSize } from "./spacesize.js";
 
 function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
@@ -20,11 +21,20 @@ const RAIL = 28;
 // Fixed heights, so the selection block knows where the selected row starts. From DENSE_AT agents
 // the same list goes compact (one line a row, the squad number first) and its block shrinks to fit,
 // at most `denseRows` rows tall before it scrolls.
-const H = { row: 38, dense: 26, denseRows: 8, head: 28, note: 30, guidance: 48, top: 38 };
+const H = { row: 38, dense: 26, denseRows: 8, head: 28, note: 30, guidance: 48, top: HEAD };
 // Changes made outside Herdr (an editor's save, a commit elsewhere) are looked for this often.
 const FALLBACK = 60000;
 // Places looked at together: all at once, hundreds of spaces exhaust open files or a core's execs.
 const AT_ONCE = 6;
+
+// Folded to its header by its chevron or the endfield.toggleSpaces key; open is the share to restore.
+const FOLD = { folded: "endfield.spacesFolded", open: "endfield.spacesOpen" };
+
+export function toggleSpaces() {
+  const folded = shared(FOLD.folded) === true;
+  if (!folded) setShared(FOLD.open, openSize(find(layout(), "spaces")?.size) ?? shared(FOLD.open) ?? null);
+  setShared(FOLD.folded, !folded);
+}
 
 async function both(a, b) {
   const done = await Promise.allSettled([a, b]);
@@ -494,12 +504,17 @@ export default class Spaces {
       .when(Boolean(st) && !st.quiet, (el) => el.child(div().absolute().left(0).right(0).bottom(0).h(2).bg(C[st.bar]))));
   }
 
-  // While the fleet is compact the spaces block shrinks to its list (scrolling past H.denseRows rows)
-  // and gets its share back after.
-  fit(dense) {
+  // Folded, the spaces block shrinks to its header. While the fleet is compact it shrinks to its list
+  // (scrolling past H.denseRows rows). Otherwise it has its share back.
+  fit(dense, rail) {
     const node = find(layout(), "spaces");
     if (!node) return;
-    const want = dense ? { px: H.top + Math.min(this.listPx ?? 0, H.denseRows * H.dense + 2 * H.head) + 12 } : { weight: 1 };
+    const want = spacesSize({
+      folded: shared(FOLD.folded) === true,
+      rail,
+      fitted: dense ? H.top + Math.min(this.listPx ?? 0, H.denseRows * H.dense + 2 * H.head) + 12 : null,
+      open: shared(FOLD.open) ?? null,
+    });
     const have = node.size ?? {};
     if (have.px === want.px && (want.px || have.weight === want.weight)) return;
     const key = JSON.stringify(want);
@@ -533,7 +548,8 @@ export default class Spaces {
     this.rh = dense ? H.dense : H.row;
     this.keepColors(sp);
     const list = this.grouped(C, collapsed);
-    this.fit(dense);
+    this.fit(dense, collapsed);
+    const folded = !collapsed && shared(FOLD.folded) === true;
     const active = sp.find((p) => p.active)?.id;
     const onRemote = Boolean(sp.find((p) => p.active)?.machine);
     const base = homeBase();
@@ -553,13 +569,16 @@ export default class Spaces {
         .child(div().id("space-new").size(22).flex_none().flex().items_center().justify_center().rounded(3)
           .text_color(C.muted).hover((s) => s.bg(C.sunken).text_color(C.text))
           .tooltip(base && !onRemote ? `New space in ${base.folder}${base.note ? ` (${base.note})` : ""}` : "New space")
-          .on_click(() => { newSpace(); }).child(icon("plus", 12))))
-      .child(v_flex().flex_1().min_h(0).pb(12).overflow_y_scrollbar().track_scroll(this.scroll)
+          .on_click(() => { newSpace(); }).child(icon("plus", 12)))
+        .when(!collapsed, (el) => el.child(div().id("spaces-fold").size(22).flex_none().flex().items_center().justify_center().rounded(3)
+          .hover((s) => s.bg(C.sunken)).tooltip(folded ? "Unfold Spaces" : "Fold Spaces")
+          .on_click(toggleSpaces).child(micro(folded ? "▸" : "▾", C.muted)))))
+      .when(!folded, (el) => el.child(v_flex().flex_1().min_h(0).pb(12).overflow_y_scrollbar().track_scroll(this.scroll)
         .on_size_change((size, cx) => { this.width = size.width; if (this.activeAt >= 0) this.scroll.scroll_to_item(this.activeAt + 1); cx.notify(); })
         .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })
         // Child 0 is the selection block (scroll indexes above are +1 for it); hidden when the selected space is folded away.
         .child(plate(C, Math.max(0, this.activeTop), this.rh).when(collapsed || this.activeTop < 0, (el) => el.opacity(0)))
         .children(list)
-        .child(marker("sp-mark", C, Math.max(0, this.activeTop), this.rh).when(collapsed || this.activeTop < 0, (el) => el.opacity(0))))));
+        .child(marker("sp-mark", C, Math.max(0, this.activeTop), this.rh).when(collapsed || this.activeTop < 0, (el) => el.opacity(0)))))));
   }
 }

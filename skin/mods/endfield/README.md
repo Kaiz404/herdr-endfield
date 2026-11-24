@@ -94,6 +94,12 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   `spaces.js` and the `endfield.newSpace` key command (handled by the `status` role,
   which every Endfield window shows once). On this computer it passes the home base as
   the folder; on another machine it passes none, so that machine's home applies.
+- Spaces folds to its header through `spaces.js` `toggleSpaces()`: its chevron and the
+  `endfield.toggleSpaces` key (the `status` role again) flip the shared key
+  `endfield.spacesFolded`, keeping the block's share in `endfield.spacesOpen`. Every render
+  the spaces role sizes its block with `layout.resize` from `spacesize.js` (no Herdr in it,
+  `tests/spacesize.test.mjs`): folded wins over the compact fit, and the rail ignores the fold.
+  The layout's `spaces` min is the header's 38px, or Herdr would hold a folded block taller.
 - `squads.js` holds the squad list's rules with no Herdr in them
   (`tests/squads.test.mjs`): the `space.move` or `tab.move` a dropped or
   stepped squad or chat runs (it takes the target's place, within one
