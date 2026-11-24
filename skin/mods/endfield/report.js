@@ -8,7 +8,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, shared, layout } from "herdr";
-import { palette, root, statusMark, chip, micro, wide, pad2, barcode, growDisc, find, Entrance, FONT } from "./kit.js";
+import { palette, root, statusMark, chip, micro, spaced, wide, pad2, barcode, growDisc, find, Entrance, FONT } from "./kit.js";
 import { roster } from "./roster.js";
 import { DENSE_AT, fmtTokens } from "./fleet.js";
 import { openArchived } from "./actions.js";
@@ -29,8 +29,8 @@ const BARS = 16;
 const ORDER = { blocked: 0, error: 0, done: 1, waiting: 1.5, working: 2, idle: 3 };
 const COLS = [
   { k: "name", label: "Agent", grow: 2.3, key: (r) => r.m.ident.callsign },
-  { k: null, label: "Session · link", grow: 1.25 },
-  { k: null, label: "Output · 10 min", grow: 1.4 },
+  { k: null, label: ["Session", "link"], grow: 1.25 },
+  { k: null, label: ["Output", "10 min"], grow: 1.4 },
   { k: "rate", label: "Rate", grow: 0.8, key: (r) => -r.rate },
   { k: "ctx", label: "Reserves", grow: 0.9, key: (r) => -(r.ctx?.pct ?? -1) },
   { k: "turn", label: "Turn", grow: 0.45, key: (r) => -(r.m.turn ?? -1) },
@@ -83,11 +83,11 @@ export class Report {
 
   head(C, label, k) {
     const on = k && k === this.sort;
-    return h_flex().id(`rh-${label}`).gap(5).items_center().when(Boolean(k), (el) => el.cursor_pointer().on_click((_e, cx) => {
+    return h_flex().id(`rh-${[label].flat()[0]}`).gap(5).items_center().when(Boolean(k), (el) => el.cursor_pointer().on_click((_e, cx) => {
       if (this.sort === k) this.dir = -this.dir; else { this.sort = k; this.dir = 1; }
       this.keep(cx);
     }))
-      .child(div().px(6).py(4).ml(-6).rounded(2).when(on, (el) => el.bg(C.selBg)).child(micro(label, on ? C.selText : C.muted)))
+      .child(div().px(6).py(4).ml(-6).rounded(2).when(on, (el) => el.bg(C.selBg)).child(spaced([label].flat(), on ? C.selText : C.muted, { rest: on ? C.selMuted : C.dim, gap: 5 })))
       .when(Boolean(k), (el) => el.child(micro(on ? (this.dir > 0 ? "▼" : "▲") : "↕", on ? C.text : C.hairStrong, 9)));
   }
 
@@ -115,10 +115,11 @@ export class Report {
     const groups = this.group ? R.squads.map((q) => ({ q, rows: tree(q.members) })) : [{ q: null, rows: tree(R.flat) }];
     const count = (s) => R.flat.filter((m) => m.status === s).length;
     const tokens = [...this.samples.values()].reduce((n, l) => n + (l.length > 1 ? l.at(-1).v - l[0].v : 0), 0);
+    const term = (a, b) => spaced([[a, C.text], [b, C.muted]], C.text, { gap: 4 });
     const vendors = new Set(R.flat.map((m) => m.program?.key)).size;
     const stats = [
       ["Squads", pad2(R.squads.length), C.hairStrong], ["Agents", pad2(R.flat.length), C.hairStrong], ["Generating", pad2(count("working")), C.flow],
-      ["Needs input", pad2(count("blocked")), C.signal], ["Finished", pad2(count("done")), C.lime], ["Tokens · 10 min", tokens ? fmtTokens(tokens) : "—", C.hairStrong],
+      ["Needs input", pad2(count("blocked")), C.signal], ["Finished", pad2(count("done")), C.lime], [["Tokens", "10 min"], tokens ? fmtTokens(tokens) : "—", C.hairStrong],
     ];
     const inner = Math.max(400, this.width - 40 - 12 * (COLS.length - 1));
     const total = COLS.reduce((n, c) => n + c.grow, 0);
@@ -132,7 +133,7 @@ export class Report {
       const on = m.focused;
       const fg = on ? C.selText : C.text, meta = on ? C.selMuted : C.muted;
       const parent = m.parent ? R.all.get(m.parent) : null;
-      const link = parent ? `◀ ${parent.address.toUpperCase()} · ${parent.program?.key === m.program?.key ? "same vendor" : `${LETTER[parent.program?.key] ?? parent.program?.name} ▶ ${LETTER[m.program?.key] ?? m.program?.name}`}` : m.kids.length ? `${m.kids.length} children` : "";
+      const link = parent ? [`◀ ${parent.address.toUpperCase()}`, parent.program?.key === m.program?.key ? "same vendor" : `${LETTER[parent.program?.key] ?? parent.program?.name} ▶ ${LETTER[m.program?.key] ?? m.program?.name}`] : m.kids.length ? [`${m.kids.length} children`] : [];
       const hot = (r.ctx?.pct ?? 0) >= 75;
       const peak = Math.max(1, ...r.bars);
       const cell = (edge, value, unit, color) => h_flex().gap(5).items_end().px(8).py(3).border_l(2).border_color(edge).bg(on ? "#262626" : C.ground).rounded_r(3)
@@ -149,7 +150,7 @@ export class Report {
             .child((dense ? h_flex().gap(8).items_center() : v_flex().gap(4)).min_w(0)
               .child(wide(m.ident.callsign, fg, 9.5).flex_none())
               .child(div().min_w(0).truncate().font_medium().text_size(dense ? 12 : 13).child(m.title))),
-          h_flex().gap(6).items_center().min_w(0).child(micro(m.address, fg).flex_none()).child(div().min_w(0).truncate().font_family(FONT.mono).text_size(10).text_color(meta).child(link)),
+          h_flex().gap(6).items_center().min_w(0).child(micro(m.address, fg).flex_none()).child(h_flex().min_w(0).gap(8).children(link.map((t) => div().min_w(0).truncate().font_family(FONT.mono).text_size(10).text_color(meta).child(t)))),
           h_flex().h(dense ? 20 : 28).p(3).gap(2).items_end().rounded(3).bg(on ? "#2C2C2C" : C.sunken)
             .children(r.bars.map((b) => div().flex_1().h(r.known ? Math.max(2, ((dense ? 14 : 22) * b) / peak) : 2).bg(on ? C.selText : C.text))),
           cell(on ? C.flowInv : C.flow, r.known ? fmtTokens(r.rate) : "—", "/min"),
@@ -184,11 +185,11 @@ export class Report {
       .child(bracket("l", "t")).child(bracket("r", "t")).child(bracket("l", "b")).child(bracket("r", "b"))
       .child(h_flex().px(20).pt(16).pb(14).gap(14).items_end().border_b(1).border_color(C.hair)
         .child(v_flex().gap(8)
-          .child(h_flex().gap(8).items_center().child(micro("Oversight · every squad · last 10 min", C.muted)).child(barcode(C.cross, 34)))
+          .child(h_flex().gap(8).items_center().child(spaced(["Oversight", "every squad", "last 10 min"], C.muted, { rest: C.dim })).child(barcode(C.cross, 34)))
           .child(div().text_size(18).font_semibold().child("// Report")))
         .child(div().flex_1())
         .child(h_flex().gap(22).items_end().children(stats.map(([label, n, edge]) => v_flex().gap(6).items_end().pl(12).border_l(2).border_color(edge)
-          .child(micro(label, C.muted)).child(wide(n, C.text, 22)))))
+          .child(spaced([label].flat(), C.muted, { rest: C.dim, gap: 6 })).child(wide(n, C.text, 22)))))
         .child(div().id("report-close").relative().size(30).ml(8).rounded_full().border_1().border_color(C.hairStrong).flex().items_center().justify_center().cursor_pointer()
           .on_hover((over, cx) => { this.hot = over; cx.notify(); })
           .tooltip("Close the report").on_click(() => toggleReport(false))
@@ -198,20 +199,21 @@ export class Report {
         .child(div().id("report-group").px(10).py(6).rounded_full().border_1().border_color(C.hairStrong).cursor_pointer()
           .when(this.group, (el) => el.bg(C.selBg))
           .on_click((_e, cx) => { this.group = !this.group; this.keep(cx); })
-          .child(micro(`Group · ${this.group ? "Squad" : "None"}`, this.group ? C.selText : C.text)))
+          .child(spaced([["Group", this.group ? C.selMuted : C.muted], [this.group ? "Squad" : "None", this.group ? C.selText : C.text]], C.text, { gap: 6 })))
         .child(div().id("report-archived").px(10).py(6).rounded_full().border_1().border_color(C.hairStrong).cursor_pointer()
           .tooltip("Chats archived from a session card, with Resume").on_click(() => openArchived())
           .child(micro("Archived", C.text)))
         .child(div().flex_1())
-        .child(micro("Click a heading to sort · click a row to focus it", C.muted)))
+        .child(spaced(["Click a heading to sort", "click a row to focus it"], C.muted, { gap: 16 })))
       .child(h_flex().h(32).flex_none().px(20).items_center().border_b(1).border_color(C.hair)
         .child(cells(COLS.map((c) => this.head(C, c.label, c.k)))))
       .child(v_flex().id("report-rows").flex_1().min_h(0).overflow_y_scrollbar()
         .children(groups.flatMap((g) => [...(g.q ? [header(g)] : []), ...(g.q && this.folded.has(g.q.id) ? [] : g.rows.map(row))])))
       .child(h_flex().h(34).flex_none().px(20).gap(16).items_center().border_t(1).border_color(C.hair)
         .child(h_flex().gap(6).items_center().child(div().w(10).h(8).border_l(1).border_b(1).border_color(C.text)).child(micro("Child started with hc run, any vendor", C.muted)))
-        .child(micro("Badge · C Claude Code · X Codex · Cu Cursor · O OpenCode · G Gemini", C.muted))
+        .child(h_flex().gap(12).items_center().child(micro("Badge", C.dim))
+          .children([["C", "Claude Code"], ["X", "Codex"], ["Cu", "Cursor"], ["O", "OpenCode"], ["G", "Gemini"]].map(([b, name]) => term(b, name))))
         .child(div().flex_1())
-        .child(micro(`${pad2(R.flat.length)} agents · ${pad2(R.squads.length)} squads · ${vendors} vendors`, C.muted))))));
+        .child(h_flex().gap(12).items_center().child(term(pad2(R.flat.length), "agents")).child(term(pad2(R.squads.length), "squads")).child(term(vendors, "vendors")))))));
   }
 }
