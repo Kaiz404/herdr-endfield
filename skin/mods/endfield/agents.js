@@ -38,6 +38,7 @@ const PIN = { max: 3, row: 34, more: 22 };
 const LINE_PX = 20;
 // How far a held squad header or chat must move before it counts as a drag.
 const DRAG_START_PX = 4;
+const LINKS_POLL_MS = 5000;
 // The squad name field takes the keyboard again once the menu that asked for it has closed.
 const NAME_FOCUS_MS = 300;
 
@@ -127,10 +128,14 @@ export class Agents {
     // Polled whether the sidebar is wide, a rail or hidden: the HUD footer, the report and the card read it.
     this.sessions = new Sessions("agents");
     this.sessions.start(cx, () => agents().filter(isClaude).map((a) => ({ terminal: a.address, cwd: cwdOf(a), status: a.status })));
-    if (!checking()) cx.spawn(async (cx) => { await loadLinks(); cx.notify(); });
+    // Read again on a slow beat too, so a link made or dropped in another window shows here.
+    if (!checking()) {
+      cx.spawn(async (cx) => { if (await loadLinks()) cx.notify(); });
+      cx.timer.every(LINKS_POLL_MS, (cx) => cx.spawn(async (cx) => { if (await loadLinks()) cx.notify(); }));
+    }
     // A held squad header, a chat in Tab order, or an agent in Priority dragged onto another to link
     // it as a helper: {kind: "squad" | "chat" | "link", scope (the chat's squad),
-    // from (the space or tab id, or the agent's address), target (link: the row under it, {address, problem}), y0 and y (the pointer, pressed and now), live (moved past
+    // from (the space or tab id, or the agent's address), target (link: the row under it, {address, problem}), grip (link: the press's offset into its row), y0 and y (the pointer, pressed and now), live (moved past
     // DRAG_START_PX), to and move (the gap and command the last frame showed), ids (the list's block
     // order then), back (the pane that had the keyboard), done (released, sliding into place),
     // moved (Herdr's order has the move)}. Cleared once the slide has run.
@@ -341,7 +346,9 @@ export class Agents {
   press(kind, scope, from, e) {
     if (e.click_count !== 1) return;
     const y = e.position?.y ?? 0;
-    this.drag = { kind, scope, from, target: null, y0: y, y, live: false, to: null, move: null, ids: null, back: null, done: false, moved: false };
+    // grip: how far into its row the press landed, so a link drop reads the row under the pointer itself.
+    const top = (e.bounds ?? this.bounds[`ag-${from}`])?.y;
+    this.drag = { kind, scope, from, target: null, grip: top == null ? null : y - top, y0: y, y, live: false, to: null, move: null, ids: null, back: null, done: false, moved: false };
   }
 
   /** The pointer moving over the list: the held block follows it. */
@@ -652,7 +659,9 @@ export class Agents {
     const models = Object.fromEntries(R.flat.flatMap((m) => { const id = this.sessions.get(m.address)?.model?.id; return id ? [[m.address, id]] : []; }).sort(([a], [b]) => (a < b ? -1 : 1)));
     // Every surface reads an idle or finished agent whose session waits on background work as waiting (fleet.js memberStatus).
     const waiting = R.flat.filter((m) => this.sessions.get(m.address)?.waiting).map((m) => m.address).sort();
-    for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all], ["endfield.card.session", card], ["endfield.limits", limits], ["endfield.models", models], ["endfield.waiting", waiting]]) {
+    // Every surface's roster keys a link to its two sessions (links.js stands).
+    const sessionIds = Object.fromEntries(R.flat.flatMap((m) => { const id = this.sessions.get(m.address)?.sessionId; return id ? [[m.address, id]] : []; }).sort(([a], [b]) => (a < b ? -1 : 1)));
+    for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all], ["endfield.card.session", card], ["endfield.limits", limits], ["endfield.models", models], ["endfield.waiting", waiting], ["endfield.sessionIds", sessionIds]]) {
       const text = JSON.stringify(value);
       if (text !== this.published?.[key]) { (this.published ??= {})[key] = text; setShared(key, value); }
     }
@@ -749,6 +758,9 @@ export class Agents {
     });
     this.subNums = nextNums;
     this.subs = subRows;
+    // The task each agent row shows, which a link's note quotes (linkdialog.js).
+    const titles = JSON.stringify(Object.fromEntries(sections.flatMap((s) => s.rows.filter((r) => r.m?.agent && !r.native && !r.more).map((r) => [r.m.address, r.title]))));
+    if (titles !== this.published?.titles) { (this.published ??= {}).titles = titles; setShared("endfield.rowTitles", JSON.parse(titles)); }
     holdCrew(held([...nextNums.values()].flatMap((c) => [...c.values()])));
     this.arrive([...sections.flatMap((s) => [...s.rows.map((r) => r.key), ...(s.folded ? [`sq-${s.q.id}-stack`] : [])]), ...blocked.map((m) => `pin-${m.address}`)], cx);
 
@@ -781,7 +793,8 @@ export class Agents {
     if (d?.kind === "link" && d.live && !d.done) {
       const shownRows = sections.filter((s) => !s.folded).flatMap((s) => s.rows.filter((r) => !r.more && !r.native).map((r) => ({ r, top: s.y + D.head + r.y })));
       const held = shownRows.find((x) => x.r.m.address === d.from);
-      const y = held ? held.top + held.r.h / 2 + d.y - d.y0 : 0;
+      // The pointer, in list coordinates: where it pressed in the held row, moved as far as it has.
+      const y = held ? held.top + (d.grip ?? held.r.h / 2) + d.y - d.y0 : 0;
       const over = held ? shownRows.find((x) => x !== held && y >= x.top && y < x.top + x.r.h) : null;
       d.target = over ? { address: over.r.m.address, problem: linkProblem(R.all, d.from, over.r.m.address) } : null;
       if (held) {

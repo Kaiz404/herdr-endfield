@@ -23,7 +23,8 @@ import { openDispatch } from "./dispatch.js";
 import { showWork } from "./report.js";
 import { actionsFor, gate, MODE_WORD } from "./orders.js";
 import { openAction } from "./actions.js";
-import { unlink } from "./linkdialog.js";
+import { unlink, openLink } from "./linkdialog.js";
+import { lifeOf, helperUntold } from "./links.js";
 import { CARD, PANEL, CARD_KINDS, questionOf, headerOf, toolsView, recentView } from "./hovercard.js";
 
 const SEGS = 20;
@@ -246,6 +247,11 @@ export class Card {
             .child(micro("Linked", C.muted).flex_none())
             .child(micro(m.linked ? `helper of ${roster().all.get(m.linked)?.label ?? ""} ${m.linked}` : `helpers ${m.helpers.join(", ")}`, C.text).min_w(0).truncate())
             .child(div().flex_1())
+            // The helper's note was refused and its dialog closed: offer it again, in the same confirm.
+            .when(Boolean(m.linked) && helperUntold((shared("endfield.links") ?? []).find((l) => l.b === lifeOf(m))), (el) => el.child(h_flex().id("card-renote").h(24).px(7).flex_none().items_center().rounded_full().border_1().border_color(C.hairStrong)
+              .text_size(11).font_medium().cursor_pointer().hover((h) => h.bg(C.sunken)).tooltip("It was never told it is a helper. Types only its note, while it is idle, on Confirm.")
+              .on_click(() => { closeOverlay(p.overlay); openLink({ lead: m.linked, helper: m.address, from: 1 }); })
+              .child("Send note again")))
             .when(Boolean(m.linked), (el) => el.child(h_flex().id("card-unlink").h(24).px(7).flex_none().items_center().rounded_full().border_1().border_color(C.hairStrong)
               .text_size(11).font_medium().cursor_pointer().hover((h) => h.bg(C.sunken)).tooltip("Back to the top of its own squad. Nothing is typed into either agent.")
               .on_click((_e, cx) => cx.spawn(async (cx) => { await unlink(m); cx.notify(); }))
