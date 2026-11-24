@@ -33,6 +33,8 @@ ICONS = {
     "split-down": stroke('<rect x="1.5" y="1.5" width="13" height="13"/><path d="M1.5 8h13"/>', width=1.2),
     "zoom": stroke('<path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/>', width=1.2),
     "unzoom": stroke('<path d="M6 2v4H2M14 6h-4V2M10 14v-4h4M2 10h4v4"/>', width=1.2),
+    # A pane's Pop out: out of its box, toward the top right.
+    "pop-out": stroke('<path d="M7 2.5H2.5v11h11V9M9.5 2.5h4v4M13.5 2.5L7.5 8.5"/>', width=1.2),
     "win-min": stroke('<path d="M0 5.5h10"/>', size=10, width=1),
     "win-max": stroke('<rect x=".5" y=".5" width="9" height="9"/>', size=10, width=1),
     "win-restore": stroke('<rect x=".5" y="2.5" width="7" height="7"/><path d="M2.5 2.5V.5h7v7h-2"/>', size=10, width=1),

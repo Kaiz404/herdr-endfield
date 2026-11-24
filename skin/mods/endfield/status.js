@@ -19,6 +19,7 @@ import { usage, block, fit, usageWidth, TIERS, USAGE_TICK_MS } from "./usage.js"
 import { isClaude } from "./sessions.js";
 import { openAccount, manageAccounts } from "./actions.js";
 import { toggleSpaces } from "./spaces.js";
+import { actOnFocused } from "./pane.js";
 
 const NEEDS_W = 176;
 const GAUGE_W = GAUGE.segments * GAUGE.w + (GAUGE.segments - 1) * GAUGE.gap;
@@ -35,7 +36,8 @@ export default class Status {
     if (checking()) return;
     // A data timer: the time to reset counts down in minutes while limits show.
     cx.timer.every(USAGE_TICK_MS, (cx) => { if (shared("endfield.limits")) cx.notify(); });
-    const KEYS = { newSpace: () => newSpace(), toggleSpaces };
+    // The focused pane's plate actions (pane.js): hidePane is its ✕, Hide on an agent and Close on anything else.
+    const KEYS = { newSpace: () => newSpace(), toggleSpaces, zoomPane: () => actOnFocused("zoom"), popOut: () => actOnFocused("pop"), hidePane: () => actOnFocused("end") };
     cx.spawn(async () => { for (;;) await KEYS[await nextCommand()]?.(); });
   }
 

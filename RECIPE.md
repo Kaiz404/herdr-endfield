@@ -171,6 +171,16 @@ rendered at 4x. It is a schematic, not a screenshot.
   focused. When that agent needs input while its pane has focus, the plate
   washes yellow and back (opacity 0 to .42, 1400ms), a 4px hazard rule runs
   under it and the pill turns ink with yellow text; no toast is made.
+  A zoomed pane's plate has a muted `Zoomed` tag, hairline-edged, before
+  the status. At the right end, as an editor group's in VS Code: Split
+  right, Zoom (Back to the split while zoomed), Pop out, then the ✕. Zoom
+  and Pop out show only in a tab with more than one pane, Pop out only on a
+  terminal. The ✕ on an agent's pane is **Hide (keeps running)**: the pane
+  goes and the agent stays in Squads, tagged `Hidden`. Ending an agent is
+  the session panel's Archive, so an agent's plate has no button that ends
+  it. On a shell it is **Close (ends this shell)**, on another program
+  **Close (ends this program)**, with the red disc; on a mod pane, Close.
+  Each tooltip names its key from `keys.json` when one is bound.
   Files and Changes open in a
   368px panel on the right (min 280, max 900), paper, radius 4.
 - **Report**: the Report pill (ink, top right) swaps the work area for the
@@ -278,7 +288,9 @@ rendered at 4x. It is a schematic, not a screenshot.
   restores the share it had. The fold is shared state, so it survives a
   restart.
 - **Squads:** click focuses the pane (the plate snaps, the yellow marker
-  travels, 300ms); a child without a pane opens as a peek; a Claude Code
+  travels, 300ms); a child without a pane opens as a peek; a Hidden agent
+  (its row carries a muted `Hidden` tag) gets a pane again right of the
+  pane focused in its own squad, else right of the focused pane; a Claude Code
   sub-agent opens its transcript beside its parent. A squad header folds it;
   dragging it reorders the squads within a machine (`space.move`). A drag
   starts only after 4px of travel. The held squad is lifted (raised plate,
@@ -541,8 +553,17 @@ rendered at 4x. It is a schematic, not a screenshot.
 - **Rows** (spaces, agents, sub-agents): hover wipes a sunken layer in and
   slides the label 4px right; an agent tile's status bar grows from 2px to 4px.
 - **Pane header:** click focuses; on focus the yellow tab grows and the
-  bracket drops in; on hover a tray opens with split right, split down, zoom
-  and close fading in 40ms apart.
+  bracket drops in. The tray (split right, zoom, pop out, hide or close)
+  opens on hover and stays open on the focused pane, its buttons fading in
+  40ms apart, muted until the plate is hovered or focused. Double-click the
+  plate toggles Zoom; middle-click runs the ✕ (Hide on an agent, Close on
+  anything else); right-click opens a menu at the pointer with Split right,
+  Split down, Zoom, Pop out and the ✕, each with its key, the ones that
+  can't run greyed with why. Esc is the terminal's, so it never unzooms.
+  Hide, Pop out and a click on a Hidden row in Squads run in the Squads
+  list, one move at a time, each step once `panes()` shows the last; a Pop
+  out whose keep doesn't show puts the pane back in its tab and a notice
+  says where it is.
 - **Status bar:** counts roll like an odometer. The palette hint and the brand
   mark open the command palette.
 - **Folded sidebar** (below 160px): numbered 28px squares in the wide face

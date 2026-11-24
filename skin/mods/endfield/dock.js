@@ -137,6 +137,31 @@ export function dockPlan(chat, anchor, zone) {
   return { steps, label: z.label };
 }
 
+/**
+ * Pop out: chat's terminal into a new tab of the shown space, the one its pane is in. terminal.keep
+ * with no place makes that tab. Only out of a split: a pane alone in its tab has its tab already.
+ */
+export function popOutPlan(chat, count) {
+  if (!chat?.pane) return { problem: "It has no pane" };
+  if (count < 2) return { problem: "It already has the tab to itself" };
+  return { steps: [
+    { cmd: "terminal.park", args: { terminal: chat.terminal }, wait: "gone" },
+    { cmd: "terminal.keep", args: { terminal: chat.terminal }, wait: "shown" },
+  ], label: "Its own tab" };
+}
+
+/**
+ * Show a hidden chat (one with no pane and no hc parent) again: right of the pane focused in its
+ * own squad's shown tab (`home`, anchorIn), else right of the focused pane (`here`), else in a new tab.
+ */
+export function showPlan(chat, home, here) {
+  for (const a of [home, here]) {
+    const plan = a ? dockPlan(chat, a, "right") : null;
+    if (plan?.steps) return plan;
+  }
+  return { steps: [{ cmd: "terminal.keep", args: { terminal: chat.terminal }, wait: "shown" }], label: "A new tab" };
+}
+
 // A squad header becomes a move target only after this much travel from the press and this long
 // under the pointer, so a wobble at a row's edge never moves an agent.
 export const ARM = { px: 16, ms: 250 };
