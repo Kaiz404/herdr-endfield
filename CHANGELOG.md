@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **Several Claude accounts.** Save Claude logins by name (a token from `claude setup-token`) and run each Claude Code agent on the one you choose. **Dispatch > New agent** has an **Account** box. The footer shows the focused agent's account: a saved name, or your email on the normal login. Click it or the limits to open **Account**, which moves a running chat to another account and keeps its history. It waits for the turn to end, or stops it with Esc if you choose **Stop now**. Then it ends the old agent and resumes the same session in a new tab. Tokens are encrypted with DPAPI on Windows and kept in the Keychain on macOS. They never pass through the skin. Pick a default account, and new agents from Dispatch and Herdr's menus start on it. See [Run agents on several Claude accounts](docs/SETUP.md#11-run-agents-on-several-claude-accounts).
+
+### Changed
+
+- **Usage limits follow the focused agent's account.** The HUD footer used to show the limits of whichever session reported last. Now it shows the limits of the focused agent's account, and the account it runs on beside them. Copy the Claude Code statusline again: it now records the account (`"account"`) in each session file.
+
 ## 0.3.0
 
 The run-the-fleet release. Squads now tell you how each run is going: its model and effort, how long it has run, its context, and whether it is waiting on background work. Agents are cast from all 36 operators by model tier. You can manage a chat from the skin: rename it, change its model, effort or mode, archive it and resume it later, and arrange squads by dragging. The HUD footer shows your Claude usage limits. Follow [docs/SETUP.md](docs/SETUP.md) to update. Two steps are new: copy the Claude Code statusline again, and fetch the bigger operator pack.

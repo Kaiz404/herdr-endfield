@@ -1,7 +1,8 @@
 // status: the HUD footer, an ink bar along the bottom. Numbers are the headline: agents active on
 // an odometer, then where you are, Generating and Finished counts, the focused agent's context, its
-// model, branch and machine, the account's Claude usage limits (5-hour and 7-day: percent used and
-// time to reset), and a yellow "Needs input" block that opens when anyone needs you
+// model, branch and machine, the focused agent's Claude account, the account's Claude usage limits
+// (5-hour and 7-day: percent used and time to reset; click either: the focused chat's Account
+// dialog, else Manage accounts), and a yellow "Needs input" block that opens when anyone needs you
 // (click: go to the first one).
 
 import { div } from "gpui-kit";
@@ -12,6 +13,8 @@ import { roster } from "./roster.js";
 import { goTo } from "./report.js";
 import { fmtTokens } from "./fleet.js";
 import { usage, block, fit, usageWidth, TIERS, USAGE_TICK_MS } from "./usage.js";
+import { isClaude } from "./sessions.js";
+import { openAccount, manageAccounts } from "./actions.js";
 
 const NEEDS_W = 176;
 const GAUGE_W = GAUGE.segments * GAUGE.w + (GAUGE.segments - 1) * GAUGE.gap;
@@ -42,8 +45,15 @@ export default class Status {
     // The focused agent's session, as the squad list last read it (it owns the one poller).
     const focus = shared("endfield.focus") ?? null;
     const pct = focus?.ctx ? Math.min(100, focus.ctx.pct) : 0;
-    // The account's limits, the newest any statusline sidecar carries (the squad list publishes them).
+    // The focused agent's account's limits, else the newest any statusline sidecar carries (the squad list publishes them).
     const limits = usage(shared("endfield.limits"), Date.now(), GAUGE.segments);
+    // The focused agent's login (tools/account.mjs): its saved name, else the normal login's email, or
+    // nothing before its statusline sidecar says. Clicking it or the limits opens the Account dialog.
+    const claude = R.flat.find((m) => m.focused && isClaude(m));
+    const account = claude && focus?.account != null ? focus.account || focus.email || "normal login" : null;
+    const accountClick = () => (claude && focus?.terminal === claude.address
+      ? openAccount({ terminal: claude.address, snap: focus.session })
+      : manageAccounts());
     const tier = limits ? fit(limits, this.slotW, QUOTA_M) : null;
     const crumb = (text) => div().min_w(0).truncate().text_color(C.barText).child(text);
     const rule = () => div().w(1).h(20).flex_none().bg(C.barRule);
@@ -83,10 +93,19 @@ export default class Status {
         .child(rule())
         .child(tally("working", "Generating"))
         .child(tally("done", "Finished"))
+        .when(Boolean(account), (el) => el.child(rule())
+          .child(v_flex().id("hud-account").flex_none().max_w(240).min_w(0).gap(QUOTA.rowGap).cursor_pointer().on_click(accountClick)
+            .tooltip("Move this chat to another Claude account, or manage accounts")
+            .child(h_flex().h(QUOTA.top).gap(QUOTA.colGap).items_end().min_w(0)
+              .child(micro("Account", C.barMuted).flex_none())
+              .child(div().min_w(0).truncate().text_size(13).font_semibold().line_height(1).text_color(C.barText).child(account)))
+            .child(h_flex().h(QUOTA.bottom).items_center().child(micro("Switch ▾", C.barMuted)))))
         .when(Boolean(limits), (el) => el.child(rule()))
         // Takes the free width, so its size is what the limits may use; narrower drops the bars, then "used".
         .child(h_flex().id("hud-limits").flex_1().min_w(limits ? usageWidth(limits, TIERS[TIERS.length - 1], QUOTA_M) : 0).overflow_hidden().gap(QUOTA.between).items_center()
           .on_size_change((size, cx) => { if (Math.abs(size.width - this.slotW) > 1) { this.slotW = size.width; cx.notify(); } })
+          .when(Boolean(limits), (el) => el.cursor_pointer().on_click(accountClick)
+            .tooltip(claude ? "Move this chat to another Claude account, or manage accounts" : "Manage Claude accounts"))
           .children(limits ? limits.flatMap((w, i) => (i ? [rule(), quota(w, i)] : [quota(w, i)])) : []))
         .child(v_flex().w(170).flex_none().gap(5)
           .child(h_flex().justify_between().items_end()

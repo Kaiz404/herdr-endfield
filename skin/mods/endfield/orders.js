@@ -185,6 +185,31 @@ export const ACTIONS = {
   },
 };
 
+// Accounts: tools/account.mjs runs a Claude Code argv on a named login (its token as CLAUDE_CODE_OAUTH_TOKEN).
+// programs.json may already start Claude Code through the tool (docs/SETUP.md, default account): the
+// program inside, so the commands below wrap it once and the confirm shows what really runs.
+export const unwrapped = (argv) => {
+  const cut = argv.indexOf("--");
+  return /account\.mjs$/.test(argv[1] ?? "") && argv[2] === "run" && cut > 0 ? argv.slice(cut + 1) : argv;
+};
+
+/** The argv on `account`, or with no account on the tool's default (which is the normal login when none is set). */
+export const accountArgv = ({ tool, account, argv }) => ["node", tool, "run", ...(account ? [account] : []), "--", ...unwrapped(argv)];
+
+/** The argv of the tab a switch opens: it waits for `terminal`'s turn (or stops it, `now`), ends it, and resumes on `account`. */
+export const switchArgv = ({ tool, terminal, account, sessionId, now, argv }) =>
+  ["node", tool, "switch", terminal, account, ...(sessionId ? ["--session", sessionId] : []), ...(now ? ["--now"] : []), "--", ...unwrapped(argv)];
+
+/** Whether a switch may start at Herdr's `status`, and what it will do: {can, tone, says}. */
+export function switchPlan(status, now) {
+  if (status === "blocked") return { can: false, tone: "red", says: "Needs input. Answer it first." };
+  if (status === "working") return now
+    ? { can: true, tone: "signal", says: "Generating. Esc stops it now: finished tool calls and the history stay, the reply in progress is lost. It resumes with a note to continue." }
+    : { can: true, tone: "flow", says: "Generating. The new tab waits for this turn to end, then switches." };
+  if (status === "idle" || status === "done") return { can: true, tone: "lime", says: "At its prompt. It switches at once." };
+  return { can: false, tone: "red", says: "Herdr doesn't list it as an agent now." };
+}
+
 /** The actions a program offers, in card order; none for a program not in the table. */
 export const actionsFor = (programKey) => Object.entries(ACTIONS[programKey] ?? {}).map(([key, a]) => ({ key, ...a }));
 

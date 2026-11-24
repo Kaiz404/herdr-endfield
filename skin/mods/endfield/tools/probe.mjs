@@ -4,7 +4,9 @@
 //   {cmd: "sessions", cache, sidecars, registry?, targets: [{terminal, cwd}]}
 //     -> {sessions: {terminal: Parsed & {sidecar, live, subagents: Parsed[]}}, watch: [the folders whose writes
 //         change this answer], missing: [project folders that don't exist yet, so can't be watched],
-//         limits: the newest rate_limits any sidecar carries, {five_hour, seven_day, updated_at} | null}
+//         limits: the newest rate_limits any sidecar carries, {five_hour, seven_day, updated_at} | null,
+//         accountLimits: the same per account name, "" for the default login,
+//         email: the normal login's email (~/.claude.json oauthAccount) | null}
 //     Parsed carries `final` (the turn has ended: a last message, a handback or an interrupt), `pending`
 //     (a tool call with no result yet; `wait` when it only waits) and `tasks`, the background work the
 //     transcript started: [{id, kind: shell | agent | monitor, description, startedAt, expiresAt, endedAt,
@@ -321,24 +323,28 @@ function subagents(cache, transcript) {
 function sidecars(dir) {
   const byTerminal = new Map();
   let limits = null;
+  // The same per account (tools/account.mjs; "" for the default login): each login has its own limits.
+  const byAccount = {};
   let names = [];
-  try { names = fs.readdirSync(dir).filter((n) => n.endsWith(".json")); } catch { return { byTerminal, limits }; }
+  try { names = fs.readdirSync(dir).filter((n) => n.endsWith(".json")); } catch { return { byTerminal, limits, byAccount }; }
   const now = Date.now();
+  const newer = (s, than) => String(s.updated_at ?? "") > String(than?.updated_at ?? "");
   for (const n of names) {
     const p = path.join(dir, n);
     if (now - (stat(p)?.mtime ?? 0) > DAY) continue;
     const s = readJson(p);
-    if (s?.rate_limits && String(s.updated_at ?? "") > String(limits?.updated_at ?? "")) limits = { ...s.rate_limits, updated_at: s.updated_at };
+    if (s?.rate_limits && newer(s, limits)) limits = { ...s.rate_limits, updated_at: s.updated_at };
+    if (s?.rate_limits && newer(s, byAccount[s.account ?? ""])) byAccount[s.account ?? ""] = { ...s.rate_limits, updated_at: s.updated_at };
     if (!s?.terminal) continue;
     const had = byTerminal.get(s.terminal);
     if (!had || String(s.updated_at ?? "") > String(had.updated_at ?? "")) byTerminal.set(s.terminal, s);
   }
-  return { byTerminal, limits };
+  return { byTerminal, limits, byAccount };
 }
 
 function sessions(req) {
   const cache = readJson(req.cache) ?? {};
-  const { byTerminal: side, limits } = req.sidecars ? sidecars(req.sidecars) : { byTerminal: new Map(), limits: null };
+  const { byTerminal: side, limits, byAccount } = req.sidecars ? sidecars(req.sidecars) : { byTerminal: new Map(), limits: null, byAccount: {} };
   const out = {};
   const watch = new Set(req.sidecars ? [req.sidecars] : []);
   const missing = new Set();
@@ -379,7 +385,9 @@ function sessions(req) {
   // Atomic replace: several mod copies may probe at once; the loser's work is only redone later.
   const tmp = `${req.cache}.${process.pid}.tmp`;
   try { fs.writeFileSync(tmp, JSON.stringify(cache)); fs.renameSync(tmp, req.cache); } catch { try { fs.unlinkSync(tmp); } catch {} }
-  return { sessions: out, watch: [...watch], missing: [...missing], limits };
+  // The normal login's email, from Claude Code's own config: what an agent on no saved token runs as.
+  const email = readJson(path.join(os.homedir(), ".claude.json"))?.oauthAccount?.emailAddress ?? null;
+  return { sessions: out, watch: [...watch], missing: [...missing], limits, accountLimits: byAccount, email };
 }
 
 // ---- render: a transcript as a tidy list for the transcript pane
