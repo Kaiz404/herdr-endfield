@@ -8,7 +8,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, shared, layout } from "herdr";
-import { palette, root, statusMark, chip, micro, spaced, wide, pad2, barcode, growDisc, find, Entrance, FONT } from "./kit.js";
+import { palette, root, statusMark, chip, micro, spaced, wide, pad2, barcode, growDisc, find, Entrance, FONT, modPx } from "./kit.js";
 import { roster } from "./roster.js";
 import { DENSE_AT, fmtTokens } from "./fleet.js";
 import { openArchived } from "./actions.js";
@@ -183,7 +183,7 @@ export class Report {
       .when(x === "l", (el) => el.left(-7).border_l(1.5)).when(x === "r", (el) => el.right(-7).border_r(1.5))
       .when(y === "t", (el) => el.top(-7).border_t(1.5)).when(y === "b", (el) => el.bottom(-7).border_b(1.5));
     return root(C, this.entrance.apply(div().size_full().p(10).bg(C.sunken).child(v_flex().id("report").relative().size_full().bg(C.raised).border_1().border_color(C.hairStrong).rounded(4)
-      .on_size_change((size, cx) => { if (Math.abs(size.width - this.width) > 1) { this.width = size.width; cx.notify(); } })
+      .on_size_change((size, cx) => { const w = modPx(size.width); if (Math.abs(w - this.width) > 1) { this.width = w; cx.notify(); } })
       .child(bracket("l", "t")).child(bracket("r", "t")).child(bracket("l", "b")).child(bracket("r", "b"))
       .child(h_flex().px(20).pt(16).pb(14).gap(14).items_end().border_b(1).border_color(C.hair)
         .child(v_flex().gap(8)

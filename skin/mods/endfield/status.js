@@ -11,7 +11,7 @@
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { spaces, shared, nextCommand, checking } from "herdr";
-import { palette, root, midTrunc, hatch, micro, spaced, odometer, glyph, gauge, GAUGE, QUOTA, Entrance, MOTION, newSpace } from "./kit.js";
+import { palette, root, midTrunc, hatch, micro, spaced, odometer, glyph, gauge, GAUGE, QUOTA, Entrance, MOTION, newSpace, modPx } from "./kit.js";
 import { roster } from "./roster.js";
 import { goTo } from "./report.js";
 import { fmtTokens } from "./fleet.js";
@@ -117,7 +117,7 @@ export default class Status {
         // The account's limits. The slot's size is what they may use; narrower drops the bars, then "used".
         .child(h_flex().id("hud-limits").flex_none().flex_shrink(1).w(limits ? usageWidth(limits, TIERS[0], QUOTA_M) + 48 : 0)
           .min_w(limits ? usageWidth(limits, TIERS[TIERS.length - 1], QUOTA_M) + 40 : 0).overflow_hidden().px(20).gap(QUOTA.between).items_center().justify_end()
-          .on_size_change((size, cx) => { if (Math.abs(size.width - 40 - this.slotW) > 1) { this.slotW = size.width - 40; cx.notify(); } })
+          .on_size_change((size, cx) => { const w = modPx(size.width) - 40; if (Math.abs(w - this.slotW) > 1) { this.slotW = w; cx.notify(); } })
           .when(Boolean(limits), (el) => el.cursor_pointer().on_click(accountClick)
             .tooltip(claude ? "Move this chat to another Claude account, or manage accounts" : "Manage Claude accounts"))
           .children(limits ? limits.flatMap((w, i) => (i ? [rule(), quota(w, i)] : [quota(w, i)])) : []))

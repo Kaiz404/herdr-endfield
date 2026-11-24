@@ -7,6 +7,7 @@ import { settings, layout, shared, setShared, run, keys, home, appHome, readText
 import * as fs from "fs/promises";
 import { statusOf, choose } from "./fleet.js";
 import { resolveHomeBase } from "./base.js";
+import { toModPx } from "./units.js";
 
 export const ASSETS = "mods/endfield/art";
 export const FONT = { ui: "Geist", mono: "Geist Mono" };
@@ -305,6 +306,9 @@ export function spaced(items, color, { rest = color, size = 10, gap = 10 } = {})
   const pieces = items.map((it, i) => (Array.isArray(it) ? it : [it, i ? rest : color])).filter(([t]) => t != null && t !== false && t !== "");
   return h_flex().min_w(0).gap(gap).items_center().children(pieces.map(([t, c]) => micro(t, c, size).min_w(0).truncate()));
 }
+
+/** A measured length (on_size_change, an event's position or bounds), in window px, in the px a mod writes. */
+export const modPx = (n) => toModPx(n, settings().zoom);
 
 export const pad2 = (n) => String(n).padStart(2, "0");
 
