@@ -22,22 +22,34 @@ export function cardHeight(s, status, now = Date.now()) {
   return 516 + (questionOf(s, status) ? 52 : 0) + tasks;
 }
 
-/** The app window's height as the list reads it. */
-export const windowHeight = (px) => px;
+// The card's window keeps EDGE from the app window's top and foot, and LIFT past its row.
+const EDGE = 8;
+const LIFT = 12;
 
 /**
- * The card's window beside `row` ({y, height}, the hovered row) in a window `winH` tall, for a
- * panel that wants `want`: its top `y`, its height `tall`, and `fit`, the panel's height cap. Its
- * top sits 12px above the row's (or its bottom 12px below, near the window's foot). The panel
- * draws at its own height up to the cap; past it (a short window, or a task list that grew or
- * unfolded while open) the middle scrolls, and the head and the button row stay.
+ * The app window's height in the px a mod lays out in. Herdr draws a mod's px times the zoom, so
+ * the window's own px are divided by it. Null when the window can't be read.
+ */
+export const windowHeight = (px, zoom) => (px > 0 && zoom > 0 && Number.isFinite(px / zoom) ? Math.round(px / zoom) : null);
+
+/**
+ * The card's window beside `row` ({y, height}, the hovered row) in a window `winH` tall (null:
+ * unknown, nothing is capped), for a panel that wants `want`: its top `y`, its height `tall`, and
+ * `fit`, the panel's height cap. Its top sits 12px above the row's, or as far up as keeps it in the
+ * window. The panel draws at its own height up to the cap; past it (a short window, or a task
+ * list that grew or unfolded while open) the middle scrolls, down to PANEL.mid, and the head and
+ * the button row stay.
  */
 export function cardPlace({ want, row, winH }) {
-  const tall = Math.min(want + 2 * CARD.pad, Math.max(winH - 16, 2 * CARD.pad + 240));
-  let y = row.y - 12 - CARD.pad;
-  if (y + tall > winH - 8) y = row.y + row.height + 12 + CARD.pad - tall;
+  const least = PANEL.head + PANEL.mid + PANEL.foot + 2 * CARD.pad;
+  const tall = winH == null ? want + 2 * CARD.pad : Math.min(want + 2 * CARD.pad, Math.max(winH - 2 * EDGE, least));
+  const top = row.y - LIFT - CARD.pad;
+  const y = winH == null ? top : Math.min(top, winH - EDGE - tall);
   return { y: Math.round(Math.max(0, y)), tall, fit: tall - 2 * CARD.pad };
 }
+
+/** Whether the open card ({winH: the window height it was placed for}) has to be placed again. */
+export const resized = (open, winH) => Boolean(open) && open.winH !== winH;
 
 /**
  * facts, read when the decision is made: `row` is the hovered agent row's address (null when the

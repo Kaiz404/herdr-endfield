@@ -3,7 +3,8 @@
 // the panel only reports whether the pointer is on it (shared "endfield.card.hot"). Its session is
 // the list's (shared "endfield.card.session", published while this card is open): no poller here.
 // The chat row's buttons never act themselves: each opens its confirm dialog (actions.js).
-// props: {role: "card", terminal, title, where: [machine?, space, tab], callsign, snap: Session, overlay}
+// props: {role: "card", terminal, title, where: [machine?, space, tab], callsign, snap: Session, overlay,
+//   fit: the panel's height cap (hovercard.js cardPlace), shown: it replaces a card already up, so no reveal}
 
 import { div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -17,7 +18,7 @@ import { openDispatch } from "./dispatch.js";
 import { showWork } from "./report.js";
 import { actionsFor, gate, MODE_WORD } from "./orders.js";
 import { openAction } from "./actions.js";
-import { CARD, questionOf } from "./hovercard.js";
+import { CARD, PANEL, questionOf } from "./hovercard.js";
 
 const SEGS = 20;
 const HOT_FROM = 0.75;
@@ -31,7 +32,7 @@ const sessionOf = (p) => {
 export class Card {
   init(p, cx) {
     this.p = p;
-    this.entered = false;
+    this.entered = Boolean(p.shown);
     this.comms = [];
     if (checking()) return;
     // A running task's elapsed time is a clock: redrawn when the text it shows changes.
@@ -146,7 +147,7 @@ export class Card {
             .child(div().text_size(15).font_semibold().truncate().child(p.title ?? m?.title ?? DASH))
             .child(spaced([ident?.callsign ?? p.callsign, m?.program?.name, ...(p.where ?? [])], C.text, { rest: C.muted }))))
         // Past its cap (props.fit) the middle scrolls, so the button row is never cut off.
-        .child(v_flex().id("card-mid").overflow_y_scrollbar().when(Boolean(p.fit), (el) => el.flex_shrink(1).min_h(0))
+        .child(v_flex().id("card-mid").overflow_y_scrollbar().when(Boolean(p.fit), (el) => el.flex_shrink(1).min_h(PANEL.mid))
         // The machine panel: what goes in, the state with its march, the work done.
         .child(line(h_flex())
           .child(cell(v_flex().relative().overflow_hidden(), false)

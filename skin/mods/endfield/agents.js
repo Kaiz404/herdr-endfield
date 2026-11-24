@@ -9,14 +9,14 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
+import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, settings } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, spaced, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE } from "./kit.js";
 import { roster, holdCrew } from "./roster.js";
 import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, PANE_ROLES, opening, transcriptsIn, transcriptPlan, rowShape, rowMeta, tasksOf } from "./fleet.js";
 import { toggleReport, goTo } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
-import { CARD, wantedCard, dismissed, cardHeight, cardPlace, windowHeight } from "./hovercard.js";
+import { CARD, wantedCard, dismissed, cardHeight, cardPlace, windowHeight, resized } from "./hovercard.js";
 import { squadMove, dropEdge } from "./squads.js";
 import { openSquadMenu } from "./squadmenu.js";
 
@@ -135,9 +135,16 @@ export class Agents {
     return { row, hot: this.card.hot, open: this.card.open };
   }
 
-  setCard(address) {
+  // The window's height now, in this list's px. The list is as tall as the window lets it be, so a
+  // window resize or a zoom renders it again (on_size_change), and cardSync reads this then.
+  winH() {
+    try { return windowHeight(window.viewport_size().height, settings().zoom ?? 1); } catch { return null; }
+  }
+
+  // shown: the card replaces itself (the window changed size), so it draws at rest with no reveal.
+  setCard(address, shown = false) {
     if (this.card.open) closeOverlay(this.card.open.id);
-    this.card.open = address ? this.openCard(address) : null;
+    this.card.open = address ? this.openCard(address, shown) : null;
     setShared("endfield.card.open", this.card.open?.id ?? null);
   }
 
@@ -153,14 +160,16 @@ export class Agents {
       if (seq !== this.card.seq) return;
       this.card.armed = false;
       const want = wantedCard(this.cardFacts());
-      if (want !== (this.card.open?.address ?? null)) this.setCard(want);
+      const open = this.card.open;
+      if (want !== (open?.address ?? null)) this.setCard(want);
+      else if (resized(open, this.winH())) this.setCard(want, true);
     });
   }
 
   /**
    * Each render: a card pressed beside (or closed by its own button) goes at once, and a card that
-   * is up but no longer wanted (the sidebar folded, its agent gone) gets its close timer. A press
-   * on the card's own row is beside the card too, and keeps it.
+   * is up but no longer wanted (the sidebar folded, its agent gone) or placed for another window
+   * height gets its timer. A press on the card's own row is beside the card too, and keeps it.
    */
   cardSync(cx) {
     const hot = shared("endfield.card.hot") ?? null;
@@ -179,26 +188,25 @@ export class Agents {
       if (this.cardFacts().row) { this.cardTick(cx); return; }
     } else if (closed && closed === this.card.open?.id) setShared("endfield.card.closed", null);
     const open = this.card.open;
-    if (moved || (open && !this.card.armed && wantedCard(this.cardFacts()) !== open.address)) this.cardTick(cx);
+    if (moved || (open && !this.card.armed && (wantedCard(this.cardFacts()) !== open.address || resized(open, this.winH())))) this.cardTick(cx);
   }
 
   // Beside the row, where hovercard.js cardPlace puts it.
-  openCard(address) {
+  openCard(address, shown) {
     const b = this.bounds[`ag-${address}`];
     const a = agents().find((x) => x.address === address);
     if (!b || !a) return null;
     const s = this.sessions.get(address);
-    let winH = 900;
-    try { winH = windowHeight(window.bounds().height); } catch {}
+    const winH = this.winH();
     const { y, tall, fit } = cardPlace({ want: cardHeight(s, a.status), row: b, winH });
     const id = openOverlay({
       mod: "endfield", kind: "window", frame: "none",
       at: { x: Math.round(b.x + b.width - 12 - CARD.pad), y },
       width: CARD.width + CARD.slide + 2 * CARD.pad,
       height: tall,
-      props: { role: "card", terminal: address, ...this.info[address], snap: s ?? null, fit },
+      props: { role: "card", terminal: address, ...this.info[address], snap: s ?? null, fit, shown },
     });
-    return { id, address };
+    return { id, address, winH };
   }
 
   // Keys seen for the first time draw once at their start (a connector at height 0, a pinned row

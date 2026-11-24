@@ -48,8 +48,18 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   many are kept, the log's size cap), `base.js` (the home base: which folder a
   new local space opens in), `usage.js` (the HUD footer's Claude usage limits:
   which windows show, when one has reset, how time to reset reads),
-  `hovercard.js` (whose session card is up, and when a press takes it away) and
+  `hovercard.js` (whose session card is up, when a press takes it away, and
+  `cardPlace`: where its window goes and how tall it is for a window height) and
   `squads.js` (below).
+- The session card's window has a fixed place and height, set when it opens:
+  Herdr has no call that moves or resizes an open overlay, and tells the card
+  nothing when the app window changes size. So the agents list, which is
+  rendered again on a window resize or a zoom, reads the window's height at each
+  render (`window.viewport_size()` over `settings().zoom`) and opens the card
+  again when it differs from the height the card was placed for
+  (`hovercard.js` `resized`). Not checked in a live window: that the viewport is
+  in unzoomed px (`tabs.js` divides Herdr's own window px the same way), and
+  that the pointer still counts as on the card after it is replaced.
 - The session card closes on events, not on where the pointer is. A press
   outside the card closes it at once (`on_mouse_down_out` in `card.js`, reported
   through `endfield.card.closed`), unless the press is on the card's own row.
