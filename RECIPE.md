@@ -287,7 +287,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   machine, one space, the helper with no hc parent or lead, no cycle, both
   sessions read). The row under the pointer is the one the pointer itself
   is over: the press records how far into its row it landed. Nothing slides.
-  Release on a valid row opens Link as helper; anywhere else does nothing.
+  Release on a valid row opens the Link dialog; anywhere else does nothing.
   A linked helper sits under its lead with the connector and a `linked` micro
   tag after its label; its hc parent, the Report tree and hc's parent notes
   are untouched. The link drops when either terminal ends, when either
@@ -331,30 +331,37 @@ rendered at 4x. It is a schematic, not a screenshot.
   `resume --last` (Codex) or `resume` (Cursor), and drops the record.
   The dimming and every send gate on Herdr's own status, so an agent that
   reads Waiting but Herdr calls idle takes typed actions.
-- **Link as helper:** the dialog names the lead and the helper, says
-  whether both are idle, and lists the two lines Confirm runs:
-  `hc send <lead> --if idle -- "<note>"` then the same into the helper.
-  Confirm first writes `{a, b, sa, sb, at, noted}` (lives,
-  `address@created`, their session ids, and `noted: {lead, helper}`, whose
-  note was typed) to `data/endfield/links.json` (read again just before the
-  write, expected-snapshot write, one re-read retry). A helper the file
-  already gives another lead, linked from another window, is refused with
-  that reason, never moved. Then it types the lead's note, then the
-  helper's, noting each one sent. Either one not idle refuses before
-  anything is written. A refused lead takes the link back out; a refused
-  helper keeps it, and Confirm again types only the helper's note. Closed
-  before that, the helper's card offers **Send note again** while its note
-  is unsent, which opens the same dialog at the helper's note alone
-  (`{from: 1}`). Each note names the other by folder, terminal and task
-  (the label its row shows), and asks them to
-  coordinate through Claude Code's cross-session messaging (`ListAgents`,
-  `SendMessage`, `notify_when_idle`; see
+- **Link:** the dialog is titled `// Link <helper> under <lead>` (callsigns)
+  and says one sentence: both agents get a short note about each other so
+  they can coordinate. Its footer has **Show note** (reveals both note
+  texts, wrapped), **Cancel** and **Link**. Busy agents don't block it. Link
+  first writes `{a, b, sa, sb, at, noted}` (lives, `address@created`, their
+  session ids, and `noted: {lead, helper}`, both false) to
+  `data/endfield/links.json` (read again just before the write,
+  expected-snapshot write, one re-read retry), so Squads nests the helper at
+  once. A helper the file already gives another lead, linked from another
+  window, is refused with that reason, never moved, and nothing is typed.
+  Then, for the lead and then the helper, it types
+  `hc send <t> --if idle -- "<note>"` (never `--force`) only if Herdr says
+  that agent is idle at the click, and marks its side noted. A working
+  agent is skipped; one hc refuses stays unnoted; an uncertain send counts
+  as noted, so it is never offered twice. The dialog then shows one line,
+  such as `Linked. TYPHOEUS is busy. Send its note from its card when it's
+  free.`, and closes. Each agent whose side is still unnoted gets **Send
+  note** on its card (one per link it is owed a note on), which opens the
+  same dialog for that side alone (`{side}`), titled `// Send <X> its note`;
+  its **Send** waits until that agent is idle and types only its note. Each
+  note names the other by folder, terminal and task (the label its row
+  shows), and asks them to coordinate through Claude Code's cross-session
+  messaging (`ListAgents`, `SendMessage`, `notify_when_idle`; see
   https://code.claude.com/docs/en/cross-session-messaging.md) and to agree
   file ownership or use separate worktrees; `hc read` is the fallback for
-  watching the other's screen. The dialog notes that a `--bare` session
-  can't receive messages and that `crossSessionInbound` can refuse or hold
-  them. The helper's card shows **Linked**, its lead and **Unlink**, which
-  rewrites the file and types nothing; the lead's card lists its helpers.
+  watching the other's screen. Messaging needs Claude Code 2.1.234 on
+  Windows (`notify_when_idle` 2.1.236); a `--bare` session can't receive
+  messages, and `crossSessionInbound` can refuse or hold them. The dialog
+  says none of this. The helper's card shows **Linked**, its lead and
+  **Unlink**, which rewrites the file and types nothing; the lead's card
+  lists its helpers.
 - **Claude Code agent waiting on background work:** when Herdr says idle or
   done but the session's turn ended (or it sits in a wait) with a
   background shell, agent, monitor or sub-agent still running, the agent
@@ -471,8 +478,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   (each agent row's task label, which a link's note quotes).
 - A card action's dialog is `{role: "action", terminal, action, snap}`, a
   dialog with `frame: "none"`; the archived list is `{role: "archived"}`;
-  Link as helper is `{role: "link", lead, helper, from}` (`from: 1` types
-  only the helper's note).
+  Link is `{role: "link", lead, helper, side}` (`side: "lead"` or `"helper"`:
+  Send note, typing only that side's note).
   The actions are data: `ACTIONS[programKey]` in `orders.js`.
 - `herdr` calls: `spaces`, `agents`, `terminals`, `panes`, `focused`,
   `machines`, `layout`, `settings`, `keys`, `updates`, `fonts`, `shared`,
