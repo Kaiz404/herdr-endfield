@@ -55,7 +55,8 @@ export const told = (chat, tab) => {
  */
 async function recover(cx, chat, home) {
   const shown = () => panes().some((p) => p.terminal === chat.terminal);
-  if (!shown() && home && panes().some((p) => p.pane === home)) {
+  // Only a chat whose pane the park took goes back: a child that never had one (fleet.js) stays paneless.
+  if (chat.pane && !shown() && home && panes().some((p) => p.pane === home)) {
     run("pane.focus", { pane: home });
     if (await until(cx, () => focused()?.pane === home) && focused()?.pane === home) {
       run("terminal.keep", { terminal: chat.terminal, place: "right" });
