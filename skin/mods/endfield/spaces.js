@@ -27,7 +27,7 @@ const FALLBACK = 60000;
 // Places looked at together: all at once, hundreds of spaces exhaust open files or a core's execs.
 const AT_ONCE = 6;
 
-// Folded to its header by its chevron or the endfield.toggleSpaces key; open is the share to restore.
+// Folded to its header by a click on its header or the endfield.toggleSpaces key; open is the share to restore.
 const FOLD = { folded: "endfield.spacesFolded", open: "endfield.spacesOpen" };
 
 export function toggleSpaces() {
@@ -63,6 +63,8 @@ export default class Spaces {
     this.machines = [];
     this.width = 0;
     this.hover = null;
+    this.headHover = false;
+    this.headWidth = 0;
     this.entrance = new Entrance(1);
     this.entrance.start(cx);
     try {
@@ -559,20 +561,24 @@ export default class Spaces {
       if (this.activeAt >= 0) this.scroll.scroll_to_item(this.activeAt + 1);
     }
     return root(C, this.entrance.apply(v_flex().size_full().min_h(0).bg(C.ground)
-      .child(h_flex().flex_none().items_center().when(collapsed, (el) => el.h(36).justify_center())
-        .when(!collapsed, (el) => el.h(38).pt(6).pl(16).pr(12).gap(8)
-          .child(div().text_size(13).font_semibold().child("// Spaces"))
-          .child(div().flex_1())
-          .when(Boolean(base) && !onRemote, (el) => el.child(div().min_w(0).truncate()
+      .child(h_flex().id("spaces-head").relative().flex_none().items_center().when(collapsed, (el) => el.h(36).justify_center())
+        .when(!collapsed, (el) => el.h(38).pt(6).pl(16).pr(12).gap(8).cursor_pointer()
+          .on_size_change((size) => { this.headWidth = size.width; })
+          .on_hover((over, cx) => { this.headHover = over; cx.notify(); })
+          .on_click(toggleSpaces)
+          .tooltip(folded ? "Click to unfold" : "Click to fold")
+          .child(wipe("spaces-head-wipe", C.sunken, this.headWidth, this.headHover))
+          .child(div().relative().text_size(13).font_semibold().child("// Spaces"))
+          .child(div().relative().flex_1())
+          .when(Boolean(base) && !onRemote, (el) => el.child(div().relative().min_w(0).truncate()
             .child(spaced(["base", basename(base.folder), base.note && "not found"], base.note ? C.error : C.dim, { gap: 6 }))))
-          .child(micro(pad2(sp.length), C.muted)))
-        .child(div().id("space-new").size(22).flex_none().flex().items_center().justify_center().rounded(3)
+          .child(micro(pad2(sp.length), C.muted).relative()))
+        .child(div().id("space-new").relative().size(22).flex_none().flex().items_center().justify_center().rounded(3)
           .text_color(C.muted).hover((s) => s.bg(C.sunken).text_color(C.text))
           .tooltip(base && !onRemote ? `New space in ${base.folder}${base.note ? ` (${base.note})` : ""}` : "New space")
-          .on_click(() => { newSpace(); }).child(icon("plus", 12)))
-        .when(!collapsed, (el) => el.child(div().id("spaces-fold").size(22).flex_none().flex().items_center().justify_center().rounded(3)
-          .hover((s) => s.bg(C.sunken)).tooltip(folded ? "Unfold Spaces" : "Fold Spaces")
-          .on_click(toggleSpaces).child(micro(folded ? "▸" : "▾", C.muted)))))
+          .on_click((_e, cx) => { cx.stop_propagation(); newSpace(); }).child(icon("plus", 12)))
+        .when(!collapsed, (el) => el.child(div().relative().size(22).flex_none().flex().items_center().justify_center()
+          .child(micro(folded ? "▸" : "▾", C.muted)))))
       .when(!folded, (el) => el.child(v_flex().flex_1().min_h(0).pb(12).overflow_y_scrollbar().track_scroll(this.scroll)
         .on_size_change((size, cx) => { this.width = size.width; if (this.activeAt >= 0) this.scroll.scroll_to_item(this.activeAt + 1); cx.notify(); })
         .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })

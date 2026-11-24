@@ -23,7 +23,9 @@ rendered at 4x. It is a schematic, not a screenshot.
     (28x3px: `#FF1AAC` 5px, `#00FFA2` 5px, `#FFFA00` 18px) right-aligned 10px
     above the bottom hairline.
   - Spaces: header "// Spaces" (Geist 13 semibold), a mono count, a `+` and a
-    `▾` chevron (`▸` when folded; not on the rail).
+    `▾` chevron (`▸` when folded; not on the rail). The whole header row folds
+    it, with the hover wipe of a squad header and the tooltip "Click to fold"
+    ("Click to unfold" when folded); the `+` has its own click.
     Rows are 38px: `// name` (Geist 13 medium, the `//` muted) over a mono
     10px label (tab count, repo, branch, ↑ahead ↓behind). The selected row is
     inverted (ink, `#F2F2F2` text) in one frame; a 2px yellow marker travels
@@ -263,8 +265,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   tri-colour bar wipes in.
 - **Spaces:** click selects (the ink fill wipes in, the yellow edge grows
   down); drag reorders within a machine (a 2px line shows where); right-click
-  opens the space menu; the machine header folds its group. The header's
-  chevron (or the `endfield.toggleSpaces` key) folds Spaces to its 38px
+  opens the space menu; the machine header folds its group. Clicking the
+  header (or the `endfield.toggleSpaces` key) folds Spaces to its 38px
   header with `layout.resize`, and Squads takes the height; unfolding
   restores the share it had. The fold is shared state, so it survives a
   restart.
