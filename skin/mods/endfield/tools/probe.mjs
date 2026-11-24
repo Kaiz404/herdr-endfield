@@ -1,9 +1,12 @@
 // Reads Claude Code transcripts for the endfield mods, which can't: readTextFile stops at
 // 1 MiB and transcripts run to tens of MB. Run as `node probe.mjs <request.json>`; prints JSON.
 //
-//   {cmd: "sessions", cache, sidecars, registry?, targets: [{terminal, cwd}]}
+//   {cmd: "sessions", cache, sidecars, registry?, targets: [{terminal, cwd, home?}]}
+//     home: the home of the machine the agent runs on, as a path this computer reads (a WSL
+//     distro's \\wsl.localhost share); absent for this computer.
 //     -> {sessions: {terminal: Parsed & {sidecar, live, subagents: Parsed[]}}, watch: [the folders whose writes
-//         change this answer], missing: [project folders that don't exist yet, so can't be watched],
+//         change this answer], missing: [project folders that can't be watched, so are polled: not made
+//         yet, or on another machine, whose folders Herdr can't watch],
 //         limits: the newest rate_limits any sidecar carries, {five_hour, seven_day, updated_at} | null,
 //         accountLimits: the same per account name, "" for the default login,
 //         email: the normal login's email (~/.claude.json oauthAccount) | null}
@@ -13,7 +16,7 @@
 //     state: running | completed | failed | killed | stopped | timed-out | ended-with-session}],
 //     `counts` ({tool name: calls}) and `recent`, its last 5 tool calls oldest first: [{at, tool, arg}].
 //     live: whether a Claude Code process still runs the session, from `registry` (default
-//     ~/.claude/sessions/<pid>.json); null when there is no registry to ask.
+//     ~/.claude/sessions/<pid>.json); null when there is no registry to ask, as for an agent with a home.
 //   {cmd: "render", path, from}  -> {to, size, entries: [{kind, text, tool?, arg?}]}
 //
 // Each transcript is folded once: the fold (a small summary) and the byte offset it reached
@@ -27,7 +30,6 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 
-const PROJECTS = path.join(os.homedir(), ".claude", "projects");
 const REGISTRY = path.join(os.homedir(), ".claude", "sessions");
 const CHUNK = 4 << 20;
 const DAY = 86400000;
@@ -359,18 +361,17 @@ function sessions(req) {
   for (const t of req.targets) {
     const sidecar = side.get(t.terminal) ?? null;
     let transcript = sidecar?.transcript_path ?? null, approx = false;
-    const project = t.cwd ? path.join(PROJECTS, slug(t.cwd)) : null;
-    if (project) (stat(project) ? watch : missing).add(project);
-    if (transcript) watch.add(path.dirname(transcript));
-    if (!transcript && t.cwd) {
+    const project = t.cwd ? path.join(t.home ?? os.homedir(), ".claude", "projects", slug(t.cwd)) : null;
+    if (project) (stat(project) && !t.home ? watch : missing).add(project);
+    if (transcript && !t.home) watch.add(path.dirname(transcript));
+    if (!transcript && project) {
       // No sidecar names the session: take the project's most recently written transcript.
-      const dir = path.join(PROJECTS, slug(t.cwd));
       let best = null;
       try {
-        for (const n of fs.readdirSync(dir)) {
+        for (const n of fs.readdirSync(project)) {
           if (!n.endsWith(".jsonl")) continue;
-          const s = stat(path.join(dir, n));
-          if (s && (!best || s.mtime > best.mtime)) best = { p: path.join(dir, n), mtime: s.mtime };
+          const s = stat(path.join(project, n));
+          if (s && (!best || s.mtime > best.mtime)) best = { p: path.join(project, n), mtime: s.mtime };
         }
       } catch {}
       transcript = best?.p;
@@ -382,8 +383,10 @@ function sessions(req) {
     const subs = subagents(cache, transcript);
     rehome([main, ...subs]);
     // No registry at all: nothing says the session died, so its open tasks still count as running.
-    const owner = owners ? owners.get(sessionId) : { since: 0 };
-    out[t.terminal] = { transcript, approx, sessionId, live: owners ? owners.has(sessionId) : null, ...settle(main, owner, now),
+    // The registry's pids are this computer's, so it can't speak for an agent on another machine.
+    const asked = t.home ? null : owners;
+    const owner = asked ? asked.get(sessionId) : { since: 0 };
+    out[t.terminal] = { transcript, approx, sessionId, live: asked ? asked.has(sessionId) : null, ...settle(main, owner, now),
       subagents: subs.map((s) => settle(s, owner, now)), sidecar };
   }
   for (const [p, c] of Object.entries(cache)) if (p !== PROCS && (now - (c.used ?? 0) > CACHE_DAYS * DAY || !stat(p))) delete cache[p];

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { zoneAt, landing, collapsed, exitSide, workRect, dockPlan, anchorIn, movePlan, applied, machineOf, ARM, headerArmed, homeOf, whereIs, moveToast } from "../skin/mods/endfield/dock.js";
+import { zoneAt, landing, collapsed, exitSide, boardRect, underStrip, nodeOf, dockPlan, anchorIn, movePlan, applied, machineOf, ARM, headerArmed, homeOf, whereIs, moveToast } from "../skin/mods/endfield/dock.js";
 
 const R = { x: 100, y: 50, w: 400, h: 200 };
 const at = (u, v) => ({ x: R.x + u * R.w, y: R.y + v * R.h });
@@ -34,10 +34,31 @@ test("leaving the list by its right edge is the way into the work area", () => {
   assert.equal(exitSide({ x: 3, y: 300 }, list), "left");
 });
 
-test("the work area is the window right of the sidebar, between the tab strip and the status bar", () => {
-  const tree = JSON.parse(readFileSync(new URL("../skin/layouts/endfield.json", import.meta.url), "utf8"));
-  assert.deepEqual(workRect({ width: 1440, height: 900 }, 248, tree), { x: 256, y: 44, w: 1176, h: 804 });
-  assert.equal(workRect({ width: 200, height: 900 }, 248, tree), null);
+const tree = JSON.parse(readFileSync(new URL("../skin/layouts/endfield.json", import.meta.url), "utf8"));
+
+test("the dock board fills work-body: right of the sidebar, between the tab strip and the status bar, inside Herdr's float inset", () => {
+  assert.deepEqual(boardRect({ width: 1440, height: 900 }, 1, tree), { x: 0, y: 0, w: 1168, h: 786 });
+  assert.deepEqual(boardRect({ width: 1800, height: 1125 }, 1.25, tree), { x: 0, y: 0, w: 1168, h: 786 }, "a zoomed window lays out in the same px");
+  const folded = structuredClone(tree);
+  nodeOf(folded, "sidebar").hidden = true;
+  assert.equal(boardRect({ width: 1440, height: 900 }, 1, folded).w, 1416, "a hidden sidebar takes no room");
+  assert.equal(boardRect({ width: 200, height: 900 }, 1, tree), null);
+  assert.equal(boardRect(null, 1, tree), null);
+});
+
+test("the layout floats the dock board over work-body, in the main window", () => {
+  const dock = nodeOf(tree, "work-body").floating.find((f) => f.id === "dock");
+  assert.deepEqual(dock.content, { mod: "endfield", props: { role: "dock" } });
+  assert.equal(dock.hidden, undefined, "it hides by drawing nothing, so its copy is running when a drag starts");
+});
+
+test("a held tab docks once it is carried out under the strip, not on a dip inside it", () => {
+  const strip = { x: 248, y: 0, width: 1192, height: 36 };
+  assert.equal(underStrip({ x: 300, y: 30 }, strip), false);
+  assert.equal(underStrip({ x: 300, y: 40 }, strip), false, "just under the edge is still a reorder");
+  assert.equal(underStrip({ x: 300, y: 80 }, strip), true);
+  assert.equal(underStrip({ x: 300, y: -40 }, strip), false, "above the window is not the work area");
+  assert.equal(underStrip(null, strip), false);
 });
 
 const chat = (extra = {}) => ({ terminal: "t7", pane: "p7", tab: "tabA", space: "s1", machine: null, linked: null, ...extra });

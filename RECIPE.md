@@ -23,7 +23,9 @@ rendered at 4x. It is a schematic, not a screenshot.
     (28x3px: `#FF1AAC` 5px, `#00FFA2` 5px, `#FFFA00` 18px) right-aligned 10px
     above the bottom hairline.
   - Spaces: header "// Spaces" (Geist 13 semibold), a mono count, a `+` and a
-    `▾` chevron (`▸` when folded; not on the rail).
+    `▾` chevron (`▸` when folded; not on the rail). The whole header row folds
+    it, with the hover wipe of a squad header and the tooltip "Click to fold"
+    ("Click to unfold" when folded); the `+` has its own click.
     Rows are 38px: `// name` (Geist 13 medium, the `//` muted) over a mono
     10px label (tab count, repo, branch, ↑ahead ↓behind). The selected row is
     inverted (ink, `#F2F2F2` text) in one frame; a 2px yellow marker travels
@@ -151,8 +153,10 @@ rendered at 4x. It is a schematic, not a screenshot.
     add machine, fold sidebar, and the palette key in mono.
 - **Tab strip, 36px**, drags the window: tabs run full height, separated by
   hairlines; each shows a mono index `01`, the agent icon, the label and its
-  status. The active tab sits on a yellow plate that snaps to it while a 3px ink marker slides along its foot,
-  with ink text and a close ×. Then an ink "+ New" button (radius 3, a 3px
+  status. The active tab is a yellow plate (its own background, so the plate is the tab's box at any zoom
+  and width) with ink text and a close ×, while a 3px ink marker slides along the strip's foot to it. The
+  marker's left and width come from each tab's `on_size_change` width, which Herdr reports in window px:
+  divide by `settings().zoom` before writing them back (`tabmark.js`). Then an ink "+ New" button (radius 3, a 3px
   yellow tab on its left edge), the Files and Changes pills (ghost; ink when
   open; which show is shared `workspace.panels`), and on Windows and Linux
   44px minimise, maximise/restore and close buttons drawn as thin vector glyphs.
@@ -268,8 +272,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   tri-colour bar wipes in.
 - **Spaces:** click selects (the ink fill wipes in, the yellow edge grows
   down); drag reorders within a machine (a 2px line shows where); right-click
-  opens the space menu; the machine header folds its group. The header's
-  chevron (or the `endfield.toggleSpaces` key) folds Spaces to its 38px
+  opens the space menu; the machine header folds its group. Clicking the
+  header (or the `endfield.toggleSpaces` key) folds Spaces to its 38px
   header with `layout.resize`, and Squads takes the height; unfolding
   restores the share it had. The fold is shared state, so it survives a
   restart.
@@ -343,17 +347,29 @@ rendered at 4x. It is a schematic, not a screenshot.
   where it is (measured on one throwaway terminal).
 - **Dock (drag a chat into the work area):** carrying a held agent row out
   of Squads by its right edge (the nearest edge to where the pointer left,
-  `dock.js` `exitSide`) ends the list's drag and opens the `dock` overlay: a
-  frameless popup over the whole window. Its ghost (raised plate, large
-  shadow: portrait, label, task) pops in from the row (opacity and 94%
-  size, 120ms) and springs after the pointer, held where the row was
-  pressed. The work area's outline and its centre box (hairlines) fade in
-  (160ms) once the pointer is over it. The five zones split the work area,
+  `dock.js` `exitSide`) ends the list's drag and hands the chat to the dock
+  board (`docking.js` `startDock`, the shared key `endfield.dock.drag`). A
+  held tab carried more than 12px under the tab strip (`underStrip`) hands
+  over its lead agent the same way; a tab with no agent only reorders. The
+  board is the layout's `dock` floating block over `work-body`, in the main
+  window, inside the frame Herdr draws round a floating block, so it covers
+  the panes while a chat is carried. It draws nothing, and Herdr hides it,
+  until a drag is handed over. A popup is a window of its own and a held
+  drag's pointer never reaches one, so the board is not an overlay; the
+  press began in another block, so it reads the pointer with
+  `on_window_mouse_move` and the release with `on_window_mouse_up`. Its
+  ghost (raised plate, large shadow: portrait, label, task) appears at the
+  pointer's first move over the window (opacity, 120ms) and springs after
+  it, held where the row was pressed; it is clipped to the board, and over
+  the sidebar the list has already let go. The board shows the work area's
+  outline and its centre box (hairlines). The five zones split the board,
   not the focused pane, because `panes()` gives no rectangles: the
   middle half each way is the centre, the rest goes to the nearest edge
-  (`zoneAt`). The work area is the window right of the sidebar, under the
-  tab strip and over the status bar, inside work-body's padding, as
-  `layout()` sizes them (`workRect`). The zone under the pointer gets the
+  (`zoneAt`). The board is the window right of the sidebar, under the
+  tab strip and over the status bar, less Herdr's 12px float inset and 5px
+  frame, as `layout()` and the window size give them (`boardRect`); the
+  pointer is read against the board's own box, so the zones hold wherever
+  Herdr sets it. The zone under the pointer gets the
   slab: a translucent plate with a 2px yellow edge and the zone's words,
   which grows out of its edge to half the work area and slides to the next
   zone's half (left, top, width and height, 220ms). A zone it can't land in
@@ -372,14 +388,14 @@ rendered at 4x. It is a schematic, not a screenshot.
   show the slab holds a beat (160ms) over Herdr's instant re-layout, then
   slab and ghost fade (180ms). Herdr has no layout transition, so the
   panes themselves jump; the slab covers the jump. Esc, a drop outside the
-  work area or on a grey zone, or a failed move springs the ghost home to
-  its row and fades it. The overlay opens with the button held, so it never
-  expects a press: a mouse-down in it cancels, 10s with no pointer move
+  board or on a grey zone, or a failed move fades the ghost (200ms) and the
+  board goes. The board comes up with the button held, so it never
+  expects a press: a mouse-down on it cancels, 10s with no pointer move
   cancels (`MOTION.dock.idle`), and a release drops only on a zone a
-  pointer move in the overlay set. A release it missed therefore can't arm
+  pointer move set. A release it missed therefore can't arm
   the next click. A failed move recovers and toasts as for a squad drop.
-  In Priority, an agent row drags onto another to link it as a helper
-  (`links.js`): it stays in place at 45% opacity, a ghost plate (raised,
+  In Priority, an agent row drags onto another to link the two
+  (`links.js`; the dropped one is the helper in the file): it stays in place at 45% opacity, a ghost plate (raised,
   large shadow) follows the pointer and names the row under it, and that row
   gets a 1px border, `text` when a drop links there, `hairStrong` with the
   ghost saying why when it can't (`linkProblem`: both Claude Code, one
@@ -387,9 +403,24 @@ rendered at 4x. It is a schematic, not a screenshot.
   sessions read). The row under the pointer is the one the pointer itself
   is over: the press records how far into its row it landed. Nothing slides.
   Release on a valid row opens the Link dialog; anywhere else does nothing.
-  A linked helper sits under its lead with the connector and a `linked` micro
-  tag after its label; its hc parent, the Report tree and hc's parent notes
-  are untouched. The link drops when either terminal ends, when either
+  Linked agents are peers: each stays top-level, with its own sub-agents
+  under it, and siblings linked to each other show as one group
+  (`fleet.js grouped`): the lead, then each helper right after the lead's
+  block (its row, its sub-agents, its toggle row). A group sorts by its
+  lead as urgent as its most urgent member, so in Priority it moves as one,
+  and in Tab order it sits at the lead's tab. In Tab order the group is one
+  chat block (`squads.js chatBlocks`): only the lead's row grabs it, and the
+  drop moves the lead's tab, which carries the group. A link rail joins the
+  group: a 3px bar in `link` (flow at reduced strength) at 6px from the
+  list's left, between the selection marker and the chips, from the top of
+  the group's first row to the foot of the rows under its last, inset 4px
+  at each end so two groups back to back read as two (`fleet.js railSpans`).
+  It is drawn over the rows and changes no row height. Each member's row
+  carries the `link` glyph (tinted `link`) after its label, with the
+  tooltip `Linked with CLAUDE: <task>`, one line per agent it is linked
+  with. A link between a pinned and an unpinned agent groups nothing:
+  each keeps its glyph in its own squad. The hc parent, the Report tree and
+  hc's parent notes are untouched. The link drops when either terminal ends, when either
   shell runs a new Claude Code session or another program (the link keeps
   both session ids), or when the two sit in different spaces (such a link
   is never drawn, and a linked chat can't be moved or docked out of its
@@ -434,14 +465,14 @@ rendered at 4x. It is a schematic, not a screenshot.
   folder is the chat's own; the home base only when the record has none.
   The dimming and every send gate on Herdr's own status, so an agent that
   reads Waiting but Herdr calls idle takes typed actions.
-- **Link:** the dialog is titled `// Link <helper> under <lead>` (callsigns)
+- **Link:** the dialog is titled `// Link <helper> with <lead>` (callsigns)
   and says one sentence: both agents get a short note about each other so
   they can coordinate. Its footer has **Show note** (reveals both note
   texts, wrapped), **Cancel** and **Link**. Busy agents don't block it. Link
   first writes `{a, b, sa, sb, at, noted}` (lives, `address@created`, their
   session ids, and `noted: {lead, helper}`, both false) to
   `data/endfield/links.json` (read again just before the write,
-  expected-snapshot write, one re-read retry), so Squads nests the helper at
+  expected-snapshot write, one re-read retry), so Squads groups the two at
   once. A helper the file already gives another lead, linked from another
   window, is refused with that reason, never moved, and nothing is typed.
   Then, for the lead and then the helper, it types
@@ -462,9 +493,9 @@ rendered at 4x. It is a schematic, not a screenshot.
   watching the other's screen. Messaging needs Claude Code 2.1.234 on
   Windows (`notify_when_idle` 2.1.236); a `--bare` session can't receive
   messages, and `crossSessionInbound` can refuse or hold them. The dialog
-  says none of this. The helper's card shows **Linked**, its lead and
-  **Unlink**, which rewrites the file and types nothing; the lead's card
-  lists its helpers.
+  says none of this. Each linked agent's card shows **Linked with** and the
+  agents it is linked with (label and terminal); the helper's card also has
+  **Unlink**, which rewrites the file and types nothing.
 - **Claude Code agent waiting on background work:** when Herdr says idle or
   done but the session's turn ended (or it sits in a wait) with a
   background shell, agent, monitor or sub-agent still running, the agent
@@ -498,8 +529,9 @@ rendered at 4x. It is a schematic, not a screenshot.
   yellow only while it would go and the input has focus; otherwise outlined,
   and dimmed with the reason in place of the toggle when the parent is
   working, needs input or is gone. Enter sends too. Nothing sends otherwise.
-- **Tabs:** click selects (the yellow block slides over left and width,
-  300ms), double-click renames, drag reorders, right-click opens the tab menu,
+- **Tabs:** click selects (the yellow plate jumps in one frame; the ink marker
+  slides over left and width, 300ms), double-click renames, drag reorders, a
+  drag out under the strip docks the tab's lead agent (Dock, above), right-click opens the tab menu,
   the wheel switches tabs. Hover grows a 24px, 2px underline from the left.
   Close buttons grow a red disc behind the ×.
 - **Ink buttons:** on hover the yellow side tab fades as a yellow ▶ fades in
@@ -530,7 +562,9 @@ rendered at 4x. It is a schematic, not a screenshot.
     padding 8, gap 8: the `work-stack` stack, whose children are `main` with
     the pane frame and `report` (role `report`), and the hidden `panel`, 368px,
     holding the `panel-body` stack of the shipped `files` and `changes`),
-    `status` (44px).
+    `status` (44px). `work-body` floats `dock` (role `dock`, `edge: "top"`,
+    `align: "start"`) over itself: the dock board, which draws nothing
+    until a chat is carried into the work area.
   - Every chrome block is `{mod: "endfield", props: {role}}`. The pane frame:
     background `#191919`, border 1 `input`, focus 1 `solid`, radius 4, gap 8,
     `lone: true`, header `{mod: "endfield", props: {role: "pane"}}`, 34px,
@@ -577,19 +611,18 @@ rendered at 4x. It is a schematic, not a screenshot.
   kept out of every roster while no agent runs there), `endfield.links`
   (Links, `{a, b, sa, sb, at, noted}`, as links.json was last read: the
   Squads list reads it again every 5s, so another window's links show;
-  every roster nests helpers by it), `endfield.sessionIds` (each Claude
+  every roster groups linked agents by it), `endfield.sessionIds` (each Claude
   Code agent's session id, which a link is kept to), `endfield.rowTitles`
   (each agent row's task label, which a link's note quotes),
-  `endfield.dock.ask` (`{terminal, zone, anchor, at}`: the dock overlay's
+  `endfield.dock.drag` (`{terminal, anchor, grip, size, title, at}`: the
+  chat handed to the dock board, null when none),
+  `endfield.dock.ask` (`{terminal, zone, anchor, at}`: the dock board's
   drop, which the Squads list runs) and `endfield.dock.done` (`{at, ok}`).
 - A card action's dialog is `{role: "action", terminal, action, snap}`, a
   dialog with `frame: "none"`; the archived list is `{role: "archived"}`;
   a squad header's dialog is `{role: "squad", id, mode: "archive" | "close"}`.
   Link is `{role: "link", lead, helper, side}` (`side: "lead"` or `"helper"`:
-  Send note, typing only that side's note);
-  the dock overlay is `{role: "dock", terminal,
-  anchor, left, from, grip, pointer, title}`, a popup with `frame: "none"`,
-  `width` and `height` 1 at `{x: 0, y: 0}`.
+  Send note, typing only that side's note).
   The actions are data: `ACTIONS[programKey]` in `orders.js`.
 - `herdr` calls: `spaces`, `agents`, `terminals`, `panes`, `focused`,
   `machines`, `layout`, `settings`, `keys`, `updates`, `fonts`, `shared`,

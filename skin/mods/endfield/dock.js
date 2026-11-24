@@ -39,7 +39,7 @@ export function zoneAt(p, r) {
 }
 
 /**
- * The part of rect r a zone's chat would take, as the overlay previews it. panes() gives no
+ * The part of rect r a zone's chat would take, as the dock board previews it. panes() gives no
  * rectangles, so this is a half of the work area, not of the focused pane.
  */
 export function landing(zone, r) {
@@ -72,17 +72,30 @@ export function nodeOf(node, id) {
   return null;
 }
 
+// Herdr sets a floating block this far in from its node's edges, and draws a frame this far above and below it.
+const FLOAT = { inset: 12, frame: 5 };
+
 /**
- * The work area inside the overlay, which covers the window (size {width, height}): right of the
- * sidebar (`left`), under the tab strip and over the status bar, inside work-body's padding, as
- * the layout tree (layout()) sizes them. Missing nodes count as 0.
+ * The dock board's box, in the px a mod lays out in. The board is the `dock` floating block over
+ * work-body: the window (`view` {width, height}, in window px at `zoom`) right of the sidebar,
+ * under the tab strip and over the status bar, as the layout tree (layout()) sizes them, less
+ * Herdr's float inset and frame. A hidden or missing node counts as 0. Its origin is the board's
+ * own corner, since the board reads the pointer against its own box. Null with no room.
  */
-export function workRect(size, left, tree) {
-  if (!size || !(size.width > left)) return null;
-  const px = (id) => Number(nodeOf(tree, id)?.size?.px) || 0;
-  const pad = Number(nodeOf(tree, "work-body")?.padding) || 0;
-  const top = px("tabs") + pad, bottom = px("status") + pad;
-  return { x: left + pad, y: top, w: Math.max(0, size.width - left - 2 * pad), h: Math.max(0, size.height - top - bottom) };
+export function boardRect(view, zoom, tree) {
+  if (!view || !(zoom > 0)) return null;
+  const px = (id) => { const n = nodeOf(tree, id); return !n || n.hidden ? 0 : Number(n.size?.px) || 0; };
+  const w = view.width / zoom - px("sidebar") - 2 * FLOAT.inset;
+  const h = view.height / zoom - px("tabs") - px("status") - 2 * (FLOAT.inset + FLOAT.frame);
+  return w > 0 && h > 0 ? { x: 0, y: 0, w, h } : null;
+}
+
+// How far under the tab strip a held tab is carried before it docks: a reorder that dips stays a reorder.
+const STRIP_SLACK = 12;
+
+/** Whether a pointer at `local` ({x, y} against the tab strip's box, `bounds`) has been carried out under the strip. */
+export function underStrip(local, bounds) {
+  return Boolean(local && bounds) && local.y > bounds.height + STRIP_SLACK;
 }
 
 /** A zone's slab before it opens: no thickness, on the edge it grows from (the centre grows from the right, where it lands). */
