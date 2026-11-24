@@ -279,11 +279,16 @@ rendered at 4x. It is a schematic, not a screenshot.
   large shadow) follows the pointer and names the row under it, and that row
   gets a 1px border, `text` when a drop links there, `hairStrong` with the
   ghost saying why when it can't (`linkProblem`: both Claude Code, one
-  machine, the helper with no hc parent or lead, no cycle). Nothing slides.
+  machine, one space, the helper with no hc parent or lead, no cycle, both
+  sessions read). The row under the pointer is the one the pointer itself
+  is over: the press records how far into its row it landed. Nothing slides.
   Release on a valid row opens Link as helper; anywhere else does nothing.
   A linked helper sits under its lead with the connector and a `linked` micro
   tag after its label; its hc parent, the Report tree and hc's parent notes
-  are untouched. The link drops when either terminal ends.
+  are untouched. The link drops when either terminal ends, when either
+  shell runs a new Claude Code session or another program (the link keeps
+  both session ids), or when the two sit in different spaces (Herdr can't
+  move a chat between spaces, so such a link is never drawn).
   The sort pill opens Priority or Tab order. A new child draws its connector
   top-down (240ms); a newly pinned agent fades in. `alt-up` /
   `alt-down` follow the list's order.
@@ -324,12 +329,19 @@ rendered at 4x. It is a schematic, not a screenshot.
 - **Link as helper:** the dialog names the lead and the helper, says
   whether both are idle, and lists the two lines Confirm runs:
   `hc send <lead> --if idle -- "<note>"` then the same into the helper.
-  Confirm first writes `{a, b, at}` (lives, `address@created`) to
-  `data/endfield/links.json` (expected-snapshot write, one re-read retry);
-  then types the lead's note, then the helper's. Either one not idle refuses
-  before anything is written. A refused lead takes the link back out; a
-  refused helper keeps it, and Confirm again types only the helper's note.
-  Each note names the other by folder, terminal and task, and asks them to
+  Confirm first writes `{a, b, sa, sb, at, noted}` (lives,
+  `address@created`, their session ids, and `noted: {lead, helper}`, whose
+  note was typed) to `data/endfield/links.json` (read again just before the
+  write, expected-snapshot write, one re-read retry). A helper the file
+  already gives another lead, linked from another window, is refused with
+  that reason, never moved. Then it types the lead's note, then the
+  helper's, noting each one sent. Either one not idle refuses before
+  anything is written. A refused lead takes the link back out; a refused
+  helper keeps it, and Confirm again types only the helper's note. Closed
+  before that, the helper's card offers **Send note again** while its note
+  is unsent, which opens the same dialog at the helper's note alone
+  (`{from: 1}`). Each note names the other by folder, terminal and task
+  (the label its row shows), and asks them to
   coordinate through Claude Code's cross-session messaging (`ListAgents`,
   `SendMessage`, `notify_when_idle`; see
   https://code.claude.com/docs/en/cross-session-messaging.md) and to agree
@@ -447,11 +459,15 @@ rendered at 4x. It is a schematic, not a screenshot.
   Claude Code agent's model id, for casting), `endfield.archived` (Hides,
   `{life: "address@created", program}`, of archived chats' leftover shells,
   kept out of every roster while no agent runs there), `endfield.links`
-  (Links, `{a, b, at}` with lead and helper lives, as links.json was last
-  read; every roster nests helpers by it).
+  (Links, `{a, b, sa, sb, at, noted}`, as links.json was last read: the
+  Squads list reads it again every 5s, so another window's links show;
+  every roster nests helpers by it), `endfield.sessionIds` (each Claude
+  Code agent's session id, which a link is kept to), `endfield.rowTitles`
+  (each agent row's task label, which a link's note quotes).
 - A card action's dialog is `{role: "action", terminal, action, snap}`, a
   dialog with `frame: "none"`; the archived list is `{role: "archived"}`;
-  Link as helper is `{role: "link", lead, helper}`.
+  Link as helper is `{role: "link", lead, helper, from}` (`from: 1` types
+  only the helper's note).
   The actions are data: `ACTIONS[programKey]` in `orders.js`.
 - `herdr` calls: `spaces`, `agents`, `terminals`, `panes`, `focused`,
   `machines`, `layout`, `settings`, `keys`, `updates`, `fonts`, `shared`,
