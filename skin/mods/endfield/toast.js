@@ -9,7 +9,7 @@
 import { div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, closeOverlay, openOverlay, run, agents, spaces } from "herdr";
-import { palette, root, micro, spaced, wide, chip, cue, MOTION, FONT } from "./kit.js";
+import { palette, root, micro, spaced, wide, chip, cue, MOTION, FONT, modPx } from "./kit.js";
 import { roster } from "./roster.js";
 import { showWork } from "./report.js";
 
@@ -103,7 +103,7 @@ export class Toast {
       .opacity(shown ? 1 : 0).left(shown ? 0 : 40)
       .transition("opacity", MOTION.toast.fade).transition("left", MOTION.toast.enter)
       .on_size_change((size, cx) => {
-        this.width = size.width;
+        this.width = modPx(size.width);
         if (this.phase === "new") cx.timer.after(MOTION.settle.delay, (cx) => { if (this.phase === "new") this.phase = "shown"; cx.notify(); });
         cx.notify();
       })

@@ -31,6 +31,7 @@
 ### Fixed
 
 - **The selected tab's yellow plate sits on the tab at every zoom.** At any zoom but 100%, the plate and the marker under it were drawn off the selected tab, further off for each tab before it. With long titles zoomed out, the plate covered part of the tab on its left, whose light title could not be read on yellow, and left part of the selected tab's dark title on the dark strip. The selected tab now paints its own plate, and the marker measures the tabs in the zoom you use.
+- **Everything else measured fits at every zoom too.** At any zoom but 100%, other parts of the skin used sizes Herdr measured as if they were drawn at 100%. In Squads, the hover wipes and the empty list's rings were too wide or too narrow, the list could scroll past its end or stop short of it, the **+N below** count and the geometric layer at its foot were off, and a dragged row drifted away from the pointer. Trackpad scrolling in Squads ran faster or slower than the pointer. The Spaces hover wipes, the Report's column widths and a notice's countdown line were off by the zoom, and the usage limits in the footer could pick a layout too wide for the slot. Each now converts what Herdr measures into the zoom you use.
 
 ## 0.3.0
 
