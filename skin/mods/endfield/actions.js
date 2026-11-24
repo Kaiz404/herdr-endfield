@@ -1,5 +1,5 @@
 // actions: the confirm dialog behind every session card action, and the Archived list. Like
-// Dispatch, it shows the exact command before anything runs and runs it once, on Confirm only.
+// Dispatch, it keeps the exact command one click away (Show command) and runs it once, on Confirm only.
 //   action    props {role: "action", terminal, action (an ACTIONS key), snap: Session | null, overlay}
 //             What each program offers, and the argv, are orders.js (ACTIONS, actionSteps). Typed
 //             steps go through hc send --if idle; Next mode's hc keys runs only if Herdr still
@@ -21,7 +21,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { props, closeOverlay, openOverlay, readTextFile, writeTextFile, appHome, exec, hc, run, shared, setShared, spaces, agents, terminals, knownAgents, checking, window as appWindow } from "herdr";
-import { palette, root, micro, pill, barcode, growDisc, cue, MOTION, FONT, STRIP, strip, stripCode, stripCancel, homeBase } from "./kit.js";
+import { palette, root, micro, pill, barcode, growDisc, cue, MOTION, FONT, STRIP, strip, commandToggle, stripCancel, homeBase } from "./kit.js";
 import { roster } from "./roster.js";
 import { append } from "./comms.js";
 import { ACTIONS, MODE_WORD, gate, valuesProblem, actionSteps, stepLine, modeOnScreen, deliver, timeoutFor, shQuote, switchArgv, switchPlan } from "./orders.js";
@@ -132,6 +132,7 @@ export class ActionDialog {
       this.inputs[f.key] = s;
     }
     this.alsoSession = false;
+    this.showCommand = false;
     // edit -> busy -> sent | refused (may Confirm again) | uncertain; deliver() in orders.js.
     this.state = { phase: "edit", error: null };
     this.read = null;
@@ -288,10 +289,9 @@ export class ActionDialog {
               .child(micro("Does", C.muted).flex_none()).child(div().flex_1().min_w(0).text_size(12).text_color(C.muted).child(a.note)))
             .when(Boolean(outcome), (el) => el.child(h_flex().px(10).py(7).gap(8).items_center().border_l(2).border_color(outcome[1] === C.error ? C.red : C.lime).bg(C.ground)
               .child(micro(outcome[0], outcome[1]).flex_none()).child(div().flex_1().min_w(0).font_family(FONT.mono).text_size(11).child(outcome[2])))),
-          // The exact commands, one per line, wrapped rather than cut: Confirm runs these and nothing else.
+          // Confirm runs these lines and nothing else, shown or not.
           strip: strip()
-            .child(stripCode(v_flex().id("ac-cmd").flex_1().min_w(0).max_h(72).overflow_y_scrollbar().gap(4))
-              .children(steps.map((s) => div().child(stepLine(s, platform)))))
+            .child(commandToggle("ac-cmd", { open: this.showCommand, flip: (_e, cx) => { this.showCommand = !this.showCommand; cx.notify(); }, lines: steps.map((s) => stepLine(s, platform)) }).flex_1())
             .when(!done, (el) => el.child(stripCancel("ac-cancel", () => closeOverlay(p.overlay))))
             .when(done, (el) => el.child(pill(C, "ac-done", "Close", { kind: "dark", knob: "×", h: 30, hot: this.hot === "ac-done", on_hover: this.hover("ac-done"), action: () => closeOverlay(p.overlay) })))
             .when(!done, (el) => el.child(div().when(!ready, (el) => el.opacity(0.45)).child(pill(C, "ac-go", this.state.phase === "busy" ? "Running" : a.archive ? "Archive" : "Confirm",
@@ -389,6 +389,7 @@ export class AccountDialog {
     this.accounts = null;
     this.choice = null;
     this.now = false;
+    this.showCommand = false;
     // programs.json's run argv for this program; null until asked, then the program's own command if unknown.
     this.run = null;
     this.entered = false;
@@ -455,8 +456,9 @@ export class AccountDialog {
             .children(notes.map((n) => line("Note", "signal", n)))
             .child(line("Does", "hairStrong", "Opens a tab that waits for the turn, ends this agent and its tab, and resumes the same chat there on the new account. Close that tab before then to cancel.")),
           strip: strip()
-            .child(stripCode(v_flex().id("acc-cmd").flex_1().min_w(0).max_h(72).overflow_y_scrollbar())
-              .child(div().child(this.choice ? stepLine({ herdr: "tab.new", args: tab }, appWindow()?.platform) : "Pick an account")))
+            .child(this.choice
+              ? commandToggle("acc-cmd", { open: this.showCommand, flip: (_e, cx) => { this.showCommand = !this.showCommand; cx.notify(); }, lines: [stepLine({ herdr: "tab.new", args: tab }, appWindow()?.platform)] }).flex_1()
+              : micro("Pick an account", STRIP.dim, 9).flex_1())
             .child(pill(C, "acc-manage", "Manage accounts", { kind: "dark", h: 30, hot: this.hot === "acc-manage", on_hover: this.hover("acc-manage"),
               action: () => { manageAccounts(); closeOverlay(p.overlay); } }))
             .child(stripCancel("acc-cancel", () => closeOverlay(p.overlay)))

@@ -178,6 +178,13 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   (`accountArgv`, `switchArgv`, `switchPlan`). Tokens never pass through the mod:
   it reads names only (`account.mjs list`), and Manage accounts opens the tool's
   own menu in a tab.
+- `tools/trust.mjs <folder>` tells Dispatch whether Claude Code already trusts
+  a folder, so New agent can say it will ask. It only reads `~/.claude.json`:
+  running sessions rewrite that file constantly, and Claude Code has no
+  official way to trust a folder in advance. Inside a git repository it checks
+  the repository root (a linked worktree's main checkout); outside one, the
+  folder and every folder above it. `tests/trust.test.mjs` runs it against a
+  throwaway home.
 - `tools/probe.mjs` reads transcripts for `sessions.js` and for
   `transcript.js`. It runs under `node` because `readTextFile` stops at
   1 MiB and transcripts reach tens of MB. It folds each file once and keeps the
