@@ -59,7 +59,7 @@ async function readArchive() {
 const updateArchive = (change) => updateFile({ read: readArchive, write: (text, expected) => writeTextFile(ARCHIVE(), text, expected), change });
 
 // The dialogs' shared frame: corner brackets, a title block, a body, the graphite command strip.
-function frame(C, id, { kicker, title, close, body, strip }) {
+export function frame(C, id, { kicker, title, close, body, strip }) {
   return v_flex().id(id).relative().w_full().bg(C.raised).border_1().border_color(C.hairStrong).rounded(4)
     .child(div().absolute().left(-7).top(-7).size(10).border_l(1.5).border_t(1.5).border_color(C.text))
     .child(div().absolute().right(-7).bottom(-7).size(10).border_r(1.5).border_b(1.5).border_color(C.text))
@@ -73,7 +73,7 @@ function frame(C, id, { kicker, title, close, body, strip }) {
     .when(Boolean(strip), (el) => el.child(strip));
 }
 
-function closeButton(C, view, overlay) {
+export function closeButton(C, view, overlay) {
   return div().id("ac-close").relative().size(30).rounded_full().border_1().border_color(C.hairStrong).flex().items_center().justify_center().cursor_pointer()
     .on_hover(view.hover("ac-close")).on_click(() => closeOverlay(overlay))
     .child(growDisc("ac-close-disc", 30, 30, 28, view.hot === "ac-close", C.red))

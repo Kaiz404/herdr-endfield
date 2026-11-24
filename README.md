@@ -15,6 +15,7 @@ The image is a schematic of the layout, not a screenshot.
 - **A session panel** when you hover an agent or a Claude Code sub-agent: context, tool calls, its background tasks, its last action and any question it is waiting on. Right-click the row to keep the panel open. Its buttons rename the chat or change its model, effort or mode. Each one keeps the exact command one click away and runs it only when you confirm.
 - **Archive and Resume.** Archive ends a chat and keeps its transcript. Resume opens it again in a new tab.
 - **Squads you can arrange.** Drag a squad to reorder it, and the others slide aside to show where it lands. In Tab order, drag a chat to reorder it within its squad. Double-click a squad's name to rename it, and right-click its header for a menu.
+- **Helpers.** In Priority order, drag one Claude Code agent onto another to link it as a helper. It shows under its lead, and on your confirm each gets a note to coordinate through Claude Code's cross-session messaging.
 - **One transcript pane** for a Claude Code sub-agent, with a box to send it a follow-up through its parent.
 - **A banner when an agent needs you.** It shows the agent's question, with **Answer** and **Later**. A finished agent gets a short **Finished** slip.
 - **Usage limits** in the footer: your Claude 5-hour and weekly use, and the time to reset. They come from the Claude Code statusline.
