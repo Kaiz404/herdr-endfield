@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { zoneAt, landing, collapsed, exitSide, boardRect, underStrip, nodeOf, dockPlan, anchorIn, movePlan, applied, machineOf, ARM, headerArmed, homeOf, whereIs, moveToast } from "../skin/mods/endfield/dock.js";
+import { zoneAt, landing, collapsed, exitSide, boardRect, underStrip, nodeOf, dockPlan, anchorIn, movePlan, applied, machineOf, ARM, headerArmed, homeOf, whereIs, moveToast, popOutPlan, showPlan } from "../skin/mods/endfield/dock.js";
 
 const R = { x: 100, y: 50, w: 400, h: 200 };
 const at = (u, v) => ({ x: R.x + u * R.w, y: R.y + v * R.h });
@@ -64,6 +64,26 @@ test("a held tab docks once it is carried out under the strip, not on a dip insi
 const chat = (extra = {}) => ({ terminal: "t7", pane: "p7", tab: "tabA", space: "s1", machine: null, linked: null, ...extra });
 const anchor = { pane: "p1", tab: "tabB", space: "s2", machine: null };
 const cmds = (plan) => plan.steps.map((s) => [s.cmd, s.args.place ?? s.args.target ?? s.args.pane ?? s.args.terminal]);
+
+test("Pop out parks the pane, then keeps the terminal with no place, which makes its own tab", () => {
+  const plan = popOutPlan(chat(), 2);
+  assert.deepEqual(plan.steps.map((s) => [s.cmd, s.args, s.wait]), [
+    ["terminal.park", { terminal: "t7" }, "gone"],
+    ["terminal.keep", { terminal: "t7" }, "shown"],
+  ]);
+  assert.ok(!plan.steps.some((s) => s.beside), "a new tab needs no focused pane to land beside");
+  assert.ok(popOutPlan(chat(), 1).problem, "a pane alone in its tab has nothing to pop out of");
+  assert.ok(popOutPlan(chat({ pane: null }), 2).problem);
+});
+
+test("a hidden chat shows again beside its own squad's pane, else the focused one, else in a new tab", () => {
+  const hidden = chat({ pane: null, tab: null });
+  const home = { pane: "pH", tab: "tabH", space: "s1", machine: null };
+  assert.deepEqual(cmds(showPlan(hidden, home, anchor)), [["pane.focus", "pH"], ["terminal.keep", "right"]], "never a park: it has no pane");
+  assert.deepEqual(cmds(showPlan(hidden, null, anchor)), [["pane.focus", "p1"], ["terminal.keep", "right"]]);
+  assert.deepEqual(cmds(showPlan(hidden, { ...home, machine: "box" }, anchor)), [["pane.focus", "p1"], ["terminal.keep", "right"]], "its squad on another machine can't take it");
+  assert.deepEqual(showPlan(hidden, null, null).steps, [{ cmd: "terminal.keep", args: { terminal: "t7" }, wait: "shown" }]);
+});
 
 test("a chat in another tab is parked, the anchor focused, then kept beside it", () => {
   assert.deepEqual(cmds(dockPlan(chat(), anchor, "right")), [["terminal.park", "t7"], ["pane.focus", "p1"], ["terminal.keep", "right"]]);

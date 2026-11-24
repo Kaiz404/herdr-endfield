@@ -43,6 +43,8 @@ export const BY = {
 };
 
 export const PINNED = "pinned";
+// The squad of hidden agents whose own squad has closed.
+export const HIDDEN = "hidden";
 
 /**
  * { all: Map<address, Member>, squads: [{ id, num, name, machine, pinned?, members: Member[] }], flat: Member[],
@@ -66,8 +68,11 @@ export const PINNED = "pinned";
  * linked to each other show as one group (see grouped). linked: the lead's address; helpers: the
  * lead's helpers. Neither sets an hc parent: kids, the Report tree and parent notes are hc's. A link
  * that no longer stands (links.js stands), gives an hc child a lead, or closes a loop is left out.
+ * parked: Hidden records (plate.js) of agents the person hid from their pane. terminal.park took
+ * their pane and labels, so Herdr no longer lists them: each live one is a member with no pane and
+ * `hidden`, in the squad it was hidden from, or in a Hidden squad once that space is gone.
  */
-export function buildRoster({ listed, terms, spaces, identity, models = {}, sessions = {}, prev = null, avoid = [], sort = BY.priority, hidden = [], waiting = [], links = [] }) {
+export function buildRoster({ listed, terms, spaces, identity, models = {}, sessions = {}, prev = null, avoid = [], sort = BY.priority, hidden = [], waiting = [], links = [], parked = [] }) {
   const wait = new Set(waiting);
   const termOf = new Map(terms.map((t) => [t.address, t]));
   const all = new Map();
@@ -78,6 +83,15 @@ export function buildRoster({ listed, terms, spaces, identity, models = {}, sess
       space: a.space, spaceName: a.space_name, tab: a.tab, tabIndex: a.tab_index, pane: a.pane,
       seq: a.seq, pinned: Boolean(a.pinned), focused: a.focused, parent: termOf.get(a.address)?.parent ?? null,
       created: termOf.get(a.address)?.created_ms ?? 0, turn: termOf.get(a.address)?.turn ?? null,
+    });
+  }
+  for (const r of parked) {
+    const t = termOf.get(r.terminal);
+    if (!t || all.has(t.address) || t.state !== "live" || (t.created_ms ?? 0) !== r.created || (t.parent && termOf.get(t.parent)?.state === "live")) continue;
+    all.set(t.address, {
+      address: t.address, agent: null, program: t.program, status: childStatus(t.status), herdrStatus: childStatus(t.status), title: t.title || t.name || t.program?.name || t.address,
+      space: r.space, spaceName: spaces.find((s) => s.id === r.space)?.name ?? null, tab: null, tabIndex: null, pane: null,
+      seq: 0, pinned: false, focused: false, parent: null, created: t.created_ms ?? 0, turn: t.turn ?? null, hidden: true,
     });
   }
   // Children without a pane, under any listed agent (to any depth).
@@ -143,6 +157,8 @@ export function buildRoster({ listed, terms, spaces, identity, models = {}, sess
     const mine = tops.filter((m) => m.space === sp.id && !m.pinned);
     if (mine.length) squads.push(squad(sp.id, String(i + 1).padStart(2, "0"), sp.name, sp.machine ?? null, mine));
   });
+  const lost = tops.filter((m) => m.hidden && !m.pinned && !spaces.some((sp) => sp.id === m.space));
+  if (lost.length) squads.push(squad(HIDDEN, "HD", "Hidden", null, lost));
   // Pane agents are never numbered: their rows show a tab name or a live title that changes (a
   // spinner, a rename), so a number keyed on it would come and go. Their task line tells them apart.
   for (const m of [...all.values(), ...squads.flatMap((q) => q.members)]) m.label = programLabel(m.program);
