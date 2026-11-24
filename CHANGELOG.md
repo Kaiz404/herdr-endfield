@@ -8,7 +8,8 @@
 
 ### Changed
 
-- **Usage limits follow the focused agent's account.** The HUD footer used to show the limits of whichever session reported last. Now it shows the limits of the focused agent's account, and the account it runs on beside them. Copy the Claude Code statusline again: it now records the account (`"account"`) in each session file.
+- **A calmer HUD footer, in three zones.** Left: how many agents work now, and a **Finished** button only while an agent finished a turn you have not seen (click: go to it). Middle: the focused agent's account, model, effort, branch and context. Right: the usage limits. The space and tab breadcrumb is gone (the sidebar and the tab bar show it), the separate Active and Generating counts are now one **Working** count, and the machine shows only when it is remote.
+- **Usage limits follow the focused agent's account.** The HUD footer used to show the limits of whichever session reported last. Now it shows the limits of the focused agent's account, and its account in the middle of the footer. Copy the Claude Code statusline again: it now records the account (`"account"`) in each session file.
 
 ## 0.3.0
 

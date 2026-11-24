@@ -512,7 +512,7 @@ export class Agents {
     const f = R.flat.find((m) => m.focused);
     const s = f ? this.sessions.get(f.address) : null;
     // terminal and session: what the footer's Account dialog needs to resume this chat on another login.
-    const focus = f ? { ctx: s?.ctx ?? null, model: s?.model?.short ?? f.program?.name ?? null, account: s?.account ?? null, email: this.sessions.email ?? null,
+    const focus = f ? { ctx: s?.ctx ?? null, model: s?.model?.short ?? f.program?.name ?? null, effort: s?.effort ?? null, account: s?.account ?? null, email: this.sessions.email ?? null,
       terminal: f.address, session: s ? { sessionId: s.sessionId ?? null, cwd: s.cwd ?? null, approx: Boolean(s.approx) } : null } : null;
     // The focused agent's login's limits when its sidecar names it, else the newest of any login.
     const limits = (s?.account != null ? this.sessions.accountLimits[s.account] : null) ?? this.sessions.limits;
