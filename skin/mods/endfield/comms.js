@@ -1,6 +1,6 @@
 // comms: who sent what to whom, newest first, and the Comms pane that shows it.
 // A message is one delivery: { at (ms), from, to (a terminal address, "you" or "hc"),
-//   kind: task | msg | reply | screen | needs | error | action, via (the transport), text, unverified? }.
+//   kind: task | msg | reply | screen | needs | error | action, via (the transport: a text, or [what, how] drawn apart), text, unverified? }.
 // Two sources, and the pane says so:
 //   1. the skin's own log, one JSON line per Dispatch, in data/endfield/comms.jsonl, kept under
 //      512 KB (messages.js) and removed by uninstall;
@@ -13,7 +13,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { readTextFile, writeTextFile, appHome, panes, spaces, run, exec, checking, shared, setShared } from "herdr";
-import { palette, root, micro, wide, chip, barcode, dots, MOTION, FONT } from "./kit.js";
+import { palette, root, micro, spaced, wide, chip, barcode, dots, MOTION, FONT } from "./kit.js";
 import { roster } from "./roster.js";
 import { appendCapped, readTags, remember } from "./messages.js";
 import { PANE_ROLES, paneRole, opening } from "./fleet.js";
@@ -110,7 +110,7 @@ export class Comms {
     const C = palette();
     const R = roster();
     const now = Date.now();
-    const all = [...this.log.map((x) => ({ ...x, src: "log" })), ...[...this.tagged.values()].map((x) => ({ ...x, src: "tag", via: "hc send · tag read from its screen (hc read) · unverified" }))].sort((a, b) => b.at - a.at);
+    const all = [...this.log.map((x) => ({ ...x, src: "log" })), ...[...this.tagged.values()].map((x) => ({ ...x, src: "tag", via: ["hc send", "tag read from its screen (hc read)", "unverified"] }))].sort((a, b) => b.at - a.at);
     const list = all.filter((x) => this.filter === "all" || (this.filter === "you" ? x.from === "you" || x.to === "you" : x.src === "tag"));
     const space = spaces().find((s) => s.active);
     const filterBtn = (k, label) => {
@@ -137,13 +137,13 @@ export class Comms {
             .child(div().w(4).flex_none().border_t(1.5).border_b(1.5).border_l(1.5).border_color(C.text))
             .child(div().flex_1().min_w(0).py(5).font_family("JetBrains Mono").text_size(12).line_height(1.45).child(x.text))
             .child(div().w(4).flex_none().border_t(1.5).border_b(1.5).border_r(1.5).border_color(C.text)))
-          .child(micro(x.via ?? "", C.muted).truncate()));
+          .child(spaced([x.via ?? ""].flat(), C.muted, { rest: C.dim })));
     };
     if (this.fresh) cx.timer.after(MOTION.settle.delay, (cx) => { this.fresh = null; cx.notify(); });
     return root(C, v_flex().size_full().bg(C.raised)
       .child(v_flex().flex_none().px(14).pt(12).pb(10).gap(8).border_b(1).border_color(C.hair)
         .child(h_flex().gap(8).items_center().child(div().text_size(13).font_semibold().child("// Comms")).child(barcode(C.cross)).child(div().flex_1())
-          .child(micro(`${space?.name ?? ""} · ${String(all.length).padStart(2, "0")} · newest first`, C.muted)))
+          .child(spaced([space?.name, [String(all.length).padStart(2, "0"), C.text], ["Newest first", C.dim]], C.muted)))
         .child(h_flex().gap(6).child(filterBtn("all", "All")).child(filterBtn("you", "You")).child(filterBtn("tags", "Reports")))
         .child(div().text_size(11).line_height(1.4).text_color(C.muted)
           .child("Sources: the Dispatch log this skin writes, and <hc from> reports found in agents' screens (hc read, every 15s). Not shown: sends to plain programs, Claude Code SendMessage, and anything scrolled out of history.")))

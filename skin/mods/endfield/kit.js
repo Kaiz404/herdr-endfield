@@ -295,6 +295,14 @@ export function wide(text, color, size = 13) {
     : div().flex_shrink(1).min_w(0).truncate().child(part))));
 }
 
+/** Pieces of data in a row, set apart by a gap and not a glyph. An item is a text or [text, colour];
+ *  the first piece takes `color`, the rest `rest` (default: the same). Empty pieces (null, false, "")
+ *  drop out; 0 stays. Each piece truncates on its own. */
+export function spaced(items, color, { rest = color, size = 10, gap = 10 } = {}) {
+  const pieces = items.map((it, i) => (Array.isArray(it) ? it : [it, i ? rest : color])).filter(([t]) => t != null && t !== false && t !== "");
+  return h_flex().min_w(0).gap(gap).items_center().children(pieces.map(([t, c]) => micro(t, c, size).min_w(0).truncate()));
+}
+
 export const pad2 = (n) => String(n).padStart(2, "0");
 
 /** A branch cut in the middle, so its prefix and its ticket number both stay readable. */

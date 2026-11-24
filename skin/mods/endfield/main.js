@@ -1,7 +1,7 @@
 // Endfield: the whole chrome of the Endfield layout is this one mod, in roles.
 // The layout and overlays give each copy props { role }:
 //   boot      the start-up screen, an overlay the brand opens when the layout starts
-//   brand     mark, name, machine · version, the one tri-colour bar
+//   brand     mark, name, machine and version, the one tri-colour bar
 //   footer    settings and add machine
 //   spaces    spaces by machine, worktrees nested, drag to reorder
 //   agents    agents by priority or space, sub-agents as a production chain

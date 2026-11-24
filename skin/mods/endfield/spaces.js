@@ -6,7 +6,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 import { spaces, machines, panes, run, openOverlay, exec, hc, watchFolder, layout, shared, setShared, window as appWindow } from "herdr";
-import { palette, root, narrow, find, midTrunc, glyph, freshDot, micro, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT, basename, homeBase, newSpace } from "./kit.js";
+import { palette, root, narrow, find, midTrunc, glyph, freshDot, micro, spaced, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT, basename, homeBase, newSpace } from "./kit.js";
 import { roster } from "./roster.js";
 import { DENSE_AT, statusOf } from "./fleet.js";
 
@@ -330,7 +330,7 @@ export default class Spaces {
       const lamp = div().size(5).flex_none().bg(connected ? C.lime : C.dim);
       const head = h_flex().id(`machine-${m ?? "local"}`).flex_none().items_center().cursor_pointer()
         .when(collapsed, (el) => el.mt(6).w(RAIL).h(24).justify_center().rounded(3).relative()
-          .tooltip(login ? `${m} needs a login: run ${login}. Click for Settings.` : m ? `${m} · ${state}${machine?.keeps_running_after_logout === false ? " · ⚠ agents stop when you disconnect" : ""}` : "This computer")
+          .tooltip(login ? `${m} needs a login: run ${login}. Click for Settings.` : m ? `${m}, ${state}${machine?.keeps_running_after_logout === false ? ", ⚠ agents stop when you disconnect" : ""}` : "This computer")
           .child(icon(m ? "server" : "monitor", 13).text_color(machine?.keeps_running_after_logout === false ? C.error : C.muted))
           .when(Boolean(m), (el) => el.child(lamp.absolute().right(4).bottom(3))))
         .when(!collapsed, (el) => el.h(H.head).px(16).gap(8))
@@ -388,7 +388,7 @@ export default class Spaces {
     return out;
   }
 
-  // The micro-label: tabs, then only what git says that the name doesn't (repo, branch, ahead/behind).
+  // The micro-label pieces: tabs, then only what git says that the name doesn't (repo, branch, ahead/behind).
   tail(w, g, tree) {
     const same = (a) => a.toLowerCase() === w.name.toLowerCase();
     const parts = [];
@@ -399,7 +399,7 @@ export default class Spaces {
       const sync = [g.ahead > 0 ? `↑${g.ahead}` : "", g.behind > 0 ? `↓${g.behind}` : ""].filter(Boolean).join(" ");
       if (sync) parts.push(sync);
     }
-    return parts.join(" · ");
+    return parts;
   }
 
   // What a space says at its right, read from the status table: unseen gets the new-dot too.
@@ -466,10 +466,10 @@ export default class Spaces {
         .child(div().w(22).h(16).flex_none().flex().items_center().justify_center().rounded(3).border_1().border_color(on ? C.selMuted : C.hairStrong)
           .font_family(FONT.mono).text_size(9).text_color(fg).child(pad2(i + 1)))
         .child(div().flex_shrink(1).min_w(0).truncate().text_size(12.5).font_medium().text_color(fg).child(w.name))
-        .when(Boolean(tail), (el) => el.child(micro(tail, sub).flex_shrink(2).min_w(0).truncate()))))
+        .when(tail.length > 0, (el) => el.child(spaced(tail, sub, { gap: 8 }).flex_shrink(2)))))
       .when(!dense, (el) => el.child(nudge(v_flex(), `sp-label-${w.id}`, this.hover === w.id).flex_1().min_w(0).gap(4)
         .child(path(w.name, fg, sub))
-        .when(Boolean(tail), (el) => el.child(micro(tail, sub).truncate()))))
+        .when(tail.length > 0, (el) => el.child(spaced(tail, sub, { gap: 8 })))))
       .child(div().relative().flex_none().child(this.signal(C, w.status, on) ?? div()));
   }
 
@@ -548,7 +548,7 @@ export default class Spaces {
           .child(div().text_size(13).font_semibold().child("// Spaces"))
           .child(div().flex_1())
           .when(Boolean(base) && !onRemote, (el) => el.child(div().min_w(0).truncate()
-            .child(micro(`base · ${basename(base.folder)}${base.note ? " · not found" : ""}`, base.note ? C.error : C.dim))))
+            .child(spaced(["base", basename(base.folder), base.note && "not found"], base.note ? C.error : C.dim, { gap: 6 }))))
           .child(micro(pad2(sp.length), C.muted)))
         .child(div().id("space-new").size(22).flex_none().flex().items_center().justify_center().rounded(3)
           .text_color(C.muted).hover((s) => s.bg(C.sunken).text_color(C.text))

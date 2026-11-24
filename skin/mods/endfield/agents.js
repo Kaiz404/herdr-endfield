@@ -10,7 +10,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
-import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE } from "./kit.js";
+import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, spaced, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE } from "./kit.js";
 import { roster, holdCrew } from "./roster.js";
 import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, PANE_ROLES, opening, transcriptsIn, transcriptPlan, rowShape, rowMeta, tasksOf } from "./fleet.js";
 import { toggleReport, goTo } from "./report.js";
@@ -490,7 +490,7 @@ export class Agents {
           .when(on, (el) => el.bg(C.selBg))
           .on_hover((over, cx) => { if (over) this.hovered = key; else if (this.hovered === key) this.hovered = null; cx.notify(); })
           .on_click((_e, cx) => { this.folded.delete(m.space); this.focus(m); cx.notify(); })
-          .tooltip(`${m.ident.callsign} · ${m.title} · squad ${num.get(m.space)}`)
+          .tooltip(`${m.ident.callsign}, ${m.title}, squad ${num.get(m.space)}`)
           .child(wipe(`${key}-wipe`, C.sunken, this.width, hot && !on))
           .child(chip(C, m.ident, "blocked", { size: 22, on, ground: on ? C.selBg : C.raised }))
           .child(nudge(v_flex(), `${key}-label`, hot).flex_1().min_w(0).gap(4)
@@ -582,7 +582,7 @@ export class Agents {
           title: label(m), meta, up: m.parent ? placed.get(m.parent) : null, click: () => this.focus(m) };
         placed.set(m.address, r);
         if (m.agent) {
-          const where = [m.address.includes("/") ? m.address.split("/")[0] : null, m.spaceName, m.agent.tab_name && !/^\d+$/.test(m.agent.tab_name) ? m.agent.tab_name : pad2(m.tabIndex)].filter(Boolean).join(" / ");
+          const where = [m.address.includes("/") ? m.address.split("/")[0] : null, m.spaceName, m.agent.tab_name && !/^\d+$/.test(m.agent.tab_name) ? m.agent.tab_name : pad2(m.tabIndex)].filter(Boolean);
           this.info[m.address] = { title: r.title, where, callsign: m.ident.callsign };
         }
         push(r);
@@ -643,7 +643,7 @@ export class Agents {
       .when(room && R.flat.length > 0, (el) => el
         .child(rings(C.geo, 260).absolute().right(-70).bottom(-60))
         .child(cross(C.cross).absolute().left(14).bottom(14))
-        .child(micro("Grid 04 · 1:240", C.muted, 9).absolute().left(30).bottom(15))
+        .child(spaced(["Grid 04", "1:240"], C.muted, { size: 9, gap: 8 }).absolute().left(30).bottom(15))
         .child(ticks(C.tick, 81).absolute().left(16).bottom(34)))
       .child(h_flex().flex_none().h(44).pt(6).pl(16).pr(12).gap(8).items_center()
         .child(div().text_size(13).font_semibold().child("// Squads"))
@@ -694,7 +694,7 @@ export class Agents {
           return v_flex().id(`ag-${m.address}`).relative().w(44).h(48).flex_none().items_center().justify_center().gap(4)
             .when(on, (el) => el.bg(C.selBg))
             .when(!on, (el) => el.hover((h) => h.bg(C.sunken)))
-            .tooltip(`${m.ident.callsign} · ${m.title} · ${st?.word ?? m.status}`)
+            .tooltip(`${m.ident.callsign}, ${m.title}, ${st?.word ?? m.status}`)
             .on_click(() => this.focus(m))
             .when(st?.edge === "hazard", (el) => el.child(div().absolute().left(0).top(8).flex().child(hazard(C, 3, 32))))
             .child(chip(C, m.ident, m.status, { size: 26, on }))

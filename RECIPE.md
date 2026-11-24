@@ -19,7 +19,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   `#D9D9D9` divider.
   - Brand, 64px, drags the window: a 30px ink tile with three rising bars (click:
     command palette), "Herdr" in the wide face at 15px, the mono micro-label
-    "Field ops · local · v<version>", and the window's only tri-colour bar
+    "Field ops", "Local" and "v<version>" 10px apart (the last two dimmer), and the window's only tri-colour bar
     (28x3px: `#FF1AAC` 5px, `#00FFA2` 5px, `#FFFA00` 18px) right-aligned 10px
     above the bottom hairline.
   - Spaces: header "// Spaces" (Geist 13 semibold), a mono count and a `+`.
@@ -42,7 +42,7 @@ rendered at 4x. It is a schematic, not a screenshot.
     a 1px halo in the operator's accent, a class badge bottom right: `C`
     Claude Code, `X` Codex, `Cu` Cursor, `O` OpenCode, `G` Gemini); the
     callsign in wide caps 10px (`PERLICA`; a repeat takes a spare operator,
-    then `PERLICA·2`), then in mono the model and, 6px on in a dimmer grey,
+    then `PERLICA-2`), then in mono the model and, 6px on in a dimmer grey,
     the effort level: `OPUS 5.5  MED` (effort reads LOW, MED, HIGH, XHIGH or
     MAX; an agent with no Claude Code session shows its program; no
     terminal address, no tool count); at the right of that line a clock icon
@@ -51,7 +51,7 @@ rendered at 4x. It is a schematic, not a screenshot.
     yellow "Needs input" pill or "✓ Finished". The second line is the task
     (13px medium) with, at its right, an 8-block context gauge (5x6px blocks
     2px apart; lit share = used / window, red from 75%; its tooltip reads
-    `157K / 1M · 16%`; an unknown window is 1M for a `[1m]` model or a
+    `157K / 1M, 16%`; an unknown window is 1M for a `[1m]` model or a
     context past 200K, else 200K). The status and elapsed never shrink; the
     model and effort give way first, then the callsign truncates. While a
     generating row under a minute is on screen the list redraws each second
@@ -74,7 +74,7 @@ rendered at 4x. It is a schematic, not a screenshot.
     agents everything goes compact: 34px rows, 24/20px chips, callsign over
     task, a status glyph only (`▶▶`, `!`, `✓`, `zZ`); the spaces block becomes
     numbered squares, six a row; and a pinned "Needs input" box (hazard edge,
-    count, three rows, then "+N more · Report ▶") sits above every squad. The
+    count, three rows, then "+N more need input" left and "Report ▶" right) sits above every squad. The
     list scrolls and says "▾ N more agents below". Without the art pack every
     chip shows its program's tile instead.
   - Session panel, 368px, beside the sidebar while a squad row is hovered,
@@ -128,7 +128,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   even when alone. A 34px white name plate: a 2px grey strip on its left edge
   that a 6px yellow bar grows down when focused (300ms), the program's 34px
   square tile (ink when focused), the operator's 22px chip on an agent's pane,
-  the title in wide caps 12px, a mono `PERLICA · T3 · folder · branch`, the
+  the title in wide caps 12px, a mono line of callsign, terminal, folder and branch 10px apart (the
+  callsign muted, the rest dimmer), the
   status at the right, and a 4px ink square in the top-right corner when
   focused. When that agent needs input while its pane has focus, the plate
   washes yellow and back (opacity 0 to .42, 1400ms), a 4px hazard rule runs
@@ -137,22 +138,22 @@ rendered at 4x. It is a schematic, not a screenshot.
   368px panel on the right (min 280, max 900), paper, radius 4.
 - **Report**: the Report pill (ink, top right) swaps the work area for the
   oversight screen; the squad sidebar stays live beside it. A white panel with
-  four corner brackets: `// Report` under `Oversight · every squad · last 10
-  min` and a barcode; readouts with coloured left edges (Squads, Agents,
-  Generating, Needs input, Finished, Tokens · 10 min); `Group · Squad` (or
-  None); sortable headings (Agent, Rate, Reserves, Turn, Status; the active
+  four corner brackets: `// Report` under `Oversight`, `every squad` and `last
+  10 min` 10px apart (the last two dimmer) and a barcode; readouts with coloured left edges (Squads, Agents,
+  Generating, Needs input, Finished, Tokens with a dimmer `10 min`); a pill
+  with a muted `Group` and `Squad` (or None); sortable headings (Agent, Rate, Reserves, Turn, Status; the active
   one inverts to ink with ▼/▲; Status is the default: Needs input, Finished,
   Generating, Idle); squad headers like the sidebar's with `▶▶ n ✓ n` and a
   yellow `! n need input`, folding on click; rows with the chip and callsign,
-  the terminal and its link (`◀ T3 · Claude Code ▶ Cursor`, or `3 children`),
+  the terminal and its link (`◀ T3` and, 8px on, `Claude Code ▶ Cursor`, or `3 children`),
   a 16-bar output sparkline over 10 minutes (ink, never yellow), tokens a
   minute on a blue edge, context on a grey edge that turns red past 75%, the
   turn, and the status. Children stay under their parent whatever the sort.
   46px rows, 30px on one line past 12 agents; it scrolls. Output and rate exist
   for Claude Code agents only; others read `—`.
 - **Dispatch**: a 660px paper dialog with two corner brackets, `// Dispatch`
-  under the engine line (`hc send · to a running agent` or `hc run · new agent
-  in a space`) and a barcode, a Send to agent / New agent switch and a round
+  under the engine line (`hc send` then a dimmer `to a running agent`, or `hc run`
+  then `new agent in a space`) and a barcode, a Send to agent / New agent switch and a round
   close. Send: target operators as party-chip tiles (yellow edge on the chosen
   one) and a line that says what hc will do for its status. New agent: program
   tiles on ink with a lime "installed" bar (not installed: dimmed), the
@@ -160,7 +161,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   space) and the parent. Then the task (or, for Shell, the command) in
   brackets, the delivery (Only if idle, Now, Now and wait for reply) or
   lifetime (Ends with parent, Outlives parent, No parent), and a graphite
-  footer: `Current formula YOU ▶▶ PERLICA · T3`, the exact hc command, Cancel
+  footer: `Current formula YOU ▶▶ PERLICA T3` (the address
+  dimmer, 6px on), the exact hc command, Cancel
   and the yellow Dispatch pill. Opened from a squad header's `+`, the session
   panel's Dispatch, or the empty sidebar. Errors from hc show in the dialog.
 - **Comms**: the Comms pill opens a pane beside the focused one: `// Comms`,
@@ -183,7 +185,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   short the gauges go first, then the second window's `USED`; the rows keep
   their 13px and 10px heights at every width; absent with no Claude
   statusline data; the countdown repaints once a minute); at the right the focused agent's context (used /
-  total over a 3px bar, red past 75%), its model, the branch and the machine;
+  total over a 3px bar, red past 75%), its model in white, then the branch and
+  the machine in grey, 10px apart;
   and a 176px yellow block, `04 NEEDS INPUT ▶`, that opens (300ms) while
   anyone needs input; click goes to the first.
 - **Toasts**: a white slab with a 3px edge and a round glyph in the level's
@@ -194,7 +197,7 @@ rendered at 4x. It is a schematic, not a screenshot.
 - **Needs input, elsewhere: the cut-in.** A 440x214 ink slab at the bottom
   right, an overlay window (Herdr's toast slot is too small): a field of dots,
   a yellow diagonal band, the operator's signal duotone in a white frame with a
-  yellow diamond above and a `!` badge, `// space · T3` and a barcode, a white
+  yellow diamond above and a `!` badge, `// space` and `T3` 10px apart, a barcode, a white
   caption plate that a yellow block grows across (330ms), holds and retracts to
   a 4px edge (350ms, from 630ms), revealing "PERLICA NEEDS INPUT" in wide
   caps, a hazard rule, the question from its screen in brackets, and Answer ▶ /
@@ -216,7 +219,7 @@ rendered at 4x. It is a schematic, not a screenshot.
 - **Start:** an ink screen with range rings and four registration crosses, a
   10px yellow bar fills the left edge (650ms from 100ms), `HERDR//` types on
   glyph by glyph (50ms apart from 200ms), a yellow rule retracts to the right
-  (150ms from 760ms) under `// FIELD OPS · ESTABLISHING LINK`, then the screen
+  (150ms from 760ms) under `// FIELD OPS` and `ESTABLISHING LINK` 10px apart, then the screen
   fades (225ms from 1275ms; a click skips it). The regions build in placeholder-first, each fading in (120ms) 100ms apart: brand, spaces and tabs,
   agents and panes, status. The mark's bars rise 80ms apart and the
   tri-colour bar wipes in.
@@ -277,7 +280,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   exited, every sub-agent is done. Click opens its transcript
   read-only in a pane right of the parent: the prompt on a
   yellow edge, the assistant's words as markdown, each tool call as
-  `● Tool · arg` with its result folded to its first line. It follows the
+  `● Tool arg` with its result folded to its first line. It follows the
   file and keeps the newest entry in view. A tab has one transcript pane:
   clicking another sub-agent replaces it, clicking the one shown focuses it.
   The shown sub-agent's row wears the selected plate, and the yellow marker
@@ -336,7 +339,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   An agent with a known model is drawn from its model's tier: `CASTING` in
   `fleet.js` maps the model id to fable, opus, sonnet or haiku, and each tier
   has a pool of operators, strongest first (docs/CASTING.md). Siblings draw
-  different operators; a callsign is numbered (`YVONNE·2`) only once its pool
+  different operators; a callsign is numbered (`YVONNE-2`) only once its pool
   is spent. An unknown model draws the Endministrator.
   Behaviour is adapted from Herdr's shipped `spaces`, `agents`, `tabs`, `pane`,
   `workspace-chrome`, `workspace-status` and `toast` mods.

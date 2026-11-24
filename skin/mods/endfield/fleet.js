@@ -298,9 +298,9 @@ export function opening(reg, panes, tab, role) {
   return { roles, opening: { ...Object.fromEntries(pending), [tab]: role } };
 }
 
-const slot = ({ slug, n }) => `${slug}·${n}`;
+const slot = ({ slug, n }) => `${slug}-${n}`;
 
-/** The first of `pool` that `taken` doesn't hold: each once, then each again as ·2, and so on. -> {slug, n, from} */
+/** The first of `pool` that `taken` doesn't hold: each once, then each again as -2, and so on. -> {slug, n, from} */
 export function draw(pool, taken) {
   for (let n = 1; ; n++) for (const slug of pool) if (!taken.has(slot({ slug, n }))) return { slug, n, from: pool.join() };
 }
@@ -308,7 +308,7 @@ export function draw(pool, taken) {
 // ident: identity.resolve(...), whose pool[0] it draws as; d: the drawn slot.
 const named = (identity, ident, program, d) => {
   const got = d.slug === ident.pool[0] ? ident : identity.as(d.slug, program);
-  return { ...got, callsign: `${got.name.toUpperCase()}${d.n > 1 ? `·${d.n}` : ""}`, drawn: d };
+  return { ...got, callsign: `${got.name.toUpperCase()}${d.n > 1 ? `-${d.n}` : ""}`, drawn: d };
 };
 
 /** Draws one agent around `taken` (and adds it there): identity.resolve(...) + { callsign, drawn }. */
@@ -324,7 +324,7 @@ export function cast(identity, ident, program, taken) {
  * callsign. Every other agent keeps what it drew while it stays and draws from the same pool,
  * unless a claim now holds its slot; a new model tier, pin or override redraws it. Newcomers, in
  * start order, draw around `taken`, so siblings differ and a number appears only once a pool is
- * spent: ARDELIA·2, never ARDELIA·30. prev: Map<id, ident> from the last render;
+ * spent: ARDELIA-2, never ARDELIA-30. prev: Map<id, ident> from the last render;
  * crew: [{id, startedAt?, ident, program}] -> Map<id, ident + { callsign, drawn }>
  */
 export function castCrew(identity, prev, crew, taken) {
@@ -411,7 +411,7 @@ export function rowMeta(run, now, segments) {
     gauge: share == null ? null : {
       lit: Math.round(Math.min(1, share) * segments),
       hot: share >= CTX_HOT,
-      tip: `${fmtTokens(run.used)} / ${fmtTokens(total)} · ${Math.round(share * 100)}%`,
+      tip: `${fmtTokens(run.used)} / ${fmtTokens(total)}, ${Math.round(share * 100)}%`,
     },
   };
 }

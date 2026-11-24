@@ -9,7 +9,7 @@
 import { div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, closeOverlay, hc, checking } from "herdr";
-import { palette, root, micro, wide, hazard, dots, band, barcode, MOTION, ASSETS } from "./kit.js";
+import { palette, root, micro, spaced, wide, hazard, dots, band, barcode, MOTION, ASSETS } from "./kit.js";
 import { roster } from "./roster.js";
 import { goTo } from "./report.js";
 
@@ -26,7 +26,7 @@ export class CutIn {
       try {
         const r = await hc(["read", p.terminal, "--lines", "12"]);
         const lines = (r.stdout ?? "").split(/\r?\n/).map((l) => l.trim()).filter((l) => /[\p{L}\p{N}]/u.test(l));
-        this.question = lines.at(-1)?.replace(/^[?>›❯•●\s]+/, "") ?? null;
+        this.question = lines.at(-1)?.replace(/^[?>›❯\u2022●\s]+/, "") ?? null;
       } catch {}
       cx.notify();
     });
@@ -49,7 +49,8 @@ export class CutIn {
     // One cut-in at a time (one key): any other agent waiting is counted here, and the HUD lists them.
     const others = roster().flat.filter((x) => x.status === "blocked" && x.address !== m.address).length;
     const art = m.ident.avatar;
-    const where = `// ${m.spaceName} · ${m.address.toUpperCase()}`;
+    const where = [`// ${m.spaceName}`, m.address.toUpperCase()];
+    const news = [p.news?.title, p.news?.body].filter(Boolean);
     const knob = (id, glyph, bg, fg) => div().id(id).relative().left(this.hot === id ? 3 : 0).transition("left", MOTION.row.nudge)
       .size(20).rounded_full().bg(bg).flex().items_center().justify_center().text_size(8).text_color(fg).child(glyph);
     const hover = (id) => (over, cx) => { if (over) this.hot = id; else if (this.hot === id) this.hot = null; cx.notify(); };
@@ -88,7 +89,7 @@ export class CutIn {
             .flex().items_center().justify_center().text_size(11).font_weight(700).text_color(C.signal).child("!")))
         .child(v_flex().flex_1().min_w(0).gap(8)
           .child(h_flex().gap(8).items_center()
-            .child(div().id("cut-src").opacity(go ? 1 : 0).transition("opacity", MOTION.cut.late).child(micro(where, "#A9A9A3")))
+            .child(div().id("cut-src").opacity(go ? 1 : 0).transition("opacity", MOTION.cut.late).child(spaced(where, "#A9A9A3")))
             .child(barcode("#8F8F8FB3")))
           // The caption plate: the block grows across it (cut.grow), holds, and its clip retracts to 4px (cut.retract).
           .child(h_flex().relative().w(PLATE).h(30).px(12).items_center().bg("#FFFFFF").overflow_hidden()
@@ -101,7 +102,8 @@ export class CutIn {
       .child(h_flex().id("cut-q").relative().mt(16).gap(8).items_stretch().opacity(go ? 1 : 0).transition("opacity", MOTION.cut.late)
         .child(div().w(4).flex_none().border_t(1.5).border_b(1.5).border_l(1.5).border_color("#F2F2F2"))
         .child(div().flex_1().min_w(0).py(7).font_family("JetBrains Mono").text_size(12).text_color("#E6E6E1").truncate()
-          .child(this.question ?? ([p.news?.title, p.news?.body].filter(Boolean).join(" · ") || `Waiting for you in ${m.title}`)))
+          .child(this.question ?? (news.length ? h_flex().min_w(0).gap(12).children(news.map((t, i) => div().min_w(0).truncate().when(i > 0, (el) => el.text_color("#A9A9A3")).child(t)))
+            : `Waiting for you in ${m.title}`)))
         .child(div().w(4).flex_none().border_t(1.5).border_b(1.5).border_r(1.5).border_color("#F2F2F2")))
       .child(h_flex().relative().mt(14).gap(8).items_center()
         .child(h_flex().id("cut-answer").h(28).pl(14).pr(4).gap(10).items_center().rounded_full().bg(C.signal).cursor_pointer()

@@ -3,12 +3,12 @@
 // the panel only reports whether the pointer is on it (shared "endfield.card.hot"). Its session is
 // the list's (shared "endfield.card.session", published while this card is open): no poller here.
 // The chat row's buttons never act themselves: each opens its confirm dialog (actions.js).
-// props: {role: "card", terminal, title, where, callsign, snap: Session, overlay}
+// props: {role: "card", terminal, title, where: [machine?, space, tab], callsign, snap: Session, overlay}
 
 import { div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, run, shared, setShared, closeOverlay, checking } from "herdr";
-import { palette, root, micro, wide, dots, barcode, ticks, rings, pill, glyph, icon, MOTION, FONT } from "./kit.js";
+import { palette, root, micro, spaced, wide, dots, barcode, ticks, rings, pill, glyph, icon, MOTION, FONT } from "./kit.js";
 import { statusOf, DASH, fmtTokens, taskView, tasksOf } from "./fleet.js";
 import { roster } from "./roster.js";
 import { longDuration, ago } from "./sessions.js";
@@ -168,7 +168,7 @@ export class Card {
               .child(div().size(4).flex_none().bg(C.text))
               .child(barcode(C.cross)))
             .child(div().text_size(15).font_semibold().truncate().child(p.title ?? m?.title ?? DASH))
-            .child(micro([ident?.callsign ?? p.callsign, m?.program?.name, p.where].filter(Boolean).join(" / "), C.muted).truncate())))
+            .child(spaced([ident?.callsign ?? p.callsign, m?.program?.name, ...(p.where ?? [])], C.text, { rest: C.muted }))))
         // Past its cap (props.fit) the middle scrolls, so the button row is never cut off.
         .child(v_flex().id("card-mid").overflow_y_scrollbar().when(Boolean(p.fit), (el) => el.flex_shrink(1).min_h(0))
         // The machine panel: what goes in, the state with its march, the work done.

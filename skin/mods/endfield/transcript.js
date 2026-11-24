@@ -1,6 +1,6 @@
 // transcript: a Claude Code transcript (a sub-agent's, usually) as a read-only pane, the endfield
 // mod's transcript role. props: {role, path, title?, id?, parent?, via?}. The user's prompt, the
-// assistant's words as markdown, each tool call as one `● Tool · arg` line and its result folded to
+// assistant's words as markdown, each tool call as one `● Tool arg` line and its result folded to
 // its first line. It follows the file while shown and keeps the newest entry in view.
 // Transcripts run to tens of MB and readTextFile stops at 1 MiB, so tools/probe.mjs (node) reads
 // them, from the byte it last reached.
@@ -163,7 +163,7 @@ export class Transcript {
         return h_flex().id(id).px(14).pt(6).gap(8).font_family(MONO).text_size(12).min_w(0)
           .child(div().flex_none().text_color(C.flow).child("●"))
           .child(div().flex_none().text_color(C.text).child(e.tool))
-          .when(Boolean(e.arg), (el) => el.child(div().min_w(0).truncate().text_color(C.muted).child(`· ${e.arg}`)));
+          .when(Boolean(e.arg), (el) => el.child(div().min_w(0).truncate().text_color(C.muted).child(e.arg)));
       default:
         return h_flex().id(id).px(14).pb(4).gap(8).font_family(MONO).text_size(11.5).min_w(0)
           .child(div().flex_none().pl(4).text_color(C.dim).child("└"))

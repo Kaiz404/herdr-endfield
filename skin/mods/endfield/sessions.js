@@ -85,7 +85,7 @@ function shape(t, raw, parentStatus) {
     lastAction: raw?.last ?? null,
     lastAt: raw?.lastAt ?? null,
     startedAt: raw?.firstAt ?? null,
-    question: raw?.pending ? raw.pending.question ?? `Allow ${raw.pending.tool}${raw.pending.arg ? ` · ${raw.pending.arg}` : ""}?` : null,
+    question: raw?.pending ? raw.pending.question ?? `Allow ${raw.pending.tool}${raw.pending.arg ? ` (${raw.pending.arg})` : ""}?` : null,
     live: raw?.live ?? null,
     tasks: raw?.tasks ?? [],
     waiting: Boolean(raw) && runStatus({ ...raw, tasks: held, now }, parentStatus) === "waiting",

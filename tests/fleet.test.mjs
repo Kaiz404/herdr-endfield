@@ -17,15 +17,15 @@ test("callsigns follow creation order, so a newcomer listed first never takes on
   const terms = [term("t1", 100), term("t2", 200), term("t3", 300)];
   const before = build([agent("t1", "s1", "idle"), agent("t2", "s1", "idle")], terms);
   const after = build([agent("t3", "s1", "blocked"), agent("t1", "s1", "idle"), agent("t2", "s1", "idle")], terms);
-  assert.equal(before.all.get("t2").ident.callsign, "PERLICA·2");
+  assert.equal(before.all.get("t2").ident.callsign, "PERLICA-2");
   assert.equal(after.all.get("t1").ident.callsign, "PERLICA");
-  assert.equal(after.all.get("t2").ident.callsign, "PERLICA·2");
-  assert.equal(after.all.get("t3").ident.callsign, "PERLICA·3");
+  assert.equal(after.all.get("t2").ident.callsign, "PERLICA-2");
+  assert.equal(after.all.get("t3").ident.callsign, "PERLICA-3");
 });
 
 test("a repeated operator takes a spare before it takes a number", () => {
   const R = build([agent("t1", "s1", "idle"), agent("t2", "s1", "idle"), agent("t3", "s1", "idle")], [term("t1", 1), term("t2", 2), term("t3", 3)], { spares: ["ember"] });
-  assert.deepEqual(["t1", "t2", "t3"].map((a) => R.all.get(a).ident.callsign), ["PERLICA", "EMBER", "PERLICA·2"]);
+  assert.deepEqual(["t1", "t2", "t3"].map((a) => R.all.get(a).ident.callsign), ["PERLICA", "EMBER", "PERLICA-2"]);
 });
 
 test("pinned agents lead the whole list and agent.next, ahead of every space", () => {
@@ -82,7 +82,7 @@ const MIN = 60000;
 
 test("a generating run: model and effort beside the callsign, elapsed to now, and an 8-block gauge with its numbers", () => {
   const meta = rowMeta({ startedAt: 1, lastAt: 3 * MIN, live: true, model: "Opus 5.5", effort: "medium", used: 157000, total: 1000000, program: "Claude Code" }, 1 + 67 * MIN, 8);
-  assert.deepEqual(meta, { model: "Opus 5.5", effort: "med", time: "1h07", ticking: false, running: 0, gauge: { lit: 1, hot: false, tip: "157K / 1M · 16%" } });
+  assert.deepEqual(meta, { model: "Opus 5.5", effort: "med", time: "1h07", ticking: false, running: 0, gauge: { lit: 1, hot: false, tip: "157K / 1M, 16%" } });
 });
 
 test("elapsed reads seconds, minutes, hours with minutes, then whole hours and days", () => {
@@ -110,9 +110,9 @@ test("past 75% of the window the gauge runs hot; a context over the window fills
 });
 
 test("with no total the window is inferred: 1M for a [1m] model or a context past 200K, else 200K", () => {
-  assert.equal(rowMeta({ used: 50000 }, 0, 8).gauge.tip, "50K / 200K · 25%");
-  assert.equal(rowMeta({ used: 50000, modelId: "claude-opus-5-5[1m]" }, 0, 8).gauge.tip, "50K / 1M · 5%");
-  assert.equal(rowMeta({ used: 300000 }, 0, 8).gauge.tip, "300K / 1M · 30%");
+  assert.equal(rowMeta({ used: 50000 }, 0, 8).gauge.tip, "50K / 200K, 25%");
+  assert.equal(rowMeta({ used: 50000, modelId: "claude-opus-5-5[1m]" }, 0, 8).gauge.tip, "50K / 1M, 5%");
+  assert.equal(rowMeta({ used: 300000 }, 0, 8).gauge.tip, "300K / 1M, 30%");
 });
 
 test("what isn't known is null or left out, and an agent with no session shows its program", () => {

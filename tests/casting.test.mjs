@@ -48,7 +48,7 @@ const full = { operators: everyone, defaults: catalogue.default_assignment };
 
 test("agents with a known model draw distinct operators from their tier, in pool order", () => {
   const R = fleet(full, { t1: "claude-opus-5-5", t2: "claude-opus-5-5", t3: "claude-haiku-4-5" });
-  assert.deepEqual(["t1", "t2", "t3", "t4"].map((a) => R.all.get(a).ident.callsign), ["LAEVATAIN", "YVONNE", "AKEKURI", "LAEVATAIN·2"],
+  assert.deepEqual(["t1", "t2", "t3", "t4"].map((a) => R.all.get(a).ident.callsign), ["LAEVATAIN", "YVONNE", "AKEKURI", "LAEVATAIN-2"],
     "t4 is codex with no model: its program default, Laevatain, already drawn, so a number");
 });
 
@@ -57,12 +57,12 @@ test("a pool is spent before any callsign number", () => {
   const taken = new Set();
   const id = identityOf(full);
   const names = Array.from({ length: pool.length + 2 }, (_, i) => castCrew(id, null, [{ id: `a${i}`, ident: id.resolve(claude, null, { parent: claude, model: "claude-haiku-4-5" }), program: claude }], taken).get(`a${i}`).callsign);
-  assert.deepEqual(names, ["AKEKURI", "ANTAL", "CATCHER", "ESTELLA", "FLUORITE", "AKEKURI·2", "ANTAL·2"]);
+  assert.deepEqual(names, ["AKEKURI", "ANTAL", "CATCHER", "ESTELLA", "FLUORITE", "AKEKURI-2", "ANTAL-2"]);
 });
 
 test("a pool draws only the operators the art pack has", () => {
   const R = fleet({ operators: ["perlica", "laevatain", "ember"], defaults: { claude: "perlica", shell: "ember" } }, { t1: "claude-opus-5-5", t2: "claude-opus-5-5", t3: "claude-haiku-4-5" });
-  assert.deepEqual(["t1", "t2", "t3"].map((a) => R.all.get(a).ident.callsign), ["LAEVATAIN", "PERLICA", "PERLICA·2"],
+  assert.deepEqual(["t1", "t2", "t3"].map((a) => R.all.get(a).ident.callsign), ["LAEVATAIN", "PERLICA", "PERLICA-2"],
     "the old 8-operator pack: Opus draws Laevatain then Perlica; no 4-star in the pack, so Haiku falls to the program default");
 });
 
@@ -111,7 +111,7 @@ test("a pane agent keeps its operator when an earlier agent closes", () => {
 
 test("models arriving in any order move only the agent whose model arrived", () => {
   const none = panes(["t1", "t2"], {});
-  assert.deepEqual(callsigns(none), { t1: "PERLICA", t2: "PERLICA·2" }, "no model yet: Claude's default");
+  assert.deepEqual(callsigns(none), { t1: "PERLICA", t2: "PERLICA-2" }, "no model yet: Claude's default");
   const t2First = panes(["t1", "t2"], { t2: opus }, none.cast);
   assert.deepEqual(callsigns(t2First), { t1: "PERLICA", t2: "LAEVATAIN" });
   const both = panes(["t1", "t2"], { t1: opus, t2: opus }, t2First.cast);
@@ -127,11 +127,11 @@ test("a new model tier redraws; the same inputs again give the same cast", () =>
 });
 
 test("a new pane agent avoids operators sub-agents hold; a kept one stays put", () => {
-  const first = panes(["t1"], { t1: opus }, undefined, ["yvonne·1"]);
+  const first = panes(["t1"], { t1: opus }, undefined, ["yvonne-1"]);
   assert.equal(first.all.get("t1").ident.callsign, "LAEVATAIN");
-  const R = panes(["t1", "t2"], { t1: opus, t2: opus }, first.cast, ["laevatain·1", "yvonne·1"]);
+  const R = panes(["t1", "t2"], { t1: opus, t2: opus }, first.cast, ["laevatain-1", "yvonne-1"]);
   assert.deepEqual(callsigns(R), { t1: "LAEVATAIN", t2: "ARDELIA" });
-  assert.ok(R.taken.has("yvonne·1"), "taken carries the avoided slots on to the sub-agents' draw");
+  assert.ok(R.taken.has("yvonne-1"), "taken carries the avoided slots on to the sub-agents' draw");
 });
 
 test("a newly pinned agent takes its operator's bare callsign; only the agent that held it redraws", () => {
