@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, copyFileSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, copyFileSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -18,9 +18,15 @@ test("an account's token reaches the program it runs, and nowhere else", { skip:
     copyFileSync(TOOL, tool);
     const node = (args, opts = {}) => spawnSync(process.execPath, [tool, ...args], { encoding: "utf8", ...opts });
 
-    node([], { input: `a\nwork\n${TOKEN}\na\nbad name\n${TOKEN}\nq\n` });
+    // Started from PowerShell 7 (GitHub's Windows runners are), PSModulePath names modules Windows
+    // PowerShell 5.1 can't load. A stand-in for 7's Microsoft.PowerShell.Security does the same here.
+    const ps7 = join(home, "ps7");
+    mkdirSync(join(ps7, "Microsoft.PowerShell.Security"), { recursive: true });
+    writeFileSync(join(ps7, "Microsoft.PowerShell.Security", "Microsoft.PowerShell.Security.psd1"),
+      "@{ ModuleVersion = '7.0.0.0'; PowerShellVersion = '7.0'; CompatiblePSEditions = @('Core'); RootModule = 'Microsoft.PowerShell.Security.dll'; CmdletsToExport = @('ConvertTo-SecureString', 'ConvertFrom-SecureString') }\n");
+    const added = node([], { input: `a\nwork\n${TOKEN}\na\nbad name\n${TOKEN}\nq\n`, env: { ...process.env, PSModulePath: ps7 } });
     assert.equal(node(["list"]).stdout.trim().includes(TOKEN), false, "list prints a token");
-    assert.deepEqual(JSON.parse(node(["list"]).stdout).map((a) => a.name), ["work"]);
+    assert.deepEqual(JSON.parse(node(["list"]).stdout).map((a) => a.name), ["work"], `the menu said:\n${added.stdout}${added.stderr}`);
     if (process.platform === "win32") assert.equal(readFileSync(join(home, "data", "endfield", "accounts.json"), "utf8").includes(TOKEN), false, "token stored in the clear on Windows");
 
     const env = { ...process.env, ANTHROPIC_API_KEY: "sk-ant-api-should-go" };
@@ -43,11 +49,11 @@ test("run with no name uses the default account, and leaves an outer run's choic
     const env = { ...process.env, CLAUDE_CODE_OAUTH_TOKEN: "", ENDFIELD_ACCOUNT: "" };
     const who = (extra = {}) => JSON.parse(node(["run", "--", process.execPath, "-e", "console.log(JSON.stringify([process.env.CLAUDE_CODE_OAUTH_TOKEN || null, process.env.ENDFIELD_ACCOUNT || null]))"], { env: { ...env, ...extra } }).stdout);
 
-    node([], { input: `a\nwork\n${TOKEN}\nq\n` });
+    const added = node([], { input: `a\nwork\n${TOKEN}\nq\n` });
     assert.deepEqual(who(), [null, null], "no default: the normal login");
 
-    node([], { input: "d\nwork\nq\n" });
-    assert.deepEqual(JSON.parse(node(["list"]).stdout).map((a) => [a.name, a.default]), [["work", true]]);
+    const picked = node([], { input: "d\nwork\nq\n" });
+    assert.deepEqual(JSON.parse(node(["list"]).stdout).map((a) => [a.name, a.default]), [["work", true]], `the menu said:\n${added.stdout}${picked.stdout}${added.stderr}`);
     assert.deepEqual(who(), [TOKEN, "work"]);
     assert.deepEqual(who({ ENDFIELD_ACCOUNT: "outer", CLAUDE_CODE_OAUTH_TOKEN: "outer-token" }), ["outer-token", "outer"], "an outer run's account is kept");
 
