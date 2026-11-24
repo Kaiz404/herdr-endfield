@@ -1,6 +1,6 @@
 // linkdialog: Link, the one-sentence confirm a drop of one agent row on another opens (agents.js),
 // and the links file it and the card's Unlink write. Link saves the link to
-// data/endfield/links.json at once, so Squads nests the helper whatever either agent is doing, then
+// data/endfield/links.json at once, so Squads groups the two whatever either agent is doing, then
 // types each note with hc send --if idle into only an agent idle right now (links.js linkThenTell).
 // A side not told is noted false and its card offers Send note, which opens this dialog for that
 // side alone (side: "lead" | "helper") and types only its note, only while it is idle.
@@ -31,7 +31,7 @@ const updateLinks = (change) => updateFile({ read: readLinks, write: (text, expe
 
 let loaded = null;
 
-/** links.json into shared "endfield.links", which every surface's roster nests helpers by. -> whether it changed. */
+/** links.json into shared "endfield.links", which every surface's roster groups linked agents by. -> whether it changed. */
 export async function loadLinks() {
   const links = parseLinks(await readLinks());
   const text = JSON.stringify(links);
@@ -117,7 +117,7 @@ export class LinkDialog {
     const { side, steps, why, names } = this.plan();
     const { phase, error, line } = this.state;
     const ready = !why && phase === "edit";
-    const title = side ? `// Send ${names[side]} its note` : `// Link ${names.helper} under ${names.lead}`;
+    const title = side ? `// Send ${names[side]} its note` : `// Link ${names.helper} with ${names.lead}`;
     const sentence = side
       ? `${names[side]} gets a short note about ${names[side === "lead" ? "helper" : "lead"]} so they can coordinate.`
       : "Both agents get a short note about each other so they can coordinate.";
