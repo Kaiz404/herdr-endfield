@@ -20,7 +20,7 @@
 //   action    a session card action's confirm dialog (the exact hc command, on the person's click)
 //   archived  the archived chats, each with Resume
 //   link      Link: one agent dropped on another, saved on the click, each note typed into it only while idle
-//   dock      a chat dragged out of Squads: its ghost and the drop zones over the work area
+//   dock      the layout's floating block over the work area: a chat dragged there, its ghost and the drop zones
 //   account   moves a Claude Code chat to another saved login (a new tab resumes it there, on the click)
 //   transcript  a Claude Code sub-agent's transcript, a pane Squads opens right of its parent
 

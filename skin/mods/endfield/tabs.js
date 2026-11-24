@@ -1,15 +1,21 @@
 // tabs: the tab strip (window drag). Behaviour ported from the shipped `tabs` mod:
 // double-click rename, drag reorder, right-click menu, wheel switching, the + menu,
 // Files/Changes with per-space memory, and window buttons where the system draws none.
+// Ours: a held tab carried out under the strip docks its lead agent in the work area (docking.js).
 
 import { div, svg, image } from "gpui-kit";
 import { h_flex, ScrollHandle } from "gpui-base";
-import { spaces, panes, run, openOverlay, window as appWindow, shared, layout, settings } from "herdr";
+import { spaces, panes, focused, run, openOverlay, window as appWindow, shared, layout, settings } from "herdr";
 import { palette, root, find, stop, glyph, freshDot, micro, icon, pad2, telling, growDisc, pill, cue, Entrance, MOTION } from "./kit.js";
 import { statusOf } from "./fleet.js";
 import { REPORT, toggleReport } from "./report.js";
 import { commsPane, openComms } from "./comms.js";
+import { underStrip } from "./dock.js";
+import { startDock } from "./docking.js";
 import { markAt } from "./tabmark.js";
+
+// The plate a tab's agent is carried on, as the dock board draws it: its size, and where the pointer holds it.
+const CARRIED = { size: { w: 228, h: 52 }, grip: { x: 24, y: 16 } };
 
 // A tab Herdr named follows its agent's live title, as the agents list does; a name the person gave stays.
 function label(tab, lead) {
@@ -28,6 +34,8 @@ const PANELS = [
 export default class Tabs {
   init(_props, cx) {
     this.pressed = null;
+    // The agent of the tab being held, {terminal, title}: carried out under the strip, it docks.
+    this.held = null;
     this.scroll = ScrollHandle.new();
     try { this.panels = JSON.parse(localStorage.getItem("panels") ?? "{}"); } catch { this.panels = {}; }
     if (!this.panels || typeof this.panels !== "object" || Array.isArray(this.panels)) this.panels = {};
@@ -84,6 +92,19 @@ export default class Tabs {
     localStorage.setItem("panels", JSON.stringify(this.panels));
   }
 
+  // A move anywhere in the window while a tab's agent is held. Under the strip the dock board takes it, so no tab is selected or moved.
+  carry(e, cx) {
+    if (!this.held) return;
+    // No button: the release was missed (it happened outside the window), so nothing is held.
+    if (e.pressed_button !== "left") this.held = null;
+    else if (underStrip(e.local_position, e.bounds)) {
+      startDock({ terminal: this.held.terminal, anchor: focused()?.pane ?? null, title: this.held.title, ...CARRIED });
+      this.held = null;
+      this.pressed = null;
+    } else return;
+    cx.notify();
+  }
+
   // What a tab says after its label: unseen gets the new-dot, quiet says nothing.
   signal(C, s) {
     const st = statusOf(s);
@@ -112,7 +133,13 @@ export default class Tabs {
       })
       .child(div().id(`tab-under-${c.id}`).absolute().left(14).bottom(5).h(2).bg(C.text).w(this.hot === `tab-${c.id}` && !on ? 24 : 0)
         .transition("width", MOTION.row.wipe))
-      .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); this.pressed = i; if (e.click_count === 2) run("tab.rename", { id: c.id }); })
+      .on_mouse_down("left", (e, cx) => {
+        cx.stop_propagation();
+        this.pressed = i;
+        this.held = lead?.program?.agent && e.click_count === 1 ? { terminal: lead.terminal, title: name } : null;
+        if (e.click_count === 2) run("tab.rename", { id: c.id });
+        cx.notify();
+      })
       .on_mouse_up("left", () => {
         const from = this.pressed;
         this.pressed = null;
@@ -172,6 +199,9 @@ export default class Tabs {
       .child(icon(name, 10).relative().when(Boolean(danger) && this.hot === id, (el) => el.text_color(C.ink)));
     return root(C, this.entrance.apply(h_flex().size_full().min_w(0).pl(lightsPadding).items_center().bg(C.ground).border_b(1).border_color(C.hair)
       .on_mouse_up("left", () => { this.pressed = null; })
+      // A held tab's agent is followed out of the strip, where an element's own handlers hear nothing.
+      .when(Boolean(this.held), (el) => el.on_window_mouse_move((e, cx) => this.carry(e, cx))
+        .on_window_mouse_up("left", (_e, cx) => { this.held = null; cx.notify(); }))
       .on_scroll_wheel((e) => this.wheel(e))
       .child(h_flex().id("tab-scroll").flex_shrink(1).min_w(0).h_full().items_center().overflow_x_scrollbar().track_scroll(this.scroll)
         .on_size_change((_size, cx) => { if (active >= 0) this.scroll.scroll_to_item(active); cx.notify(); })

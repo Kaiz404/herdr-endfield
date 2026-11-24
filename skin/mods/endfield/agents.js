@@ -25,7 +25,7 @@ import { openSquadMenu } from "./squadmenu.js";
 import { openLink, loadLinks } from "./linkdialog.js";
 import { linkProblem, linkedWith } from "./links.js";
 import { exitSide, movePlan, dockPlan, headerArmed } from "./dock.js";
-import { openDock, moveChat, told, chatOf, anchorOf } from "./docking.js";
+import { startDock, moveChat, told, chatOf, anchorOf } from "./docking.js";
 
 // Fixed heights, so the selection marker knows where the selected row starts (the row's own ink plate snaps).
 // Compact (DENSE_AT agents and up): 34px rows that keep the chip, badge and label over the task.
@@ -375,7 +375,9 @@ export class Agents {
     d.list = e.bounds ?? d.list;
     if (!d.live) {
       // A press only becomes a drag once the pointer has moved a few pixels: a shaky click stays a click.
-      if (Math.abs(y - d.y0) < DRAG_START_PX) return;
+      // Any direction counts: a chat carried straight right, out of the sidebar, is a drag too.
+      const x = e.position?.x ?? d.p0?.x ?? 0;
+      if (Math.hypot(x - (d.p0?.x ?? x), y - d.y0) < DRAG_START_PX) return;
       d.live = true;
       d.back = focused()?.pane ?? null;
       this.keys.focus();
@@ -414,14 +416,16 @@ export class Agents {
 
   /**
    * The pointer left the list. A held agent row that leaves by the right edge, into the work area,
-   * goes on in the dock overlay (docking.js), which draws its ghost from here on; any other exit cancels.
+   * goes on on the dock board (docking.js), which draws its ghost from here on; any other exit cancels.
    */
   leave(cx) {
     const d = this.drag;
     const b = d?.terminal ? this.bounds[`ag-${d.terminal}`] : null;
     if (d?.live && !d.done && b && d.grip && d.list && exitSide(d.pt, d.list) === "right") {
-      openDock({ terminal: d.terminal, anchor: d.back, left: d.list.x + d.list.width, from: { x: b.x, y: b.y, w: b.width, h: b.height },
-        grip: d.grip, pointer: d.pt, title: this.info[`ag-${d.terminal}`]?.title ?? "" });
+      // Bounds and presses are in window px; the board lays out in a mod's px.
+      const z = Number(settings().zoom) || 1;
+      startDock({ terminal: d.terminal, anchor: d.back, grip: { x: d.grip.x / z, y: d.grip.y / z }, size: { w: b.width / z, h: b.height / z },
+        title: this.info[`ag-${d.terminal}`]?.title ?? "" });
     }
     this.release(cx, false);
   }
@@ -437,7 +441,7 @@ export class Agents {
     } finally { this.moving = false; }
   }
 
-  // The dock overlay's drop: planned again here on Herdr's lists now, run, and answered.
+  // The dock board's drop: planned again here on Herdr's lists now, run, and answered.
   docked(ask, cx) {
     if (!ask || ask.at === this.dockAt) return;
     this.dockAt = ask.at;

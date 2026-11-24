@@ -338,17 +338,29 @@ rendered at 4x. It is a schematic, not a screenshot.
   where it is (measured on one throwaway terminal).
 - **Dock (drag a chat into the work area):** carrying a held agent row out
   of Squads by its right edge (the nearest edge to where the pointer left,
-  `dock.js` `exitSide`) ends the list's drag and opens the `dock` overlay: a
-  frameless popup over the whole window. Its ghost (raised plate, large
-  shadow: portrait, label, task) pops in from the row (opacity and 94%
-  size, 120ms) and springs after the pointer, held where the row was
-  pressed. The work area's outline and its centre box (hairlines) fade in
-  (160ms) once the pointer is over it. The five zones split the work area,
+  `dock.js` `exitSide`) ends the list's drag and hands the chat to the dock
+  board (`docking.js` `startDock`, the shared key `endfield.dock.drag`). A
+  held tab carried more than 12px under the tab strip (`underStrip`) hands
+  over its lead agent the same way; a tab with no agent only reorders. The
+  board is the layout's `dock` floating block over `work-body`, in the main
+  window, inside the frame Herdr draws round a floating block, so it covers
+  the panes while a chat is carried. It draws nothing, and Herdr hides it,
+  until a drag is handed over. A popup is a window of its own and a held
+  drag's pointer never reaches one, so the board is not an overlay; the
+  press began in another block, so it reads the pointer with
+  `on_window_mouse_move` and the release with `on_window_mouse_up`. Its
+  ghost (raised plate, large shadow: portrait, label, task) appears at the
+  pointer's first move over the window (opacity, 120ms) and springs after
+  it, held where the row was pressed; it is clipped to the board, and over
+  the sidebar the list has already let go. The board shows the work area's
+  outline and its centre box (hairlines). The five zones split the board,
   not the focused pane, because `panes()` gives no rectangles: the
   middle half each way is the centre, the rest goes to the nearest edge
-  (`zoneAt`). The work area is the window right of the sidebar, under the
-  tab strip and over the status bar, inside work-body's padding, as
-  `layout()` sizes them (`workRect`). The zone under the pointer gets the
+  (`zoneAt`). The board is the window right of the sidebar, under the
+  tab strip and over the status bar, less Herdr's 12px float inset and 5px
+  frame, as `layout()` and the window size give them (`boardRect`); the
+  pointer is read against the board's own box, so the zones hold wherever
+  Herdr sets it. The zone under the pointer gets the
   slab: a translucent plate with a 2px yellow edge and the zone's words,
   which grows out of its edge to half the work area and slides to the next
   zone's half (left, top, width and height, 220ms). A zone it can't land in
@@ -367,11 +379,11 @@ rendered at 4x. It is a schematic, not a screenshot.
   show the slab holds a beat (160ms) over Herdr's instant re-layout, then
   slab and ghost fade (180ms). Herdr has no layout transition, so the
   panes themselves jump; the slab covers the jump. Esc, a drop outside the
-  work area or on a grey zone, or a failed move springs the ghost home to
-  its row and fades it. The overlay opens with the button held, so it never
-  expects a press: a mouse-down in it cancels, 10s with no pointer move
+  board or on a grey zone, or a failed move fades the ghost (200ms) and the
+  board goes. The board comes up with the button held, so it never
+  expects a press: a mouse-down on it cancels, 10s with no pointer move
   cancels (`MOTION.dock.idle`), and a release drops only on a zone a
-  pointer move in the overlay set. A release it missed therefore can't arm
+  pointer move set. A release it missed therefore can't arm
   the next click. A failed move recovers and toasts as for a squad drop.
   In Priority, an agent row drags onto another to link the two
   (`links.js`; the dropped one is the helper in the file): it stays in place at 45% opacity, a ghost plate (raised,
@@ -508,7 +520,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   and dimmed with the reason in place of the command when the parent is
   working, needs input or is gone. Enter sends too. Nothing sends otherwise.
 - **Tabs:** click selects (the yellow plate jumps in one frame; the ink marker
-  slides over left and width, 300ms), double-click renames, drag reorders, right-click opens the tab menu,
+  slides over left and width, 300ms), double-click renames, drag reorders, a
+  drag out under the strip docks the tab's lead agent (Dock, above), right-click opens the tab menu,
   the wheel switches tabs. Hover grows a 24px, 2px underline from the left.
   Close buttons grow a red disc behind the ×.
 - **Ink buttons:** on hover the yellow side tab fades as a yellow ▶ fades in
@@ -539,7 +552,9 @@ rendered at 4x. It is a schematic, not a screenshot.
     padding 8, gap 8: the `work-stack` stack, whose children are `main` with
     the pane frame and `report` (role `report`), and the hidden `panel`, 368px,
     holding the `panel-body` stack of the shipped `files` and `changes`),
-    `status` (44px).
+    `status` (44px). `work-body` floats `dock` (role `dock`, `edge: "top"`,
+    `align: "start"`) over itself: the dock board, which draws nothing
+    until a chat is carried into the work area.
   - Every chrome block is `{mod: "endfield", props: {role}}`. The pane frame:
     background `#191919`, border 1 `input`, focus 1 `solid`, radius 4, gap 8,
     `lone: true`, header `{mod: "endfield", props: {role: "pane"}}`, 34px,
@@ -589,16 +604,15 @@ rendered at 4x. It is a schematic, not a screenshot.
   every roster groups linked agents by it), `endfield.sessionIds` (each Claude
   Code agent's session id, which a link is kept to), `endfield.rowTitles`
   (each agent row's task label, which a link's note quotes),
-  `endfield.dock.ask` (`{terminal, zone, anchor, at}`: the dock overlay's
+  `endfield.dock.drag` (`{terminal, anchor, grip, size, title, at}`: the
+  chat handed to the dock board, null when none),
+  `endfield.dock.ask` (`{terminal, zone, anchor, at}`: the dock board's
   drop, which the Squads list runs) and `endfield.dock.done` (`{at, ok}`).
 - A card action's dialog is `{role: "action", terminal, action, snap}`, a
   dialog with `frame: "none"`; the archived list is `{role: "archived"}`;
   a squad header's dialog is `{role: "squad", id, mode: "archive" | "close"}`.
   Link is `{role: "link", lead, helper, side}` (`side: "lead"` or `"helper"`:
-  Send note, typing only that side's note);
-  the dock overlay is `{role: "dock", terminal,
-  anchor, left, from, grip, pointer, title}`, a popup with `frame: "none"`,
-  `width` and `height` 1 at `{x: 0, y: 0}`.
+  Send note, typing only that side's note).
   The actions are data: `ACTIONS[programKey]` in `orders.js`.
 - `herdr` calls: `spaces`, `agents`, `terminals`, `panes`, `focused`,
   `machines`, `layout`, `settings`, `keys`, `updates`, `fonts`, `shared`,
