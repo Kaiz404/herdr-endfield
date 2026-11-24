@@ -6,7 +6,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 import { spaces, machines, panes, run, openOverlay, exec, hc, watchFolder, layout, shared, setShared, window as appWindow } from "herdr";
-import { palette, root, narrow, find, midTrunc, glyph, freshDot, micro, spaced, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT, basename, homeBase, newSpace } from "./kit.js";
+import { palette, root, narrow, find, midTrunc, glyph, freshDot, micro, spaced, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT, basename, homeBase, newSpace, modPx } from "./kit.js";
 import { roster } from "./roster.js";
 import { DENSE_AT, statusOf } from "./fleet.js";
 import { HEAD, spacesSize, openSize } from "./spacesize.js";
@@ -563,7 +563,7 @@ export default class Spaces {
     return root(C, this.entrance.apply(v_flex().size_full().min_h(0).bg(C.ground)
       .child(h_flex().id("spaces-head").relative().flex_none().items_center().when(collapsed, (el) => el.h(36).justify_center())
         .when(!collapsed, (el) => el.h(38).pt(6).pl(16).pr(12).gap(8).cursor_pointer()
-          .on_size_change((size) => { this.headWidth = size.width; })
+          .on_size_change((size) => { this.headWidth = modPx(size.width); })
           .on_hover((over, cx) => { this.headHover = over; cx.notify(); })
           .on_click(toggleSpaces)
           .tooltip(folded ? "Click to unfold" : "Click to fold")
@@ -580,7 +580,7 @@ export default class Spaces {
         .when(!collapsed, (el) => el.child(div().relative().size(22).flex_none().flex().items_center().justify_center()
           .child(micro(folded ? "▸" : "▾", C.muted)))))
       .when(!folded, (el) => el.child(v_flex().flex_1().min_h(0).pb(12).overflow_y_scrollbar().track_scroll(this.scroll)
-        .on_size_change((size, cx) => { this.width = size.width; if (this.activeAt >= 0) this.scroll.scroll_to_item(this.activeAt + 1); cx.notify(); })
+        .on_size_change((size, cx) => { this.width = modPx(size.width); if (this.activeAt >= 0) this.scroll.scroll_to_item(this.activeAt + 1); cx.notify(); })
         .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })
         // Child 0 is the selection block (scroll indexes above are +1 for it); hidden when the selected space is folded away.
         .child(plate(C, Math.max(0, this.activeTop), this.rh).when(collapsed || this.activeTop < 0, (el) => el.opacity(0)))

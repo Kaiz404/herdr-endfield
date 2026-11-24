@@ -15,7 +15,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { agents, panes, focused, spaces, terminals, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, settings, checking, notify } from "herdr";
-import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, spaced, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE } from "./kit.js";
+import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, spaced, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE, modPx } from "./kit.js";
 import { roster, holdCrew, HIDDEN_KEY } from "./roster.js";
 import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, subLabel, siblingLabels, PANE_ROLES, opening, transcriptsIn, transcriptPlan, rowShape, rowMeta, tasksOf, railSpans } from "./fleet.js";
 import { toggleReport, goTo, showWork } from "./report.js";
@@ -438,8 +438,7 @@ export class Agents {
     const b = d?.terminal ? this.bounds[`ag-${d.terminal}`] : null;
     if (d?.live && !d.done && b && d.grip && d.list && exitSide(d.pt, d.list) === "right") {
       // Bounds and presses are in window px; the board lays out in a mod's px.
-      const z = Number(settings().zoom) || 1;
-      startDock({ terminal: d.terminal, anchor: d.back, grip: { x: d.grip.x / z, y: d.grip.y / z }, size: { w: b.width / z, h: b.height / z },
+      startDock({ terminal: d.terminal, anchor: d.back, grip: { x: modPx(d.grip.x), y: modPx(d.grip.y) }, size: { w: modPx(b.width), h: modPx(b.height) },
         title: this.info[`ag-${d.terminal}`]?.title ?? "" });
     }
     this.release(cx, false);
@@ -522,7 +521,7 @@ export class Agents {
     if (d.done) return { tops: slotTops(heights, from, d.to ?? from), held: from, travel: MOTION.drag.slide, sliding: true };
     d.ids = key;
     const room = heights.reduce((a, b) => a + b, 0) - heights[from];
-    const y = Math.max(0, Math.min(room, stacked(heights)[from] + d.y - d.y0));
+    const y = Math.max(0, Math.min(room, stacked(heights)[from] + modPx(d.y - d.y0)));
     const h = holding({ ids, heights, order, from, y });
     d.to = h.to;
     d.move = h.move;
@@ -934,7 +933,7 @@ export class Agents {
       const shownRows = sections.filter((s) => !s.folded).flatMap((s) => s.rows.filter((r) => !r.more && !r.native).map((r) => ({ r, top: s.y + D.head + r.top })));
       const held = shownRows.find((x) => x.r.m.address === d.terminal);
       // The pointer, in list coordinates: where it pressed in the held row, moved as far as it has.
-      const y = held ? held.top + (d.grip?.y ?? held.r.h / 2) + d.y - d.y0 : 0;
+      const y = held ? held.top + (d.grip ? modPx(d.grip.y) : held.r.h / 2) + modPx(d.y - d.y0) : 0;
       const under = held ? sections.find((s) => !s.q.pinned && s.q.id !== held.r.m.space && y >= s.y && y < s.y + D.head) : null;
       // A header is a move target, and lifts, only once armed (dock.js headerArmed): times compared as the pointer moves, no timer.
       d.over = under ? (d.over?.id === under.q.id ? d.over : { id: under.q.id, since: Date.now() }) : null;
@@ -1010,9 +1009,9 @@ export class Agents {
           on_hover: (over, cx) => { this.hovered = over ? "ag-empty-dispatch" : null; cx.notify(); }, action: () => openDispatch({ mode: "new" }) })))))
       .when(dense && blocked.length > 0, (el) => el.child(this.pinned(C, blocked, num)))
       .child(v_flex().id("ag-list").relative().flex_1().min_h(0).pb(8).overflow_y_scrollbar()
-        .on_size_change((size, cx) => { this.width = size.width; this.viewH = size.height; cx.notify(); })
+        .on_size_change((size, cx) => { this.width = modPx(size.width); this.viewH = modPx(size.height); cx.notify(); })
         .on_scroll_wheel((e, cx) => {
-          const dy = e.delta_lines ? -e.delta_lines.y * LINE_PX : -e.delta.y;
+          const dy = e.delta_lines ? -e.delta_lines.y * LINE_PX : -modPx(e.delta.y);
           const next = Math.max(0, Math.min(maxY, this.scrollY + dy));
           if (next !== this.scrollY) { this.scrollY = next; cx.notify(); }
         })
