@@ -171,3 +171,13 @@ test("a helper that refused keeps the link, untold, and the retry types only its
   assert.equal((await linkThenTell({ steps: STEPS, from: r.next, ...again })).phase, "sent");
   assert.deepEqual(again.log, ["t2", "told helper"], "no second save, no second note to the lead");
 });
+
+test("an uncertain helper send counts as told, so Send note again can't type it twice", async () => {
+  const told = [];
+  const r = await linkThenTell({
+    steps: ["lead", "helper"], keep: async () => ({ ok: true }), unkeep: async () => ({ ok: true }),
+    told: async (s) => { told.push(s); }, send: async (s) => ({ phase: s === "helper" ? "uncertain" : "sent", error: s === "helper" ? "timed out" : null }),
+  });
+  assert.equal(r.phase, "uncertain");
+  assert.deepEqual(told, ["lead", "helper"]);
+});

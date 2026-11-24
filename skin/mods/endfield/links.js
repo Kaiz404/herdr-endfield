@@ -128,7 +128,9 @@ export async function linkThenTell({ steps, from = 0, keep, unkeep, told, send }
   }
   for (let i = from; i < steps.length; i++) {
     const r = await send(steps[i]);
-    if (r.phase === "sent") { await told(steps[i]); continue; }
+    // An uncertain send may have typed the note: count it as told, so "Send note again" can't repeat it.
+    if (r.phase === "sent" || r.phase === "uncertain") await told(steps[i]);
+    if (r.phase === "sent") continue;
     if (i === 0 && r.phase === "refused") {
       const back = await unkeep();
       return { ...r, next: 0, error: back.ok ? r.error : `${r.error} The link could not be taken back: Unlink it on the card.` };

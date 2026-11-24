@@ -660,7 +660,9 @@ export class Agents {
     // Every surface reads an idle or finished agent whose session waits on background work as waiting (fleet.js memberStatus).
     const waiting = R.flat.filter((m) => this.sessions.get(m.address)?.waiting).map((m) => m.address).sort();
     // Every surface's roster keys a link to its two sessions (links.js stands).
-    const sessionIds = Object.fromEntries(R.flat.flatMap((m) => { const id = this.sessions.get(m.address)?.sessionId; return id ? [[m.address, id]] : []; }).sort(([a], [b]) => (a < b ? -1 : 1)));
+    // A guessed id (no statusline sidecar: the folder's newest transcript) moves when another session
+    // there writes, so it counts as unknown and a link isn't dropped on it.
+    const sessionIds = Object.fromEntries(R.flat.flatMap((m) => { const s = this.sessions.get(m.address); const id = s?.approx ? null : s?.sessionId; return id ? [[m.address, id]] : []; }).sort(([a], [b]) => (a < b ? -1 : 1)));
     for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all], ["endfield.card.session", card], ["endfield.limits", limits], ["endfield.models", models], ["endfield.waiting", waiting], ["endfield.sessionIds", sessionIds]]) {
       const text = JSON.stringify(value);
       if (text !== this.published?.[key]) { (this.published ??= {})[key] = text; setShared(key, value); }
