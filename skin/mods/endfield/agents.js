@@ -277,6 +277,9 @@ export class Agents {
     const reg = shared(PANE_ROLES);
     const plan = transcriptPlan(panes(), tab, this.viewing[tab], k.path, reg);
     if (plan.focus) return run("pane.focus", { pane: plan.focus });
+    // The split lands in the parent's tab: bring that tab into view first, or a sub-agent of a
+    // squad you aren't looking at opens its transcript somewhere you can't see.
+    goTo(parent);
     for (const pane of plan.close) run("pane.close", { pane });
     const next = opening(reg, panes(), tab, "transcript");
     setShared(PANE_ROLES, next);
