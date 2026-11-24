@@ -41,14 +41,14 @@ rendered at 4x. It is a schematic, not a screenshot.
     operator's round portrait in a 2px white ring, yellow when it needs input,
     a 1px halo in the operator's accent, a class badge bottom right: `C`
     Claude Code, `X` Codex, `Cu` Cursor, `O` OpenCode, `G` Gemini); the
-    callsign in wide caps 10px (`PERLICA`; a repeat takes a spare operator,
-    then `PERLICA-2`), then in mono the model and, 6px on in a dimmer grey,
+    callsign in wide caps 10px (`PERLICA`; a repeat draws the next free
+    operator in its pool, then a spare, and only then reads `PERLICA-2`), then in mono the model and, 6px on in a dimmer grey,
     the effort level: `OPUS 5.5  MED` (effort reads LOW, MED, HIGH, XHIGH or
     MAX; an agent with no Claude Code session shows its program; no
     terminal address, no tool count); at the right of that line a clock icon
     and how long the run has gone (to now while generating, else to its
-    last write: `42s`, `27m`, `1h07`, `12h`, `3d`), then "▶▶ Generating", a
-    yellow "Needs input" pill or "✓ Finished". The second line is the task
+    last write: `42s`, `27m`, `1h07`, `12h`, `3d`), then the status: "▶▶ Generating", two still bars and "Waiting", a
+    yellow "Needs input" pill, "✓ Finished" or "× Error". The second line is the task
     (13px medium) with, at its right, an 8-block context gauge (5x6px blocks
     2px apart; lit share = used / window, red from 75%; its tooltip reads
     `157K / 1M, 16%`; an unknown window is 1M for a `[1m]` model or a
@@ -56,7 +56,7 @@ rendered at 4x. It is a schematic, not a screenshot.
     model and effort give way first, then the callsign truncates. While a
     generating row under a minute is on screen the list redraws each second
     so its seconds count; otherwise every 30 seconds. While a Claude Code run
-    has background tasks running, a stack glyph and their count (`≡ 3`, muted,
+    has background tasks running, a stack glyph and their count (`3`, muted,
     tooltip "3 background tasks running") sit left of the clock; the model
     and effort give way to it. Sub-agent rows show the same. What isn't
     known is left out. Compact rows keep only the
@@ -72,7 +72,7 @@ rendered at 4x. It is a schematic, not a screenshot.
     too, newest first, or "▴ Show less" to fold them back. Each parent keeps
     its choice until the mod reloads; there is no cap, the list scrolls. From 12
     agents everything goes compact: 34px rows, 24/20px chips, callsign over
-    task, a status glyph only (`▶▶`, `!`, `✓`, `zZ`); the spaces block becomes
+    task, a status glyph only (`▶▶`, the still bars, `!`, `✓`, `×`, `zZ`); the spaces block becomes
     numbered squares, six a row; and a pinned "Needs input" box (hazard edge,
     count, three rows, then "+N more need input" left and "Report ▶" right) sits above every squad. The
     list scrolls and says "▾ N more agents below". Without the art pack every
@@ -81,7 +81,8 @@ rendered at 4x. It is a schematic, not a screenshot.
     laid out like an AIC machine panel: the operator's bust in a dotted frame
     with a range ring and an accent foot, an ink chip naming the work
     (`// FIX LOGIN`: the tab's name, else the space's; never the terminal
-    address) and a barcode, the task, `CALLSIGN / program / where`; three
+    address) and a barcode, the task, then the callsign, the program and where it
+    runs, set apart by gaps (the program and place muted); three
     cells (Input on a dot field: the folder and model as item tiles; the
     state with its march, a tick ruler and `elapsed  turn`; Tools: tool calls
     in the wide face); Context (the input tokens of the last request, which
@@ -142,8 +143,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   10 min` 10px apart (the last two dimmer) and a barcode; readouts with coloured left edges (Squads, Agents,
   Generating, Needs input, Finished, Tokens with a dimmer `10 min`); a pill
   with a muted `Group` and `Squad` (or None); sortable headings (Agent, Rate, Reserves, Turn, Status; the active
-  one inverts to ink with ▼/▲; Status is the default: Needs input, Finished,
-  Generating, Idle); squad headers like the sidebar's with `▶▶ n ✓ n` and a
+  one inverts to ink with ▼/▲; Status is the default: Needs input and Error, Finished,
+  Waiting, Generating, Idle); squad headers like the sidebar's with `▶▶ n ✓ n` and a
   yellow `! n need input`, folding on click; rows with the chip and callsign,
   the terminal and its link (`◀ T3` and, 8px on, `Claude Code ▶ Cursor`, or `3 children`),
   a 16-bar output sparkline over 10 minutes (ink, never yellow), tokens a
@@ -193,7 +194,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   colour, title, body, `// space` top right, a yellow "Open ▶" pill and a 2px
   countdown. An agent that finished gets the Finished slip: its chip flashes
   yellow once (.9 to 0, 300ms), the callsign, a lime "Finished ✓" pill, the
-  task and a "View ▶" pill.
+  task, a "View ▶" pill, and `// space` and the terminal address 10px apart
+  (the address dimmer).
 - **Needs input, elsewhere: the cut-in.** A 440x214 ink slab at the bottom
   right, an overlay window (Herdr's toast slot is too small): a field of dots,
   a yellow diagonal band, the operator's signal duotone in a white frame with a
@@ -210,11 +212,14 @@ rendered at 4x. It is a schematic, not a screenshot.
 
 ## How it behaves
 
-- **Working:** `▶▶` steps through (300ms a beat) in flow blue. It is the only motion on a
+- **Generating:** `▶▶` steps through (300ms a beat) in flow blue. It is the only motion on a
   generating row.
-- **Blocked:** a yellow "Needs input" pill and a hazard tick, both still:
+- **Waiting:** two still bars in flow blue and "Waiting". Background work
+  runs, but nothing on screen moves for it.
+- **Needs input:** a yellow "Needs input" pill and a hazard tick, both still:
   blocked waits.
-- **Done:** the lime disc grows from 0 (200ms); it turns idle when looked at.
+- **Finished:** the lime disc grows from 0 (200ms); it turns idle when looked at.
+- **Error:** a red `×` and "Error", still.
 - **Idle:** `zZ Idle` in muted text, still.
 - **Start:** an ink screen with range rings and four registration crosses, a
   10px yellow bar fills the left edge (650ms from 100ms), `HERDR//` types on
@@ -332,8 +337,9 @@ rendered at 4x. It is a schematic, not a screenshot.
 - `themes/endfield.json` and `themes/endfield-night.json`: terminal colours
   plus every panel colour by name.
 - `mods/endfield`: one mod in roles, routed by `ROLES` in `main.js` (`boot`,
-  `brand`, `footer`, `spaces`, `agents`, `sortmenu`, `card`, `tabs`, `pane`,
-  `status`, `toast`, `cutin`, `report`, `dispatch`, `comms`, `transcript`). `kit.js` holds the tables every role reads: `PALETTE` (`paper`
+  `brand`, `footer`, `spaces`, `agents`, `sortmenu`, `squadmenu`, `card`, `tabs`, `pane`,
+  `status`, `toast`, `cutin`, `report`, `dispatch`, `comms`, `transcript`,
+  `action`, `archived`). `kit.js` holds the tables every role reads: `PALETTE` (`paper`
   and `night`), `STATUS` (word, glyph, colour, entrance, rank per agent
   status), `IDENTITY` (who an agent is drawn as) and `MOTION` (every timing).
   An agent with a known model is drawn from its model's tier: `CASTING` in
@@ -379,7 +385,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   `art/operators/manifest.json` and `data/endfield/operators.json`. It writes
   only under `data/endfield/` (the probe's cache and request files, the Comms
   log, `archive.json`).
-- Commands: `space.select/move/new`, `tab.new/select/move/rename/close`,
+- Commands: `space.select/move/new/rename`, `agent.focus`, `tab.new/select/move/rename/close`,
   `pane.focus/split/zoom/close`, `terminal.pin/peek`,
   `layout.resize/show/hide/select`, `app.palette`, `app.settings`, `mod.open`,
   `window.minimize/maximize/close`.
@@ -407,8 +413,10 @@ rendered at 4x. It is a schematic, not a screenshot.
   sub-agent toggle 26, squad header 28; compact 34, 34, 26, 22, 26).
 - Flicker is a `.loop("opacity")` that a one-shot timer removes after three
   pulses. No repeating timer drives motion; the repeating timers are for data
-  only (30s age labels, git and machine checks, a 3s session poll that runs
-  only after `watchFolder` reports a change).
+  only (30s age labels, a one-second redraw while a generating row is under a
+  minute old, the session card's one-second task clock, the footer's
+  one-minute reset countdown, git and machine checks, Comms' screen scan, and
+  a 3s session poll that runs only after `watchFolder` reports a change).
 - Herdr docks a mod folder into the shown layout the moment it sees one
   without a `mod.json`: write `mod.json` (`"place": "none"`) first.
 - A window overlay's id isn't visible from outside and `overlay.close`

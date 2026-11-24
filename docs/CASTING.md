@@ -12,7 +12,7 @@ With the art pack installed, each agent is drawn as an Arknights: Endfield opera
 
 Two kinds of override still win over the model. Both live in `data/endfield/operators.json` in your Herdr home. A terminal pin (`terminals`) always wins. A program entry (`programs`) wins for every agent of that program. A pin or override that names an operator claims it before any other agent draws. The agent you pin gets the bare callsign, such as `YVONNE`, and the agent that held Yvonne draws again. Two agents pinned to one operator are numbered in creation order. A sub-agent shown in Squads still holds its operator, so a pin to that operator takes the next number until the sub-agent leaves the list. See [Choose which operator each agent gets](SETUP.md#3-choose-which-operator-each-agent-gets).
 
-A pool uses only the operators your art pack has. With an older pack of eight operators, an Opus agent draws Laevatain, then Perlica. A Haiku agent falls back to its program's default, because that pack has no 4★ operators.
+A pool uses only the operators your art pack has. With an older pack of eight operators, Opus agents draw Laevatain, Ardelia, Last Rite, then Perlica. A Haiku agent falls back to its program's default, because that pack has no 4★ operators.
 
 ## Tiers
 

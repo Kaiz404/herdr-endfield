@@ -9,8 +9,8 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
 ## Files
 
 - `main.js` routes a role to its class: `boot`, `brand`, `footer`, `spaces`,
-  `agents`, `sortmenu`, `card`, `tabs`, `pane`, `status`, `toast`, `cutin`,
-  `report`, `dispatch`, `comms`, `transcript`, `action`, `archived`.
+  `agents`, `sortmenu`, `squadmenu`, `card`, `tabs`, `pane`, `status`, `toast`,
+  `cutin`, `report`, `dispatch`, `comms`, `transcript`, `action`, `archived`.
 - Two roles open as panes, `comms` and `transcript` (`pane.split` with `mod:
   "endfield"` and the role in props). `panes()` reports a mod pane's mod but not
   its props, so `fleet.js` keeps a registry in the shared key `endfield.panes`:
@@ -28,8 +28,8 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   hatch, odometer, wipes, the selection plate and marker) and the motion helpers
   (`Entrance`, `StatusFx`).
 - `roster.js` is the fleet every surface reads, built by `fleet.js` from Herdr's
-  live lists: each agent's identity and callsign (a repeated operator takes a
-  spare, then a number, `PERLICA-2`; each agent keeps its draw so it never hops), its
+  live lists: each agent's identity and callsign (a repeated operator draws the
+  next free one in its pool, then a spare, then a number, `PERLICA-2`; each agent keeps its draw so it never hops), its
   parent and depth, and squads in tree order: pinned agents first (they also lead
   `agent.next`), then one per space. Priority ranks an agent by the most urgent
   status in its tree. A member's `status` is Herdr's, except that `fleet.js
@@ -38,7 +38,7 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   as `endfield.waiting`). Sends and typed actions gate on `herdrStatus`, Herdr's own.
   The session card's Tasks section and the Squads task count read `fleet.js
   taskView` over `tasksOf(session)`.
-- Seven modules hold the rules with no Herdr import, so `tests/` runs them under
+- Eight modules hold the rules with no Herdr import, so `tests/` runs them under
   `node --test` (CI and `verify.mjs --static` too): `fleet.js` (the `STATUS`
   table, agent status to word, glyph kind, bar colour, entrance effect and rank,
   and the roster), `orders.js` (Dispatch's argv and the transcript pane's
@@ -47,8 +47,9 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   and the command each resumes with), `messages.js` (which Comms screen tags count, how
   many are kept, the log's size cap), `base.js` (the home base: which folder a
   new local space opens in), `usage.js` (the HUD footer's Claude usage limits:
-  which windows show, when one has reset, how time to reset reads) and
-  `hovercard.js` (whose session card is up, and when a press takes it away).
+  which windows show, when one has reset, how time to reset reads),
+  `hovercard.js` (whose session card is up, and when a press takes it away) and
+  `squads.js` (below).
 - The session card closes on events, not on where the pointer is. A press
   outside the card closes it at once (`on_mouse_down_out` in `card.js`, reported
   through `endfield.card.closed`), unless the press is on the card's own row.
@@ -77,6 +78,9 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   message log Dispatch writes and the Comms pane), `report.js` (the oversight screen: a block in the
   layout's `work-stack`, beside `main`, so it covers the work area at any size;
   `toggleReport()` selects it).
+- `transcript.js` is the transcript pane: a Claude Code sub-agent's transcript,
+  read-only, with a follow-up box at its foot that sends to the parent
+  (`relayOrder()` in `orders.js`). `tools/probe.mjs` reads the file for it.
 - `sessions.js` is the data layer for Claude Code sessions: one parsed shape per
   agent terminal (model, context, tokens, tools, turns, last action, pending
   question, sub-agents). Sources, first wins: a statusline sidecar in
@@ -375,7 +379,8 @@ Only native motion: `.transition` on opacity, width, height, left and top,
 calls end a transient state (the boot, a Finished flash, the card's open delay).
 The repeating timers are for data only: the agents list's 30s age labels (and a
 one-second redraw while a generating row is under a minute old, so its seconds count), the
-spaces list's git and machine checks, Comms' 15s screen scan (one at a time, six
+session card's one-second clock for running tasks (it repaints only when a shown value
+changes), the HUD footer's one-minute reset countdown, the spaces list's git and machine checks, Comms' 15s screen scan (one at a time, six
 reads at once, 5s each), and the 3s session poll. That poll runs only when a
 watched folder changed (`watchFolder` on the sidecars and on the target agents'
 own project folders, the ones `probe.mjs` reports), a sub-agent may have gone

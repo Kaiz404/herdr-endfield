@@ -10,16 +10,21 @@ The image is a schematic of the layout, not a screenshot.
 
 ## What you get
 
-- **Squads.** The sidebar groups your agents by project. Each agent shows its operator, a callsign such as `PERLICA`, its task, a status word (Generating, Waiting, Needs input, Finished, Idle or Error), its model, its elapsed time, how many background tasks it runs and a context gauge. Sub-agents hang under the agent that started them.
+- **Squads.** The sidebar groups your agents by project, one squad per space. With the optional portraits, each agent is drawn as one of 36 operators, cast by its model: a stronger model draws a stronger operator, and sibling sub-agents draw different ones. See [Casting](docs/CASTING.md).
+- **Rows you can read at a glance.** Each row shows the callsign, such as `PERLICA`, the model and effort, how long the run has gone, how many background tasks it runs, a status word, and the task with a context gauge. The status is Generating, Waiting, Needs input, Finished, Idle or Error. Waiting means the turn ended but background work it started still runs. Idle agents fold to one line. Sub-agents hang under the agent that started them.
+- **A session panel** when you hover an agent: context, tool calls, its background tasks, its last action and any question it is waiting on. Its buttons rename the chat or change its model, effort or mode. Each one shows the exact command and runs it only when you confirm.
+- **Archive and Resume.** Archive ends a chat and keeps its transcript. Resume opens it again in a new tab.
+- **Squads you can arrange.** Drag a squad to reorder it, double-click its name to rename it, and right-click a squad or an agent for a menu.
+- **One transcript pane** for a Claude Code sub-agent, with a box to send it a follow-up through its parent.
 - **A banner when an agent needs you.** It shows the agent's question, with **Answer** and **Later**. A finished agent gets a short **Finished** slip.
-- **A session panel** when you hover an agent: model, context, tokens, turns, its background tasks, its last action and any question it is waiting on.
+- **Usage limits** in the footer: your Claude 5-hour and weekly use, and the time to reset. They come from the Claude Code statusline.
 - **Report**, one screen with every squad, sortable by status, rate, context and turn.
 - **Dispatch**, to send a task to a running agent or start a new one, after it shows you the exact command. **Comms** shows what you sent and what agents told each other.
 - **A home base.** New spaces open in your workspace folder (`Projects` in your home folder, if it exists), not in the home folder itself. An agent you start there works inside that folder instead of your whole home folder.
 - **Light and night appearances** that follow your system, and original sounds.
 - **Optional extras.** Official operator portraits, a Claude Code statusline, and a PowerShell prompt.
 
-Model, context and sub-agent details are for Claude Code. Other agents show their status, program and task.
+Model, context, background task and sub-agent details are for Claude Code. Other agents show their status, program and task.
 
 ## Quick start
 
@@ -35,7 +40,7 @@ node scripts/fetch-operators.mjs --accept
 
 The last command downloads the official operator art onto your machine. Leave it out to use the layout with program icons instead.
 
-The full guide is [docs/SETUP.md](docs/SETUP.md). It covers each piece with a check and an undo step: the layout, the portraits, which operator each agent gets, sounds, the Claude Code statusline and theme, the PowerShell prompt, Dispatch and Comms, uninstall, troubleshooting, and what data the skin keeps.
+The full guide is [docs/SETUP.md](docs/SETUP.md). It covers each piece with a check and an undo step: the layout, the portraits, which operator each agent gets, sounds, the Claude Code statusline and theme, the PowerShell prompt, Dispatch and Comms, chat actions, Archive and Resume, arranging squads, the home base, updating, uninstall, troubleshooting, and what data the skin keeps.
 
 ## More
 

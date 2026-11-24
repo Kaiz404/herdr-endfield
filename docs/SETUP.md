@@ -1,6 +1,6 @@
 # Set up Endfield for Herdr
 
-This guide takes a machine that has Herdr installed to the full Endfield setup. That covers the layout, official operator portraits, sounds, a Claude Code statusline and theme, a PowerShell prompt, and Dispatch and Comms. Each section says what the step changes, how to check it worked, and how to undo it. Only the first section is required. Every later one is optional and stands alone.
+This guide takes a machine that has Herdr installed to the full Endfield setup. That covers the layout, official operator portraits, sounds, a Claude Code statusline and theme, a PowerShell prompt, Dispatch and Comms, the home base, and managing chats and squads. Each section says what the step changes, how to check it worked, and how to undo it. Only the first section is required. Every later one is optional and stands alone.
 
 Commands are for Windows (PowerShell) first. Where macOS or Linux differs, the guide says so.
 
@@ -15,6 +15,8 @@ Commands are for Windows (PowerShell) first. Where macOS or Linux differs, the g
 - [7. Add the PowerShell prompt](#7-add-the-powershell-prompt)
 - [8. Send work with Dispatch and read Comms](#8-send-work-with-dispatch-and-read-comms)
 - [9. Choose where new spaces open](#9-choose-where-new-spaces-open)
+- [10. Manage chats and squads](#10-manage-chats-and-squads)
+- [Update to a new version](#update-to-a-new-version)
 - [Uninstall everything](#uninstall-everything)
 - [Troubleshooting](#troubleshooting)
 - [FAQ](#faq)
@@ -91,7 +93,7 @@ node scripts/demo-fleet.mjs up --agents 16
 node scripts/demo-fleet.mjs down
 ```
 
-**Update.** Run `git pull`, then `node scripts/install.mjs` again. The installer never overwrites `data/endfield/operators.json` or `data/endfield/settings.json` once they exist. It deletes the Endfield folders that earlier versions installed and this one no longer has, such as `mods/endfield-transcript`. A transcript pane left open from before the update can show an error. Click a sub-agent in Squads to replace it, or close it.
+**Update.** See [Update to a new version](#update-to-a-new-version).
 
 **Undo.** See [Uninstall everything](#uninstall-everything).
 
@@ -119,6 +121,8 @@ node scripts/demo-fleet.mjs down
 
    Without `--accept`, the script prints the notice and asks `Download for personal use on this machine? [y/N]`. To fetch only some operators, add `--only perlica,ember`.
 
+If you fetched the pack before version 0.3.0, it has 8 operators. Run `node scripts/fetch-operators.mjs --accept` again to add the other 29 (28 operators and a second Endministrator card). It skips the operators you already have. Casting by model uses only the operators your pack has, so with the old pack most agents draw the same few operators.
+
 **Check it worked.** The script ends with `Done. 37 operator(s) built into <folder>.` A second run prints `Nothing to do: every operator is built and up to date.` `node scripts/verify.mjs` prints `art pack: 37 operators, all files present`. The sidebar shows portraits within 30 seconds, because the skin rereads the pack every 30 seconds.
 
 **Undo.** Delete the `art/operators` folder from your Herdr home. Every surface goes back to the program's own tile.
@@ -137,7 +141,7 @@ To build a pack from your own images instead, see [`art-pack/README.md`](../art-
 
 ## 3. Choose which operator each agent gets
 
-**What it changes.** `data/endfield/operators.json` in your Herdr home overrides casting by model and the pack's default assignment. The installer creates it from `skin/data/endfield/operators.example.json`, which is empty, so the model decides until you add entries. The installer never overwrites a file you edited. It replaces a copy that still matches the seed of earlier versions, which pinned every program, so that casting by model shows.
+**What it changes.** By default, an agent's model decides its operator. [Casting](CASTING.md) explains the rule and lists the operators in each tier. `data/endfield/operators.json` in your Herdr home overrides casting by model and the pack's default assignment. The installer creates it from `skin/data/endfield/operators.example.json`, which is empty, so the model decides until you add entries. The installer never overwrites a file you edited. It replaces a copy that still matches the seed of earlier versions, which pinned every program, so that casting by model shows.
 
 1. Open the file:
 
@@ -222,6 +226,28 @@ If you set `HERDR_APP_HOME`, change `dir=` at the top of the script to the same 
 
 **Undo.** Remove the `statusLine` entry from `~/.claude/settings.json`, or put your old one back. Delete `~/.claude/statusline-endfield.sh`. To remove the session files too, delete `data/endfield/sessions/` from your Herdr home.
 
+### Update the statusline
+
+**What it changes.** Since version 0.3.0, the statusline also writes your 5-hour and 7-day usage limits (`rate_limits`) and the effort level (`effort`) into each session's file. The HUD footer reads the usage limits from them, and the session panel shows a changed effort at once. An older copy of the script writes neither, so the footer leaves out the usage limits. The installer does not touch `~/.claude/`, so copy the script again after you update.
+
+1. From the repo folder, copy the script again. On Windows, run this in Git Bash:
+
+   ```sh
+   cp extras/claude-statusline/statusline-endfield.sh ~/.claude/statusline-endfield.sh
+   ```
+
+2. Each running Claude Code session uses the new copy at its next statusline update. You do not need to restart it.
+
+**Check it worked.** The newest file in `data/endfield/sessions/` has a `"rate_limits"` and an `"effort"` field. `rate_limits` is `null` when Claude Code does not report your limits. In PowerShell:
+
+```powershell
+Get-Content (Get-ChildItem "$HOME\.config\herdr-app\data\endfield\sessions" | Sort-Object LastWriteTime | Select-Object -Last 1).FullName
+```
+
+When the field has numbers, the HUD footer shows `5-HOUR` and `WEEKLY` blocks with the percent used and the time to reset.
+
+**Undo.** The older script still works with the skin. The footer then leaves out the usage limits. To remove the statusline completely, follow the undo step above.
+
 The full notes are in [`extras/claude-statusline/README.md`](../extras/claude-statusline/README.md).
 
 ## 6. Switch Claude Code to the ANSI theme
@@ -281,40 +307,6 @@ Dispatch and Comms use herdr-core's `hc` command, which Herdr installs. The skin
 
 Dispatch never sends a blocked agent a task. If hc refuses the order before it types anything, fix the cause and click **Dispatch** again. After hc accepts an order, the button becomes **Close**, so one order never goes twice.
 
-### Change a chat from its session panel
-
-The **Chat** row of an agent's session panel shows its model, effort and mode, and has one button per action. Claude Code has **Rename**, **Plan**, **Next mode**, **Model**, **Effort** and **Archive**. Codex has **Rename**, **Model** and **Archive**. Cursor has **Rename**, **Plan** and **Archive**.
-
-1. Hover the agent in Squads, then click an action. The panel closes and a dialog opens. Nothing has run yet.
-2. Fill in what the dialog asks for, such as the new name or the model.
-3. Read the **Needs** and **Does** lines and the command at the foot of the dialog. The command is exactly what runs.
-4. Click **Confirm** (**Archive** for Archive).
-
-Every action that types into the agent waits until it is idle. If the agent is working or needs input, the button is dimmed and says why. **Finished** counts as not idle: Peek or Focus the agent first. **Rename** always renames the tab in Herdr; tick its box to also name the Claude Code session with `/rename`.
-
-`/model` and `/effort` also change your Claude Code defaults for new sessions, as if you had typed them. After a change the dialog shows the new model, effort or mode when the skin can read it. For Codex and Cursor it says **Sent**.
-
-### Archive a chat and resume it
-
-**Archive** first writes the chat to the archived list in `data/endfield/archive.json`, then ends the agent with `/exit` (`/quit` for Codex and Cursor). The transcript stays. The dialog waits until Herdr shows the program has ended, and then says **Archived**. If the program is still running after 20 seconds, the dialog says **Still running** and the agent stays in Squads. A shell left behind in its terminal is kept out of Squads until another agent starts there.
-
-**Next mode** presses Shift+Tab with `hc keys`, which has no idle check of its own. The dialog checks that the agent is idle just before the press. If a permission prompt opens in between, the key press goes to that prompt and can answer it.
-
-To bring one back, open the **Report**, click **Archived**, and click **Resume** on the chat. Each chat shows the exact command Resume runs, such as `claude --resume <session id>`. A new tab opens in its space and folder and runs it. The list warns when the command may reopen a different chat. This happens for Codex and Cursor, which resume their newest chat, and for a Claude Code chat whose session id was matched by its folder. **Resume** is dimmed while the chat is still running.
-
-### Arrange squads and chats in Squads
-
-A squad is a Herdr space with agents in it. Its name and its place in the list are the space's, so the Spaces list changes with it.
-
-- **Reorder a squad.** Drag its header up or down. A line shows where it will land. Release over another squad's header or rows to move it there. You can't drag a squad onto a squad on another machine, or onto **Pinned**. A worktree space stays under its main checkout, because the Spaces list moves it back there.
-- **Reorder without dragging.** Right-click the header, then click **Move up** or **Move down**. Empty spaces have no squad, so a squad moves past them.
-- **Rename a squad.** Double-click its name, or right-click it and click **Rename squad**. Type the name and press Enter. Press Esc, or click somewhere else, to keep the old name.
-- **Act on a chat.** Right-click an agent row. **Rename** and **Archive** open the same dialogs as the session panel's buttons, and nothing runs until you click **Confirm** or **Archive** there. **Archive** is dimmed until the agent is idle. **Pin to the top** (or **Unpin**) runs at once. A child without a pane of its own and a Claude Code sub-agent have no menu.
-
-Squads can't move a chat to another squad: Herdr has no command that moves a tab to another space.
-
-**Undo.** Drag the squad back, or rename it again.
-
 ### Read Comms
 
 Click the **Comms** pill at the top right. Comms opens as a pane beside the focused one. Its tabs are **All**, **You** and **Reports**.
@@ -368,6 +360,87 @@ The section applies only while Endfield shows. Choose a key that `keys.json` doe
 
 **Undo.** Set `"homeBase"` to `"~"`, so new spaces open in your home folder again. Remove the `keys.json` line if you added it.
 
+## 10. Manage chats and squads
+
+The session panel and the right-click menus in Squads change a chat or a squad. Each change that types into an agent opens a dialog first. The dialog shows the exact command and runs it once, when you click **Confirm**.
+
+### Change a chat from its session panel
+
+The **Chat** row of an agent's session panel shows its model, effort and mode, and has one button per action. Claude Code has **Rename**, **Plan**, **Next mode**, **Model**, **Effort** and **Archive**. Codex has **Rename**, **Model** and **Archive**. Cursor has **Rename**, **Plan** and **Archive**.
+
+1. Hover the agent in Squads, then click an action. The panel closes and a dialog opens. Nothing has run yet.
+2. Fill in what the dialog asks for, such as the new name or the model.
+3. Read the **Needs** and **Does** lines and the command at the foot of the dialog. The command is exactly what runs.
+4. Click **Confirm** (**Archive** for Archive).
+
+Every action that types into the agent waits until it is idle. If the agent is working or needs input, the button is dimmed and says why. **Finished** counts as not idle: Peek or Focus the agent first. The check uses Herdr's own status, so an agent that reads **Waiting** while Herdr calls it idle takes typed actions. **Rename** always renames the tab in Herdr; tick its box to also name the Claude Code session with `/rename`.
+
+`/model` and `/effort` also change your Claude Code defaults for new sessions, as if you had typed them. After a change the dialog shows the new model, effort or mode when the skin can read it. For Codex and Cursor it says **Sent**.
+
+**Next mode** presses Shift+Tab with `hc keys`, which has no idle check of its own. The dialog checks that the agent is idle just before the press. If a permission prompt opens in between, the key press goes to that prompt and can answer it.
+
+**Check it worked.** The dialog shows the new name, model, effort or mode, or **Sent**. The **You** tab in Comms lists every action that typed into the agent; a Herdr-only rename (without the `/rename` box) is not logged there.
+
+**Undo.** Run the same action again with the old value. Rename it back, pick the old model or effort, or press **Next mode** until the old mode shows. `/model` and `/effort` also changed your default for new sessions, and the same action puts it back.
+
+### Archive a chat and resume it
+
+**Archive** first writes the chat to the archived list in `data/endfield/archive.json`, then ends the agent with `/exit` (`/quit` for Codex and Cursor). The transcript stays. The dialog waits until Herdr shows the program has ended, and then says **Archived**. If the program is still running after 20 seconds, the dialog says **Still running** and the agent stays in Squads. A shell left behind in its terminal is kept out of Squads until another agent starts there.
+
+To bring one back, open the **Report**, click **Archived**, and click **Resume** on the chat. Each chat shows the exact command Resume runs, such as `claude --resume <session id>`. A new tab opens in its space and folder and runs it. The list warns when the command may reopen a different chat. This happens for Codex and Cursor, which resume their newest chat, for a Claude Code chat whose session id was matched by its folder, and for one with no session id at all, which resumes with `claude --continue`. **Resume** is dimmed while the chat is still running.
+
+**Check it worked.** After **Archive**, the dialog says **Archived**, the agent leaves Squads, and **Report > Archived** lists the chat. After **Resume**, a new tab runs the command and the chat leaves the list.
+
+**Undo.** **Resume** undoes **Archive**. To forget an archived chat without resuming it, delete its entry from `data/endfield/archive.json`. Its transcript stays in `~/.claude/projects/`.
+
+### Arrange squads and chats in Squads
+
+A squad is a Herdr space with agents in it. Its name and its place in the list are the space's, so the Spaces list changes with it.
+
+- **Reorder a squad.** Drag its header up or down. A line shows where it will land. Release over another squad's header or rows to move it there. You can't drag a squad onto a squad on another machine, or onto **Pinned**. A worktree space stays under its main checkout, because the Spaces list moves it back there.
+- **Reorder without dragging.** Right-click the header, then click **Move up** or **Move down**. Empty spaces have no squad, so a squad moves past them.
+- **Rename a squad.** Double-click its name, or right-click it and click **Rename squad**. Type the name and press Enter. Press Esc, or click somewhere else, to keep the old name.
+- **Act on a chat.** Right-click an agent row. **Rename** and **Archive** open the same dialogs as the session panel's buttons, and nothing runs until you click **Confirm** or **Archive** there. **Archive** is dimmed until the agent is idle. **Pin to the top** (or **Unpin**) runs at once. A child without a pane of its own and a Claude Code sub-agent have no menu.
+
+Squads can't move a chat to another squad, because Herdr has no command that moves a tab to another space.
+
+**Check it worked.** The Spaces list shows the new order and name, because a squad is a space.
+
+**Undo.** Drag the squad back, or rename it again. Pin and unpin from the same menu.
+
+## Update to a new version
+
+**What it changes.** `install.mjs` copies the new skin over the old one. It never overwrites `data/endfield/operators.json` or `data/endfield/settings.json` once they exist. The one exception is an `operators.json` that still matches the seed of version 0.2.0 or earlier, which pinned one operator per program. The installer replaces it with the new empty seed, so that casting by model shows. It also deletes the Endfield folders that earlier versions installed and this one no longer has.
+
+1. From the repo folder, get the new version and install it:
+
+   ```sh
+   git pull
+   node scripts/install.mjs
+   ```
+
+2. If you added the Claude Code statusline, [copy it again](#update-the-statusline).
+3. If you fetched the operator portraits, run `node scripts/fetch-operators.mjs --accept` again. It adds the operators that are new in the catalogue and skips the rest.
+
+From version 0.2.0, the installer removes `mods/endfield-transcript`. The transcript pane is now part of the `endfield` mod, as its `transcript` role. `node scripts/sync.mjs` and `node scripts/uninstall.mjs` remove the old folder too. A transcript pane left open from before the update can show an error. Click a sub-agent in Squads to replace it, or close it.
+
+**Check it worked.** The installer lists the old folder under `removed, no longer part of the skin`. `herdr-app status` shows `"errors": []`, and `node scripts/verify.mjs` ends with `PASS`. This command prints `False`:
+
+```powershell
+Test-Path "$HOME\.config\herdr-app\mods\endfield-transcript"
+```
+
+On macOS and Linux, `ls ~/.config/herdr-app/mods` lists `endfield` and no `endfield-transcript`.
+
+**Undo.** Check out the earlier version, then make the installed skin match it:
+
+```sh
+git checkout <commit>
+node scripts/sync.mjs
+```
+
+`sync.mjs` copies that version's files, puts back its folders, such as `mods/endfield-transcript`, and deletes the files it does not have. It never touches your `operators.json`. Run `git checkout main` to come back.
+
 ## Uninstall everything
 
 1. Switch Herdr back to its own layout:
@@ -382,7 +455,7 @@ The section applies only while Endfield shows. Choose a key that `keys.json` doe
    node scripts/uninstall.mjs
    ```
 
-   The script removes what the installer added and restores anything it backed up. It also deletes the files the skin wrote while it ran: the Comms log and the session cache. It keeps `data/endfield/operators.json` and `data/endfield/settings.json` if you edited them, and the statusline's `sessions/` folder. If Herdr still shows Endfield, the script stops and says so. `--force` skips that check.
+   The script removes what the installer added and restores anything it backed up. It also deletes the files the skin wrote while it ran: the Comms log, the archived chats list and the session cache. It keeps `data/endfield/operators.json` and `data/endfield/settings.json` if you edited them, and the statusline's `sessions/` folder. If Herdr still shows Endfield, the script stops and says so. `--force` skips that check.
 
 3. Delete what the script leaves on purpose, if you want it gone. In PowerShell:
 
