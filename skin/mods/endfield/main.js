@@ -19,6 +19,7 @@
 //   comms     the Comms pane: who sent what to whom
 //   action    a session card action's confirm dialog (the exact hc command, on the person's click)
 //   archived  the archived chats, each with Resume
+//   link      Link as helper: one agent dropped on another, the notes typed on the person's click
 //   account   moves a Claude Code chat to another saved login (a new tab resumes it there, on the click)
 //   transcript  a Claude Code sub-agent's transcript, a pane Squads opens right of its parent
 
@@ -40,8 +41,9 @@ import { Transcript } from "./transcript.js";
 import { ActionDialog, Archived, AccountDialog } from "./actions.js";
 import { SquadMenu } from "./squadmenu.js";
 import { SquadDialog } from "./squadactions.js";
+import { LinkDialog } from "./linkdialog.js";
 
-const ROLES = { boot: Boot, brand: Brand, footer: Footer, spaces: Spaces, agents: Agents, sortmenu: SortMenu, squadmenu: SquadMenu, squad: SquadDialog, card: Card, tabs: Tabs, pane: PaneHeader, status: Status, toast: Toast, cutin: CutIn, report: Report, dispatch: Dispatch, comms: Comms, transcript: Transcript, action: ActionDialog, archived: Archived, account: AccountDialog };
+const ROLES = { boot: Boot, brand: Brand, footer: Footer, spaces: Spaces, agents: Agents, sortmenu: SortMenu, squadmenu: SquadMenu, squad: SquadDialog, card: Card, tabs: Tabs, pane: PaneHeader, status: Status, toast: Toast, cutin: CutIn, report: Report, dispatch: Dispatch, comms: Comms, transcript: Transcript, action: ActionDialog, archived: Archived, account: AccountDialog, link: LinkDialog };
 // Herdr opens the layout's toast mod with notification props and no role.
 const roleOf = (p) => p.role ?? (p.overlay && "title" in p ? "toast" : null);
 

@@ -2,6 +2,7 @@
 // them in node). roster.js feeds buildRoster() Herdr's live lists; kit.js re-exports the table.
 
 import { isLeftover } from "./archive.js";
+import { byLife, stands } from "./links.js";
 
 // Every role reads a status through this table: its word, how its glyph draws, its bar colour,
 // its entrance effect, its rank (how urgent) and whether its Squads row folds to one line.
@@ -49,7 +50,7 @@ export const PINNED = "pinned";
  * Member: { address, agent (AgentInfo, null for a child without a pane), program, status (memberStatus),
  *   herdrStatus (Herdr's own: what `hc send --if idle` and the typed actions gate on), title,
  *   space, spaceName, tab, tabIndex, pane, seq, pinned, focused, created, turn, parent (address | null),
- *   depth, kids (addresses), urgency, model (id | null), ident: identity.resolve(...) + { callsign, drawn },
+ *   session (Claude Code session id | null), depth, kids (addresses), linked (address | null), helpers (addresses), urgency, model (id | null), ident: identity.resolve(...) + { callsign, drawn },
  *   label: what its row calls it (programLabel, numbered among its siblings by siblingLabels) }
  * Pinned agents (and their trees) come first, in a squad of their own ahead of every space's, so
  * the list and agent.next start with them. `sort` orders siblings; children stay under their parent.
@@ -59,8 +60,13 @@ export const PINNED = "pinned";
  * prev: the last call's `cast`. avoid: slots a newcomer must not draw (the shown sub-agents', see held).
  * hidden: Hides (archive.js) of chats the person archived and saw end. Their terminal stays out while
  * it lingers with no agent in it (a shell left behind), and shows again once an agent starts there.
+ * sessions: { address: Claude Code session id } for the agents whose session is known (member.session).
+ * links: Links (links.js). A linked helper shows under its lead, in the lead's squad (linked: the
+ * lead's address; the lead's helpers: addresses). Its hc parent stays null: kids, the Report tree
+ * and parent notes are hc's. A link that no longer stands (links.js stands), or one that would nest
+ * an agent inside its own tree, is left out.
  */
-export function buildRoster({ listed, terms, spaces, identity, models = {}, prev = null, avoid = [], sort = BY.priority, hidden = [], waiting = [] }) {
+export function buildRoster({ listed, terms, spaces, identity, models = {}, sessions = {}, prev = null, avoid = [], sort = BY.priority, hidden = [], waiting = [], links = [] }) {
   const wait = new Set(waiting);
   const termOf = new Map(terms.map((t) => [t.address, t]));
   const all = new Map();
@@ -90,10 +96,23 @@ export function buildRoster({ listed, terms, spaces, identity, models = {}, prev
   }
   for (const m of all.values()) {
     if (m.parent && !all.has(m.parent)) m.parent = null;
+    m.session = sessions[m.address] ?? null;
     m.kids = [];
+    m.helpers = [];
+    m.linked = null;
   }
   for (const m of all.values()) if (m.parent) all.get(m.parent).kids.push(m.address);
-  const urgency = (m) => (m.urgency ??= Math.max(rank(m.status), ...m.kids.map((k) => urgency(all.get(k)))));
+  const lives = byLife(all.values());
+  const within = (m, b) => { for (let up = m; up; up = all.get(up.parent ?? up.linked)) if (up === b) return true; return false; };
+  for (const l of links) {
+    if (!stands(l, lives)) continue;
+    const A = lives.get(l.a), B = lives.get(l.b);
+    if (B.parent || B.linked || within(A, B)) continue;
+    B.linked = A.address;
+    A.helpers.push(B.address);
+  }
+  const under = (m) => [...m.kids, ...m.helpers];
+  const urgency = (m) => (m.urgency ??= Math.max(rank(m.status), ...under(m).map((k) => urgency(all.get(k)))));
   for (const m of all.values()) urgency(m);
 
   // Identity: an agent keeps its last draw while its pool stays the same (see castCrew), so one
@@ -110,8 +129,8 @@ export function buildRoster({ listed, terms, spaces, identity, models = {}, prev
   for (const m of order) m.ident = crew.get(m.address);
   const taken = new Set([...held([...crew.values()]), ...avoid]);
 
-  const place = (m, depth) => [{ ...m, depth }, ...m.kids.map((k) => all.get(k)).sort(sort).flatMap((k) => place(k, depth + 1))];
-  const tops = [...all.values()].filter((m) => !m.parent);
+  const place = (m, depth) => [{ ...m, depth }, ...under(m).map((k) => all.get(k)).sort(sort).flatMap((k) => place(k, depth + 1))];
+  const tops = [...all.values()].filter((m) => !m.parent && !m.linked);
   const squad = (id, num, name, machine, members, extra = {}) => {
     const placed = members.sort(sort).flatMap((m) => place(m, 0));
     for (const m of placed) all.set(m.address, m);

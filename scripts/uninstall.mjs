@@ -11,8 +11,8 @@ import { entries, home, owned, same, unedited, herdrWritten, modDirs, RETIRED } 
 const HOME = home();
 const STATE = join(HOME, ".endfield-install");
 const LEDGER = join(STATE, "ledger.json");
-// Written by the skin while it runs, never by the person: the Comms log, the archived chats and the session probe's files.
-const RUNTIME = /^(comms\.jsonl|archive\.json|probe-.+\.json(\.\d+\.tmp)?)$/;
+// Written by the skin while it runs, never by the person: the Comms log, the archived chats, the links and the session probe's files.
+const RUNTIME = /^(comms\.jsonl|archive\.json|links\.json|probe-.+\.json(\.\d+\.tmp)?)$/;
 
 let shown = null;
 try { shown = JSON.parse(execFileSync("herdr-app", ["status"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000 })).layout; } catch {}
