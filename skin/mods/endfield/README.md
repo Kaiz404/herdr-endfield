@@ -49,8 +49,33 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   many are kept, the log's size cap), `base.js` (the home base: which folder a
   new local space opens in), `usage.js` (the HUD footer's Claude usage limits:
   which windows show, when one has reset, how time to reset reads),
-  `hovercard.js` (whose session card is up, and when a press takes it away) and
+  `hovercard.js` (which rows get a session card and what each kind offers, whose
+  card is up, when a press takes it away, and `cardPlace`: where its window goes
+  and how tall it is for a window height) and
   `squads.js` (below).
+- The session card's window has a fixed place and height, set when it opens:
+  Herdr has no call that moves or resizes an open overlay, and tells the card
+  nothing when the app window changes size. So the agents list, which is
+  rendered again on a window resize or a zoom, reads the window's height at each
+  render (`window.viewport_size()` over `settings().zoom`) and opens the card
+  again when it differs from the height the card was placed for
+  (`hovercard.js` `resized`). Not checked in a live window: that the viewport is
+  in unzoomed px (`tabs.js` divides Herdr's own window px the same way), and
+  that the pointer still counts as on the card after it is replaced.
+- One card, two kinds. `hovercard.js` `CARD_KINDS` is the table: an agent's card
+  has the Chat row, Comms and Peek, Pin, Dispatch and Focus; a Claude Code
+  sub-agent's card (`props.sub`) is the same `card.js` panel without them, with
+  Follow-up and Open transcript. A row's key names its kind (`ag-<terminal>`,
+  `sa-<sub-agent id>`). A sub-agent's card reads its `Sub` out of its parent's
+  session, and its two buttons ask the list through `endfield.card.ask`, since
+  only the list knows which transcript pane each tab shows.
+- A right-click holds the card: the list opens it as a popup, not a window, so
+  Herdr itself closes it on Esc and on a press beside it, and `card.js`
+  `close()` reports that. `wantedCard` keeps a held card whatever hover says,
+  and `dismissed` lets it go on any reported close, its own row's press too.
+  Not checked in a live window: a popup with `frame: "none"` placed with `at`,
+  and that the keyboard goes back to the terminal when it closes (the squad
+  header's menu is a popup opened the same way).
 - The session card closes on events, not on where the pointer is. A press
   outside the card closes it at once (`on_mouse_down_out` in `card.js`, reported
   through `endfield.card.closed`), unless the press is on the card's own row.
@@ -64,13 +89,18 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   which every Endfield window shows once). On this computer it passes the home base as
   the folder; on another machine it passes none, so that machine's home applies.
 - `squads.js` holds the squad list's rules with no Herdr in them
-  (`tests/squads.test.mjs`): the `space.move` a dropped or stepped squad runs
-  (it takes the target's place, within one machine, past empty spaces) and the
-  right-click items per row kind. `squadmenu.js` is the popup that draws them.
+  (`tests/squads.test.mjs`): the `space.move` or `tab.move` a dropped or
+  stepped squad or chat runs (it takes the target's place, within one
+  machine, past empty spaces and tabs with no agent), where every block is
+  drawn while one is held (`holding`: the gap opens at the nearest slot it can
+  drop in), how a squad's rows group into the chats that drag
+  (`chatBlocks`), and a squad header's right-click items. `squadmenu.js` is the popup that draws them.
   A squad menu's Rename squad reaches the list through the shared key
   `endfield.squad.rename` (`{id, at}`), since only the list holds the header's
   name field. GPUI's drag helpers here carry files or dock tabs only, so a
-  squad drags on mouse down, move and up, as Spaces does.
+  squad or chat drags on mouse down, move and up, as Spaces does. Squads and
+  rows are drawn at computed tops (`agents.js` `arrange`), so a drag shifts
+  tops with `MOTION.drag` and no height changes.
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
   `card.js` (the session panel), `actions.js` (a card action's confirm dialog
   and the Archived list), `dispatch.js` (the Dispatch dialog), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),

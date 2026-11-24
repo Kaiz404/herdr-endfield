@@ -1,15 +1,21 @@
-// card: the session panel beside the sidebar while a squad row is hovered, laid out like an AIC
-// machine panel. An overlay window (it never takes the keyboard) the squad list opens and closes;
-// the panel only reports whether the pointer is on it (shared "endfield.card.hot"). Its session is
-// the list's (shared "endfield.card.session", published while this card is open): no poller here.
-// The chat row's buttons never act themselves: each opens its confirm dialog (actions.js).
-// props: {role: "card", terminal, title, where: [machine?, space, tab], callsign, snap: Session, overlay}
+// card: the session panel beside the sidebar for a squad row, laid out like an AIC machine panel:
+// an agent's, or a Claude Code sub-agent's (props.sub), which is the same panel without the parts
+// only a terminal has (hovercard.js CARD_KINDS). The squad list opens and closes it: a window while
+// the row is hovered (it never takes the keyboard), a popup when a right-click holds it, so Herdr
+// closes it on Esc and on a press beside it. The panel only reports whether the pointer is on it
+// (shared "endfield.card.hot") and that it closed. Its session is the list's (shared
+// "endfield.card.session", published while this card is open): no poller here.
+// The chat row's buttons never act themselves: each opens its confirm dialog (actions.js). A
+// sub-agent's two buttons ask the list (shared "endfield.card.ask"), which owns the transcript pane.
+// props: {role: "card", terminal (a sub-agent's parent's), sub: sub-agent id | null, title,
+//   where: [machine?, space, tab], callsign, ident (a sub-agent's), snap: Session | Sub, overlay,
+//   fit: the panel's height cap (hovercard.js cardPlace), shown: it replaces a card already up, so no reveal}
 
 import { div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, run, shared, setShared, closeOverlay, checking } from "herdr";
 import { palette, root, micro, spaced, wide, dots, barcode, ticks, rings, pill, glyph, icon, MOTION, FONT } from "./kit.js";
-import { statusOf, DASH, fmtTokens, taskView, tasksOf } from "./fleet.js";
+import { statusOf, DASH, fmtTokens, taskView, tasksOf, inFlight } from "./fleet.js";
 import { roster } from "./roster.js";
 import { longDuration, ago } from "./sessions.js";
 import { readLog, KIND, openComms } from "./comms.js";
@@ -17,45 +23,23 @@ import { openDispatch } from "./dispatch.js";
 import { showWork } from "./report.js";
 import { actionsFor, gate, MODE_WORD } from "./orders.js";
 import { openAction } from "./actions.js";
+import { CARD, PANEL, CARD_KINDS, questionOf } from "./hovercard.js";
 
-export const CARD = { width: 368, pad: 14, slide: 14 };
 const SEGS = 20;
 const HOT_FROM = 0.75;
 
-// The Tasks section: its frame, then one row per running task (or the "None running" line).
-const TASKS_H = { frame: 34, row: 22 };
-
-// The list's live session while it is this card's, else the one the card opened with.
+// The list's live session while it is this card's (its sub-agent `p.sub` for a sub-agent's card),
+// else the one the card opened with.
 const sessionOf = (p) => {
   const live = shared("endfield.card.session");
-  return (live?.terminal === p.terminal ? live : null) ?? p.snap ?? null;
+  const mine = live?.terminal === p.terminal ? live : null;
+  return (p.sub ? mine?.subagents?.find((k) => k.id === p.sub) : mine) ?? p.snap ?? null;
 };
-
-// The question a blocked agent asks, shown under the panel.
-const questionOf = (s, status) => (status === "blocked" ? s?.question ?? null : null);
-
-/** How tall the panel draws, so the list can keep it inside the window before it exists. Finished tasks start folded. */
-export function cardHeight(s, status, now = Date.now()) {
-  const { running, finished } = taskView(tasksOf(s), now);
-  const tasks = running.length + finished.length ? TASKS_H.frame + TASKS_H.row * Math.max(1, running.length) : 0;
-  return 516 + (questionOf(s, status) ? 52 : 0) + tasks;
-}
-
-/**
- * The card's window for a window `winH` tall: its height, and `fit`, the panel's height cap. The
- * panel draws at its own height up to the cap; past it (a short window, or a task list that grew
- * or unfolded while open) the middle scrolls, and the head and the button row stay.
- */
-export function cardFit(s, status, winH) {
-  const want = cardHeight(s, status) + 2 * CARD.pad;
-  const tall = Math.min(want, Math.max(winH - 16, 2 * CARD.pad + 240));
-  return { tall, fit: tall - 2 * CARD.pad };
-}
 
 export class Card {
   init(p, cx) {
     this.p = p;
-    this.entered = false;
+    this.entered = Boolean(p.shown);
     this.comms = [];
     if (checking()) return;
     // A running task's elapsed time is a clock: redrawn when the text it shows changes.
@@ -63,6 +47,7 @@ export class Card {
       const clocks = taskView(tasksOf(sessionOf(props() ?? this.p)), Date.now()).running.map((t) => t.time).join();
       if (clocks !== this.clocks) { this.clocks = clocks; cx.notify(); }
     });
+    if (p.sub) return;
     cx.spawn(async (cx) => {
       this.comms = (await readLog()).filter((m) => m.from === p.terminal || m.to === p.terminal);
       cx.notify();
@@ -79,6 +64,13 @@ export class Card {
   act(name, args) {
     run(name, args);
     closeOverlay(props().overlay);
+  }
+
+  /** A sub-agent's button: the list opens its transcript pane, with the follow-up box focused for "followup". */
+  ask(act) {
+    const p = props();
+    setShared("endfield.card.ask", { key: `sa-${p.sub}`, act, at: Date.now() });
+    closeOverlay(p.overlay);
   }
 
   hover(id) {
@@ -109,9 +101,11 @@ export class Card {
     const C = palette();
     const p = props() ?? this.p;
     if (this.entered && shared("endfield.card.open") !== p.overlay) closeOverlay(p.overlay);
+    const K = CARD_KINDS[p.sub ? "sub" : "agent"];
+    // A sub-agent's `m` is its parent: the card is headed by the parent's tab, and says who relays to it.
     const m = roster().all.get(p.terminal);
     const s = sessionOf(p);
-    const status = m?.status ?? "idle";
+    const status = (p.sub ? s?.status : m?.status) ?? "idle";
     const st = statusOf(status);
     const ctx = s?.ctx;
     const filled = ctx ? Math.round((Math.min(100, ctx.pct) / 100) * SEGS) : 0;
@@ -119,8 +113,10 @@ export class Card {
     const question = questionOf(s, status);
     const tasks = taskView(tasksOf(s), Date.now());
     const tasksAny = tasks.running.length + tasks.finished.length > 0;
-    const ident = m?.ident;
+    const ident = p.sub ? p.ident : m?.ident;
     const turns = s?.turns ?? m?.turn;
+    // A run that is over stopped its clock at its last write.
+    const ran = s?.startedAt ? longDuration((p.sub && !inFlight(status) ? s.lastAt ?? Date.now() : Date.now()) - s.startedAt) : DASH;
     // The header names the work, not the terminal: the tab's own name, else its space's.
     const tabName = m?.agent?.tab_name && !/^\d+$/.test(m.agent.tab_name) ? m.agent.tab_name : null;
     const actions = actionsFor(m?.program?.key);
@@ -136,6 +132,20 @@ export class Card {
       .when(n != null, (el) => el.child(div().absolute().right(3).bottom(5).text_size(8).text_color(C.muted).child(String(n))));
     const cwd = s?.cwd ?? null;
     const folder = cwd ? cwd.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || cwd : null;
+    const dark = (id, label, action) => h_flex().id(id).h(26).px(12).items_center().rounded_full().border_1().border_color("#555555").text_size(12).font_medium().cursor_pointer()
+      .hover((h) => h.bg("#2C2C2C")).on_click(action).child(label);
+    const button = {
+      peek: () => dark("card-peek", "Peek", () => this.act("terminal.peek", { terminal: p.terminal })),
+      pin: () => dark("card-pin", m?.agent?.pinned ? "Unpin" : "Pin", () => this.act("terminal.pin", { terminal: p.terminal, pinned: !m?.agent?.pinned })),
+      dispatch: () => pill(C, "card-dispatch", "Dispatch", { kind: "dark", knob: "+", hot: this.hot === "card-dispatch", on_hover: this.hover("card-dispatch"),
+        action: () => { closeOverlay(p.overlay); openDispatch({ mode: "send", target: p.terminal }); } }),
+      go: () => pill(C, "card-go", status === "blocked" ? "Answer" : "Focus", { kind: "primary", hot: this.hot === "card-go", on_hover: this.hover("card-go"),
+        action: () => { showWork(); this.act("agent.focus", { terminal: p.terminal }); } }),
+      followup: () => pill(C, "card-followup", "Follow-up", { kind: "dark", knob: "+", hot: this.hot === "card-followup", on_hover: this.hover("card-followup"),
+        action: () => this.ask("followup") }),
+      transcript: () => pill(C, "card-transcript", "Open transcript", { kind: "primary", hot: this.hot === "card-transcript", on_hover: this.hover("card-transcript"),
+        action: () => this.ask("transcript") }),
+    };
     return root(C, h_flex().id("card-root").p(CARD.pad)
       .on_size_change((_size, cx) => {
         if (this.entered) return;
@@ -168,9 +178,9 @@ export class Card {
               .child(div().size(4).flex_none().bg(C.text))
               .child(barcode(C.cross)))
             .child(div().text_size(15).font_semibold().truncate().child(p.title ?? m?.title ?? DASH))
-            .child(spaced([ident?.callsign ?? p.callsign, m?.program?.name, ...(p.where ?? [])], C.text, { rest: C.muted }))))
+            .child(spaced([ident?.callsign ?? p.callsign, p.sub ? "Sub-agent" : m?.program?.name, ...(p.where ?? [])], C.text, { rest: C.muted }))))
         // Past its cap (props.fit) the middle scrolls, so the button row is never cut off.
-        .child(v_flex().id("card-mid").overflow_y_scrollbar().when(Boolean(p.fit), (el) => el.flex_shrink(1).min_h(0))
+        .child(v_flex().id("card-mid").overflow_y_scrollbar().when(Boolean(p.fit), (el) => el.flex_shrink(1).min_h(PANEL.mid))
         // The machine panel: what goes in, the state with its march, the work done.
         .child(line(h_flex())
           .child(cell(v_flex().relative().overflow_hidden(), false)
@@ -187,11 +197,17 @@ export class Card {
               .child(div().flex_1().h(1).bg(C.hairStrong)))
             .child(div().text_size(12).font_semibold().child(st?.word ?? status))
             .child(ticks(C.tick, 81))
-            .child(micro(`${s?.startedAt ? longDuration(Date.now() - s.startedAt) : DASH}  turn ${turns != null ? String(turns).padStart(2, "0") : DASH}`, C.muted)))
-          .child(cell(v_flex(), true)
-            .child(micro("Tools", C.muted))
-            .child(wide(s?.tools != null ? String(s.tools).padStart(2, "0") : DASH, C.text, 24))
-            .child(div().truncate().text_size(11).text_color(C.muted).child("tool calls"))))
+            .child(micro(p.sub ? ran : `${ran}  turn ${turns != null ? String(turns).padStart(2, "0") : DASH}`, C.muted)))
+          // A sub-agent's transcript counts no tool calls, and it has no Chat row to name its model in.
+          .child(p.sub
+            ? cell(v_flex(), true)
+              .child(micro("Model", C.muted))
+              .child(div().h(29).flex().items_center().truncate().text_size(13).font_semibold().child(s?.model?.short ?? DASH))
+              .child(div().truncate().text_size(11).text_color(C.muted).child(s?.effort ? `${s.effort} effort` : "effort not set"))
+            : cell(v_flex(), true)
+              .child(micro("Tools", C.muted))
+              .child(wide(s?.tools != null ? String(s.tools).padStart(2, "0") : DASH, C.text, 24))
+              .child(div().truncate().text_size(11).text_color(C.muted).child("tool calls"))))
         // Context: the input tokens of the last request (what the session carries now), then 20
         // blocks lighting 18ms apart; past 75% they run red.
         .child(line(v_flex().px(18).py(12).gap(8))
@@ -208,7 +224,7 @@ export class Card {
         // Background tasks: the running ones, then the finished ones folded under "+N finished".
         .when(tasksAny, (el) => el.child(this.tasks(C, tasks)))
         // Chat: its model, effort and mode, and what the card can ask of it. Each opens a confirm.
-        .child(line(v_flex().px(18).pt(10).pb(12).gap(8))
+        .when(K.chat, (el) => el.child(line(v_flex().px(18).pt(10).pb(12).gap(8))
           .child(h_flex().gap(8).items_center().min_w(0)
             .child(micro("Chat", C.muted).flex_none())
             .child(micro(chat || m?.program?.name || DASH, C.text).min_w(0).truncate())
@@ -221,9 +237,9 @@ export class Card {
               .when(!off, (el) => el.cursor_pointer().hover((h) => h.bg(C.sunken))
                 .on_click(() => { closeOverlay(p.overlay); openAction({ terminal: p.terminal, action: a.key, snap: s }); }))
               .child(a.label);
-          }))))
+          })))))
         // Comms: this agent's latest in (◀ from) and out (▶ to).
-        .child(line(v_flex().px(18).pt(10).pb(12).gap(8))
+        .when(K.comms, (el) => el.child(line(v_flex().px(18).pt(10).pb(12).gap(8))
           .child(h_flex().gap(8).items_center()
             .child(micro(`Comms ${String(this.comms.length).padStart(2, "0")}`, C.muted))
             .child(div().flex_1().h(1).bg(C.hair))
@@ -233,7 +249,7 @@ export class Card {
             .child(micro(new Date(c.at).toTimeString().slice(0, 5), C.muted).w(34).flex_none())
             .child(div().w(3).h(12).flex_none().bg(C[KIND[c.kind]?.edge ?? "flow"]))
             .child(wide(c.to === p.terminal ? `◀ ${c.from}` : `▶ ${c.to}`, C.text, 8.5).flex_none())
-            .child(div().min_w(0).truncate().text_size(11).text_color(C.muted).child(c.text)))))
+            .child(div().min_w(0).truncate().text_size(11).text_color(C.muted).child(c.text))))))
         .when(Boolean(question), (el) => el.child(h_flex().mx(18).mt(12).gap(8).items_stretch()
           .child(div().w(4).flex_none().border_t(1.5).border_b(1.5).border_l(1.5).border_color(C.text))
           .child(div().flex_1().py(6).font_family("JetBrains Mono").text_size(11).line_height(1.45).child(question))
@@ -247,15 +263,10 @@ export class Card {
               .child(div().flex_none().text_color("#31ACF0").child("▶▶"))
               .child(div().min_w(0).truncate().child(s?.lastAction ? `${s.lastAction.tool}${s.lastAction.arg ? ` ${s.lastAction.arg}` : ""}` : st?.word ?? DASH))
               .when(Boolean(s?.lastAt), (el) => el.child(div().flex_none().text_color("#A9A9A3").child(ago(s.lastAt))))))
+          // The last button is the card's main one, set apart at the right.
           .child(h_flex().gap(6).items_center()
-            .child(h_flex().id("card-peek").h(26).px(12).items_center().rounded_full().border_1().border_color("#555555").text_size(12).font_medium().cursor_pointer()
-              .hover((h) => h.bg("#2C2C2C")).on_click(() => this.act("terminal.peek", { terminal: p.terminal })).child("Peek"))
-            .child(h_flex().id("card-pin").h(26).px(12).items_center().rounded_full().border_1().border_color("#555555").text_size(12).font_medium().cursor_pointer()
-              .hover((h) => h.bg("#2C2C2C")).on_click(() => this.act("terminal.pin", { terminal: p.terminal, pinned: !m?.agent?.pinned })).child(m?.agent?.pinned ? "Unpin" : "Pin"))
-            .child(pill(C, "card-dispatch", "Dispatch", { kind: "dark", knob: "+", hot: this.hot === "card-dispatch", on_hover: this.hover("card-dispatch"),
-              action: () => { closeOverlay(p.overlay); openDispatch({ mode: "send", target: p.terminal }); } }))
+            .children(K.acts.slice(0, -1).map((act) => button[act]()))
             .child(div().flex_1())
-            .child(pill(C, "card-go", status === "blocked" ? "Answer" : "Focus", { kind: "primary", hot: this.hot === "card-go", on_hover: this.hover("card-go"),
-              action: () => { showWork(); this.act("agent.focus", { terminal: p.terminal }); } }))))));
+            .child(button[K.acts.at(-1)]())))));
   }
 }

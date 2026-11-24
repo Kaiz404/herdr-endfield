@@ -6,8 +6,8 @@
 //   spaces    spaces by machine, worktrees nested, drag to reorder
 //   agents    agents by priority or space, sub-agents as a production chain
 //   sortmenu  the agents list's sort popup
-//   squadmenu the right-click menu on a Squads chat row or squad header
-//   card      a session card beside the agents list, an overlay window the list opens
+//   squadmenu the right-click menu on a squad header in Squads
+//   card      an agent's or a sub-agent's session card beside the agents list, an overlay the list opens
 //   tabs      the tab strip, + menu, Files/Changes, window buttons
 //   pane      a pane's header (the layout's pane frame)
 //   status    the ink status bar
