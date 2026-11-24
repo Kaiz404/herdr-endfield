@@ -42,9 +42,12 @@ function save(accounts, def = defaultOf()) {
   try { fs.chmodSync(FILE, 0o600); } catch {}
 }
 
-// The secret goes through stdin, never argv, so no process list shows it.
+// The secret goes through stdin, never argv, so no process list shows it. Started from PowerShell 7,
+// PSModulePath names 7's modules, which Windows PowerShell 5.1 can't load (ConvertTo-SecureString
+// then fails); without it, 5.1 uses its own.
 function ps(script, input) {
-  const r = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { input, encoding: "utf8" });
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.toUpperCase() !== "PSMODULEPATH"));
+  const r = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { input, encoding: "utf8", env });
   if (r.status !== 0) throw new Error(`powershell: ${(r.stderr || r.error?.message || "failed").trim()}`);
   return r.stdout.trim();
 }
