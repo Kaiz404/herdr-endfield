@@ -1,7 +1,8 @@
 // sessions: what a Claude Code session behind an agent terminal is doing, one parsed shape
 // per terminal. Sources, first wins:
 //   1. a sidecar a Claude Code statusline writes: data/endfield/sessions/<session_id>.json
-//      {session_id, terminal, cwd, transcript_path, model:{id, display_name}, context:{used, total, pct}, rate_limits, updated_at}
+//      {session_id, terminal, cwd, transcript_path, model:{id, display_name}, effort, context:{used, total, pct}, rate_limits, updated_at}
+//      The statusline runs again right after /model or /effort; the transcript shows them only at the next turn.
 //   2. the transcript itself, ~/.claude/projects/<cwd slug>/<session>.jsonl. Without a sidecar the
 //      terminal is matched to its folder's most recently written transcript: approximate, since
 //      two sessions in one folder can't be told apart (`approx`).
@@ -79,7 +80,7 @@ function shape(t, raw, parentStatus) {
     tokens: raw ? { total: raw.tokens, delta: raw.delta } : null,
     tools: raw?.tools ?? null,
     turns: raw?.turns ?? null,
-    effort: raw?.effort ?? null,
+    effort: sidecar?.effort ?? raw?.effort ?? null,
     mode: raw?.mode ?? null,
     lastAction: raw?.last ?? null,
     lastAt: raw?.lastAt ?? null,

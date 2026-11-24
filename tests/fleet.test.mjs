@@ -132,3 +132,13 @@ test("a sub-agent whose transcript has no timestamp yet sorts by its last write"
   const view = subagentView([sub("old", "done", 10), sub("new", "done", null, 20)], true);
   assert.deepEqual(view.shown.map((k) => k.id), ["new", "old"]);
 });
+
+test("an archived chat's leftover shell stays out; an agent started there, or a new terminal at its address, shows", () => {
+  const shell = { key: "shell", name: "pwsh", agent: false, shell: true };
+  const live = { ...claude, agent: true };
+  const hidden = [{ life: "t1@100", program: "claude" }];
+  const shown = (listed, terms) => buildRoster({ listed, terms, spaces, identity: identity(), hidden }).flat.map((m) => m.address);
+  assert.deepEqual(shown([agent("t1", "s1", "idle", { program: shell }), agent("t2", "s1", "idle")], [term("t1", 100, null, { program: shell }), term("t2", 200)]), ["t2"]);
+  assert.deepEqual(shown([agent("t1", "s1", "idle", { program: live })], [term("t1", 100, null, { program: live })]), ["t1"], "a new agent in the same shell tab");
+  assert.deepEqual(shown([agent("t1", "s1", "idle", { program: shell })], [term("t1", 900, null, { program: shell })]), ["t1"], "a new terminal at the address");
+});

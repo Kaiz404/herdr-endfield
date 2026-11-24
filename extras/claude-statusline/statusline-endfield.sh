@@ -108,7 +108,7 @@ BEGIN { RS = "\001"; E = "\033["; R = E "0m"; B = E "1m"; D = E "90m"; Y = E "33
 
   if (sid != "") {
     printf "{\"session_id\":\"%s\",\"terminal\":%s,\"cwd\":%s,\"transcript_path\":%s,", sid, jstr(term), jstr(cwd_raw), jstr(str(j, "transcript_path")) > tmp
-    printf "\"model\":{\"id\":%s,\"display_name\":%s},", jstr(model_id), jstr(str(m, "display_name")) > tmp
+    printf "\"model\":{\"id\":%s,\"display_name\":%s},\"effort\":%s,", jstr(model_id), jstr(str(m, "display_name")), jstr(effort) > tmp
     printf "\"context\":{\"used\":%s,\"total\":%s,\"pct\":%s},", jnum(used), jnum(total), jnum(pct) > tmp
     printf "\"rate_limits\":%s,", (rl == "" ? "null" : "{\"five_hour\":" jwin(obj(rl, "five_hour")) ",\"seven_day\":" jwin(obj(rl, "seven_day")) "}") > tmp
     printf "\"cost_usd\":%s,\"updated_at\":\"%s\"}\n", jnum(cost), strftime("%Y-%m-%dT%H:%M:%SZ", systime(), 1) > tmp

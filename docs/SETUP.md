@@ -281,6 +281,27 @@ Dispatch and Comms use herdr-core's `hc` command, which Herdr installs. The skin
 
 Dispatch never sends a blocked agent a task. If hc refuses the order before it types anything, fix the cause and click **Dispatch** again. After hc accepts an order, the button becomes **Close**, so one order never goes twice.
 
+### Change a chat from its session panel
+
+The **Chat** row of an agent's session panel shows its model, effort and mode, and has one button per action. Claude Code has **Rename**, **Plan**, **Next mode**, **Model**, **Effort** and **Archive**. Codex has **Rename**, **Model** and **Archive**. Cursor has **Rename**, **Plan** and **Archive**.
+
+1. Hover the agent in Squads, then click an action. The panel closes and a dialog opens. Nothing has run yet.
+2. Fill in what the dialog asks for, such as the new name or the model.
+3. Read the **Needs** and **Does** lines and the command at the foot of the dialog. The command is exactly what runs.
+4. Click **Confirm** (**Archive** for Archive).
+
+Every action that types into the agent waits until it is idle. If the agent is working or needs input, the button is dimmed and says why. **Finished** counts as not idle: Peek or Focus the agent first. **Rename** always renames the tab in Herdr; tick its box to also name the Claude Code session with `/rename`.
+
+`/model` and `/effort` also change your Claude Code defaults for new sessions, as if you had typed them. After a change the dialog shows the new model, effort or mode when the skin can read it. For Codex and Cursor it says **Sent**.
+
+### Archive a chat and resume it
+
+**Archive** first writes the chat to the archived list in `data/endfield/archive.json`, then ends the agent with `/exit` (`/quit` for Codex and Cursor). The transcript stays. The dialog waits until Herdr shows the program has ended, and then says **Archived**. If the program is still running after 20 seconds, the dialog says **Still running** and the agent stays in Squads. A shell left behind in its terminal is kept out of Squads until another agent starts there.
+
+**Next mode** presses Shift+Tab with `hc keys`, which has no idle check of its own. The dialog checks that the agent is idle just before the press. If a permission prompt opens in between, the key press goes to that prompt and can answer it.
+
+To bring one back, open the **Report**, click **Archived**, and click **Resume** on the chat. Each chat shows the exact command Resume runs, such as `claude --resume <session id>`. A new tab opens in its space and folder and runs it. The list warns when the command may reopen a different chat. This happens for Codex and Cursor, which resume their newest chat, and for a Claude Code chat whose session id was matched by its folder. **Resume** is dimmed while the chat is still running.
+
 ### Read Comms
 
 Click the **Comms** pill at the top right. Comms opens as a pane beside the focused one. Its tabs are **All**, **You** and **Reports**.
@@ -458,13 +479,14 @@ No. The installer and the skin run as you, with no administrator or root rights.
 
 ### Does it change my Claude Code settings?
 
-No. The installer and the skin write only inside the Herdr home. The skin reads Claude Code transcripts in `~/.claude/projects/` to show the model, context, tool calls and sub-agents, and it never writes there. Two steps in this guide touch Claude Code, and you do both by hand: the `statusLine` entry in `~/.claude/settings.json`, and the `/theme` choice.
+No. The installer and the skin write only inside the Herdr home. The skin reads Claude Code transcripts in `~/.claude/projects/` to show the model, context, tool calls and sub-agents, and it never writes there. Two steps in this guide touch Claude Code, and you do both by hand: the `statusLine` entry in `~/.claude/settings.json`, and the `/theme` choice. The session panel's **Model** and **Effort** actions type `/model` and `/effort` into Claude Code, which saves them as your defaults in `~/.claude/settings.json`. Each dialog says so before you confirm.
 
 ### What data does it keep on my machine?
 
 Everything stays in your Herdr home. Nothing is sent anywhere.
 
-- `data/endfield/comms.jsonl` is the Comms log, one line per Dispatch. Each line holds the time, the target terminal, the hc command and the text you typed. A secret you type into a task is stored here in plain text. With **Now, wait for reply**, the line also holds the last line on the agent's screen after its turn. The skin drops the oldest lines to keep the file under 512 KB. Uninstall deletes it.
+- `data/endfield/comms.jsonl` is the Comms log, one line per Dispatch or session panel action. Each line holds the time, the target terminal, the hc command and the text you typed. A secret you type into a task is stored here in plain text. With **Now, wait for reply**, the line also holds the last line on the agent's screen after its turn. The skin drops the oldest lines to keep the file under 512 KB. Uninstall deletes it.
+- `data/endfield/archive.json` lists the chats you archived: the session id, program, folder, title and the command that resumes it. Resume removes a chat from it. Uninstall deletes it; the transcripts stay in `~/.claude/projects/`.
 - `data/endfield/probe-cache.json` and `data/endfield/probe-agents.json` hold a summary of each Claude Code transcript the skin read: the model, token counts, the last tool with its file or command, and the first line of the prompt. The cache lets each poll read only new lines. Entries for files that are gone, or unchanged for a week, are dropped. Uninstall deletes them.
 - `data/endfield/operators.json` and `data/endfield/settings.json` are your settings.
 - `data/endfield/sessions/` holds the statusline's files, if you added the statusline.

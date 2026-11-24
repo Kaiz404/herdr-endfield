@@ -9,7 +9,7 @@ A Claude Code statusline in the skin's style. It also feeds the skin exact sessi
 ## What it changes
 
 - Claude Code shows this line under its prompt: folder, branch, model, effort, a 10-step context gauge (red from 75%), input tokens, and your 5-hour and 7-day limits when Claude Code reports them.
-- On every update it writes one small JSON file per session to `~/.config/herdr-app/data/endfield/sessions/<session id>.json`. The file holds the session id, the Herdr terminal (`HC_TERMINAL_ID`), the folder, the transcript path, the model, context use, cost and your 5-hour and 7-day usage limits (`rate_limits`).
+- On every update it writes one small JSON file per session to `~/.config/herdr-app/data/endfield/sessions/<session id>.json`. The file holds the session id, the Herdr terminal (`HC_TERMINAL_ID`), the folder, the transcript path, the model, the effort level, context use, cost and your 5-hour and 7-day usage limits (`rate_limits`).
 - With these files, the skin matches each agent row to its exact session. Without them it guesses from the newest transcript in the folder and marks the card `≈`.
 - The HUD footer shows the usage limits from the newest file that has them.
 

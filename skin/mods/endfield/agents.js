@@ -16,7 +16,7 @@ import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, PANE_RO
 import { toggleReport, goTo } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
-import { CARD, cardHeight } from "./card.js";
+import { CARD, cardFit } from "./card.js";
 import { wantedCard, dismissed } from "./hovercard.js";
 
 // Fixed heights, so the selection marker knows where the selected row starts (the row's own ink plate snaps).
@@ -173,9 +173,9 @@ export class Agents {
     const a = agents().find((x) => x.address === address);
     if (!b || !a) return null;
     const s = this.sessions.get(address);
-    const tall = cardHeight(a.status === "blocked" && s?.question) + 2 * CARD.pad;
     let winH = 900;
     try { winH = window.bounds().height; } catch {}
+    const { tall, fit } = cardFit(a.status === "blocked" && s?.question, winH);
     let y = b.y - 12 - CARD.pad;
     if (y + tall > winH - 8) y = b.y + b.height + 12 + CARD.pad - tall;
     const id = openOverlay({
@@ -183,7 +183,7 @@ export class Agents {
       at: { x: Math.round(b.x + b.width - 12 - CARD.pad), y: Math.round(Math.max(0, y)) },
       width: CARD.width + CARD.slide + 2 * CARD.pad,
       height: tall,
-      props: { role: "card", terminal: address, ...this.info[address], snap: s ?? null },
+      props: { role: "card", terminal: address, ...this.info[address], snap: s ?? null, fit },
     });
     return { id, address };
   }
@@ -405,15 +405,15 @@ export class Agents {
   }
 
   // This list owns the one session poller: the HUD footer gets the focused agent's context and the
-  // account's usage limits, the
-  // report every Claude Code agent's context, tokens and turns. Published only when they change.
+  // account's usage limits, the report every Claude Code agent's context, tokens and turns, and a
+  // card action's dialog the model, effort and mode it reads back. Published only when they change.
   share(R) {
     const f = R.flat.find((m) => m.focused);
     const s = f ? this.sessions.get(f.address) : null;
     const focus = f ? { ctx: s?.ctx ?? null, model: s?.model?.short ?? f.program?.name ?? null } : null;
     const all = Object.fromEntries(R.flat.flatMap((m) => {
       const x = this.sessions.get(m.address);
-      return x ? [[m.address, { ctx: x.ctx ?? null, tokens: x.tokens?.total ?? null, turns: x.turns ?? null }]] : [];
+      return x ? [[m.address, { ctx: x.ctx ?? null, tokens: x.tokens?.total ?? null, turns: x.turns ?? null, model: x.model?.short ?? null, effort: x.effort, mode: x.mode }]] : [];
     }));
     // The open card's whole session: the card draws it and runs no poller of its own.
     const card = this.card.open ? this.sessions.get(this.card.open.address) : null;
