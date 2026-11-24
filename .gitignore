@@ -5,3 +5,4 @@ __pycache__/
 jsconfig.json
 .DS_Store
 Thumbs.db
+.claude/
