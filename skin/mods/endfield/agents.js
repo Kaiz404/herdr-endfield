@@ -15,7 +15,7 @@ import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, 
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, spaced, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE } from "./kit.js";
 import { roster, holdCrew } from "./roster.js";
 import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, subLabel, siblingLabels, PANE_ROLES, opening, transcriptsIn, transcriptPlan, rowShape, rowMeta, tasksOf } from "./fleet.js";
-import { toggleReport, goTo } from "./report.js";
+import { toggleReport, goTo, showWork } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
 import { CARD, cardKind, wantedCard, dismissed, cardHeight, cardPlace, windowHeight, resized } from "./hovercard.js";
@@ -277,13 +277,20 @@ export class Agents {
   openTranscript(parent, k, compose = false) {
     setShared("endfield.followup", compose ? { path: k.path, at: Date.now() } : null);
     const tab = parent.tab;
+    // A child agent has no pane of its own: anchor on a terminal pane in its parent's tab.
+    const anchor = parent.pane ?? panes().find((p) => p.tab === tab && p.terminal)?.pane;
+    if (!anchor) return;
+    showWork();
     const reg = shared(PANE_ROLES);
     const plan = transcriptPlan(panes(), tab, this.viewing[tab], k.path, reg);
     if (plan.focus) return run("pane.focus", { pane: plan.focus });
+    // The split lands in the parent's tab: bring that tab into view first, or a sub-agent of a
+    // squad you aren't looking at opens its transcript somewhere you can't see.
+    run("pane.focus", { pane: anchor });
     for (const pane of plan.close) run("pane.close", { pane });
     const next = opening(reg, panes(), tab, "transcript");
     setShared(PANE_ROLES, next);
-    run("pane.split", { direction: "right", pane: parent.pane, mod: "endfield", props: { role: "transcript", path: k.path, title: k.title, id: k.id, parent: parent.address, via: parent.label } });
+    run("pane.split", { direction: "right", pane: anchor, mod: "endfield", props: { role: "transcript", path: k.path, title: k.title, id: k.id, parent: parent.address, via: parent.label } });
     const all = panes();
     this.viewing = Object.fromEntries(Object.entries({ ...this.viewing, [tab]: k.path }).filter(([t]) => t === tab || transcriptsIn(all, t, next).length));
     localStorage.setItem("transcripts", JSON.stringify(this.viewing));
