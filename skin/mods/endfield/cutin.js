@@ -94,7 +94,7 @@ export class CutIn {
           // The caption plate: the block grows across it (cut.grow), holds, and its clip retracts to 4px (cut.retract).
           .child(h_flex().relative().w(PLATE).h(30).px(12).items_center().bg("#FFFFFF").overflow_hidden()
             .child(div().id("cut-text").relative().opacity(go ? 1 : 0).transition("opacity", MOTION.cut.text)
-              .child(wide(`${m.ident.callsign} needs input`, C.ink, 13)))
+              .child(wide(`${m.label} needs input`, C.ink, 13)))
             .child(div().id("cut-clip").absolute().left(0).top(0).bottom(0).overflow_hidden().w(go ? 4 : PLATE).transition("width", MOTION.cut.retract)
               .child(div().id("cut-block").absolute().left(0).top(0).bottom(0).bg(C.signal).w(go ? PLATE : 0).transition("width", MOTION.cut.grow))))
           .child(h_flex().items_center().child(hazard(C, 170, 5)).child(div().w(1).h(9).ml(2).bg("#FFFFFF")))))

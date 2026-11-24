@@ -256,7 +256,7 @@ export class ActionDialog {
       .on_size_change((_s, cx) => { if (!this.entered) cx.timer.after(MOTION.settle.delay, (cx) => { this.entered = true; cx.notify(); }); })
       .child(div().w(560).opacity(this.entered ? 1 : 0).top(this.entered ? 0 : 8).relative().transition("opacity", MOTION.dispatch.enter).transition("top", MOTION.dispatch.enter)
         .child(frame(C, "action", {
-          kicker: `${m?.ident?.callsign ?? ""}  ${m?.program?.name ?? ""}  ${m?.title ?? ""}`,
+          kicker: `${m?.ident?.callsign ?? ""}  ${m?.label ?? ""}  ${m?.title ?? ""}`,
           title: `// ${a.label}`,
           close: closeButton(C, this, p.overlay),
           body: v_flex().px(22).pb(16).gap(14)
@@ -420,7 +420,7 @@ export class AccountDialog {
       .on_size_change((_s, cx) => { if (!this.entered) cx.timer.after(MOTION.settle.delay, (cx) => { this.entered = true; cx.notify(); }); })
       .child(div().w(560).opacity(this.entered ? 1 : 0).top(this.entered ? 0 : 8).relative().transition("opacity", MOTION.dispatch.enter).transition("top", MOTION.dispatch.enter)
         .child(frame(C, "account", {
-          kicker: `${m?.ident?.callsign ?? ""}  ${m?.program?.name ?? ""}  ${m?.title ?? ""}`,
+          kicker: `${m?.ident?.callsign ?? ""}  ${m?.label ?? ""}  ${m?.title ?? ""}`,
           title: "// Account",
           close: closeButton(C, this, p.overlay),
           body: v_flex().px(22).pb(16).gap(14)

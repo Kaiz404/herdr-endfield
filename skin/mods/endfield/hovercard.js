@@ -53,15 +53,15 @@ export const recentView = (recent, now) => [...(recent ?? [])].slice(-RECENT).re
   .map((r) => ({ age: r.at ? elapsed(Math.max(0, now - r.at)) : DASH, tool: toolLabel(r.tool), arg: r.arg ?? "" }));
 
 /**
- * The header strip's three lines. who: callsign, kind (the program, or "Sub-agent") and where it
- * runs (a sub-agent's `via <parent>` first), with `≈` when its transcript was matched by folder
+ * The header strip's three lines. who: the operator's callsign, the label its Squads row shows
+ * (fleet.js programLabel or subLabel) and where it runs (a sub-agent's `via <parent>` first), with `≈` when its transcript was matched by folder
  * only. title: the task. status and facts: the status word, then model, effort and elapsed. A run
  * in flight counts to now; one that is over stopped its clock at its last write.
  */
-export function headerOf({ sub = false, callsign, program, where = [], title, approx = false, status, s, now }) {
+export function headerOf({ callsign, label, where = [], title, approx = false, status, s, now }) {
   const end = inFlight(status) ? now : s?.lastAt ?? now;
   return {
-    who: [callsign, sub ? "Sub-agent" : program, ...where, approx ? "≈" : null].filter(Boolean),
+    who: [callsign, label, ...where, approx ? "≈" : null].filter(Boolean),
     title: title || DASH,
     status: statusOf(status)?.word ?? status,
     facts: [s?.model?.short, effortWord(s?.effort), s?.startedAt ? longDuration(end - s.startedAt) : null].filter(Boolean),

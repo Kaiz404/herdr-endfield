@@ -16,7 +16,7 @@
 //   toolCounts: {tool name: calls}, recent: [{at, tool, arg}] (its last 5 tool calls, oldest first),
 //   lastAt, startedAt, question, live: boolean | null, tasks: Task[],
 //   waiting (its turn ended with background work or a sub-agent still in flight), subagents: Sub[]}
-// Sub = {id, path, title, model, effort, ctx, status: working | waiting | done | idle (fleet.js runStatus),
+// Sub = {id, path, title, type (its Claude Code agent type, "pstack:poteto-agent", or null), model, effort, ctx, status: working | waiting | done | idle (fleet.js runStatus),
 //   tools, turns, toolCounts, recent, lastAt, startedAt, tasks: Task[]}, in no order (fleet.js subagentView orders them)
 // Task = background work a transcript started: {id, kind: shell | agent | monitor, description, startedAt,
 //   expiresAt (a monitor's timeout, else null), endedAt,
@@ -59,6 +59,7 @@ function shape(t, raw, parentStatus) {
     id: s.id,
     path: s.path,
     title: s.description || (s.prompt ?? "").split("\n").find((l) => l.trim())?.trim() || `agent-${s.id}`,
+    type: s.agentType ?? null,
     model: s.model ? modelName(s.model) : null,
     effort: s.effort ?? null,
     ctx: s.used ? contextOf(s.model, s.used) : null,

@@ -86,6 +86,14 @@ test("a squad's chats drag as tabs: a chat carries its children, sub-agents and 
   assert.deepEqual(h.tops, [174, 0, 68]);
 });
 
+test("an opened chat carries its active sub-agents, the toggle between and the finished ones under it", () => {
+  const rows = [
+    { depth: 0, tab: "t1", h: 56 }, { depth: 1, h: 50 }, { depth: 1, h: 26 }, { depth: 1, h: 34 }, { depth: 1, h: 34 },
+    { depth: 0, tab: "t2", h: 56 },
+  ];
+  assert.deepEqual(chatBlocks(rows).map((b) => [b.id, b.rows, b.h]), [["t1", [0, 1, 2, 3, 4], 200], ["t2", [5], 56]]);
+});
+
 test("Move up and Move down swap with the next shown squad on the same machine, over empty spaces", () => {
   assert.deepEqual(applyMove(ORDER, stepSquad(ORDER, SQUADS, "c", -1)), ["c", "a", "b", "d", "r1", "r2"]);
   assert.deepEqual(applyMove(ORDER, stepSquad(ORDER, SQUADS, "c", 1)), ["a", "b", "d", "c", "r1", "r2"]);
