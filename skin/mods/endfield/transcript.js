@@ -26,6 +26,8 @@ const MONO = "JetBrains Mono";
 const KEEP = 400;
 // The follow-up box takes the keyboard once the card that asked for it has closed.
 const COMPOSE_FOCUS_MS = 300;
+// How often a transcript that can't be watched is read again.
+const POLL_MS = 3000;
 
 const base = (p) => String(p ?? "").split(/[\\/]/).pop();
 
@@ -59,13 +61,23 @@ export class Transcript {
 
   follow(cx) {
     const dir = this.p.path.replace(/[\\/][^\\/]+$/, "");
+    // Herdr watches folders on this computer only, so a transcript on another machine (a
+    // \\wsl.localhost share), or one whose watch is refused, is read again on a timer.
+    const poll = () => cx.timer.every(POLL_MS, (cx) => cx.spawn(async (cx) => {
+      if (this.closed || this.loading) return;
+      this.loading = true;
+      await this.load();
+      this.loading = false;
+      cx.notify();
+    }));
     cx.spawn(async (cx) => {
+      if (/^[\\/]{2}/.test(dir)) { await this.load(); cx.notify(); poll(); return; }
       while (!this.closed) {
         // Watch first, then read, so nothing written in between is missed.
         this.watch = watchFolder(dir);
         await this.load();
         cx.notify();
-        try { await this.watch; } catch { return; }
+        try { await this.watch; } catch { poll(); return; }
       }
     });
   }
