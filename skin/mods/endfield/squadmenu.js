@@ -1,8 +1,9 @@
 // squadmenu: the right-click menu on a squad header in Squads, a popup at the pointer. The items
 // are squads.js squadMenu, read again at every render. props {role: "squadmenu", id}.
 // Rename squad asks the list to edit the header in place (shared "endfield.squad.rename"); Move up
-// and Move down run the space.move the item carries. An agent row has no menu: a right-click
-// holds its session card open (agents.js).
+// and Move down run the space.move the item carries. Archive squad and Close squad open their
+// confirm dialog (squadactions.js), which runs nothing before Confirm. An agent row has no menu: a
+// right-click holds its session card open (agents.js).
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -10,6 +11,7 @@ import { props, closeOverlay, openOverlay, run, spaces, setShared } from "herdr"
 import { palette, root, micro } from "./kit.js";
 import { roster } from "./roster.js";
 import { squadMenu } from "./squads.js";
+import { openSquadAction } from "./squadactions.js";
 
 const ROW = 30;
 const PAD = 6;
@@ -30,6 +32,7 @@ export class SquadMenu {
   pick(p, item) {
     closeOverlay(p.overlay);
     if (item.key === "rename") setShared("endfield.squad.rename", { id: p.id, at: Date.now() });
+    else if (item.key === "archive" || item.key === "close") openSquadAction({ id: p.id, mode: item.key });
     else run("space.move", item.move);
   }
 

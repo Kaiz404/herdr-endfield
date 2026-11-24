@@ -8,13 +8,12 @@
 // squad (dock.js won't move a linked chat out of it). Squads nests the helper under its
 // lead (fleet.js buildRoster); the hc parent, the Report tree and parent notes are untouched.
 // The two agents talk through Claude Code's own cross-session messaging (ListAgents, SendMessage),
-// which the note typed into each on Confirm points them at:
+// which the note typed into each idle one on Link points them at:
 // https://code.claude.com/docs/en/cross-session-messaging.md
 
 import { lifeKey } from "./archive.js";
 import { sendArgs } from "./orders.js";
 
-export const DOC = "https://code.claude.com/docs/en/cross-session-messaging.md";
 
 export function parseLinks(text) {
   try {
@@ -62,8 +61,14 @@ export const withoutLink = (text, b, lives) => fileOf(kept(text, lives).filter((
 /** The file with `who` ("lead" | "helper") noted as told on the link whose helper is life `b`. */
 export const withNoted = (text, b, who, lives) => fileOf(kept(text, lives).map((l) => (l.b === b ? { ...l, noted: { ...l.noted, [who]: true } } : l)));
 
-/** Whether link `l`'s helper is still to be told (a link from before notes were noted counts as told). */
-export const helperUntold = (l) => l?.noted?.helper === false;
+/**
+ * The notes still owed to the agent whose life is `life`: one per link that names it as a lead or a
+ * helper with that side noted false. A link from before notes were noted counts as told.
+ * -> [{side: "lead" | "helper", lead, helper (addresses)}], what openLink takes for Send note
+ */
+export const untold = (links, life) => links.flatMap((l) => [["lead", l.a], ["helper", l.b]]
+  .filter(([who, x]) => x === life && l.noted?.[who] === false)
+  .map(([side]) => ({ side, lead: addressOf(l.a), helper: addressOf(l.b) })));
 
 const machineOf = (address) => (address.includes("/") ? address.split("/")[0] : null);
 
@@ -104,7 +109,7 @@ export function linkNotes(lead, helper) {
   };
 }
 
-/** What Confirm types, in order: the lead's note, then the helper's, each only while that agent is idle. */
+/** The two notes as hc lines: each types only while its agent is idle (--if idle), never --force. */
 export const linkSteps = (lead, helper) => {
   const notes = linkNotes(lead, helper);
   return [
@@ -114,28 +119,50 @@ export const linkSteps = (lead, helper) => {
 };
 
 /**
- * Link's order, as Archive's (archive.js recordThenEnd): the record is written before anything is
- * typed, so nothing is typed for a link that wasn't kept. Then each step from `from` (a retry after
- * the helper refused, or the card's Send note again, starts at 1), and each one sent is noted on
- * the record by told(step). A refusal at the first step typed nothing, so the record comes back out.
- * keep, unkeep, told: updateFile over links.json; send(step) is deliver() (orders.js).
- * -> {phase, error, next: the step a retry starts at}
+ * Types each step's note into its agent only if idle(step.who) says it is idle now, and notes it on
+ * the link by told(step) once sent. An uncertain send may have typed it, so it counts as told and is
+ * never offered twice. A busy agent, or one hc refused, is left untold for its card's Send note.
+ * send(step) is deliver() (orders.js). -> {out: {[who]: "sent" | "uncertain" | "busy"}, errors: {[who]: hc's words}}
  */
-export async function linkThenTell({ steps, from = 0, keep, unkeep, told, send }) {
-  if (from === 0) {
-    const k = await keep();
-    if (!k.ok) return { phase: "refused", error: `Nothing was typed: the link could not be saved (${k.error}).`, next: 0 };
-  }
-  for (let i = from; i < steps.length; i++) {
-    const r = await send(steps[i]);
-    // An uncertain send may have typed the note: count it as told, so "Send note again" can't repeat it.
-    if (r.phase === "sent" || r.phase === "uncertain") await told(steps[i]);
-    if (r.phase === "sent") continue;
-    if (i === 0 && r.phase === "refused") {
-      const back = await unkeep();
-      return { ...r, next: 0, error: back.ok ? r.error : `${r.error} The link could not be taken back: Unlink it on the card.` };
+export async function tell({ steps, idle, told, send }) {
+  const out = {}, errors = {};
+  for (const step of steps) {
+    if (!idle(step.who)) { out[step.who] = "busy"; continue; }
+    const r = await send(step);
+    out[step.who] = r.phase === "refused" ? "busy" : r.phase;
+    if (r.phase === "uncertain") errors[step.who] = r.error;
+    if (r.phase === "sent" || r.phase === "uncertain") {
+      // Recording it is what hides Send note: try twice, and say so if it still didn't stick.
+      const t = (await told(step)) ?? { ok: true };
+      if (!t.ok && !((await told(step)) ?? { ok: true }).ok) errors[step.who] = "The note went in, but it couldn't be recorded: don't send it again.";
     }
-    return { ...r, next: i };
   }
-  return { phase: "sent", error: null, next: steps.length };
+  return { out, errors };
+}
+
+/**
+ * Link: the link is saved first, so Squads nests the helper at once whatever either agent is doing;
+ * then each note goes to its agent if idle (tell). A save that fails types nothing.
+ * keep: updateFile over links.json. -> {ok, error} | {ok, out, errors}
+ */
+export async function linkThenTell({ steps, idle, keep, told, send }) {
+  const k = await keep();
+  if (!k.ok) return { ok: false, error: `Nothing was typed: the link could not be saved (${k.error}).` };
+  return { ok: true, ...(await tell({ steps, idle, told, send })) };
+}
+
+/**
+ * The one line Link (or Send note) ends on. out, errors: tell's; names: {lead, helper} as the dialog
+ * titles them; linked: whether this was a Link (else a Send note).
+ */
+export function outcome({ out, errors = {}, names, linked = true }) {
+  const head = linked ? "Linked." : "Sent.";
+  const busy = Object.keys(out).filter((w) => out[w] === "busy").map((w) => names[w]);
+  const unsure = Object.keys(out).filter((w) => out[w] === "uncertain").map((w) => `${names[w]} may not have its note (${errors[w]}).`)
+    .concat(Object.keys(out).filter((w) => out[w] === "sent" && errors[w]).map((w) => `${names[w]}: ${errors[w]}`));
+  if (!linked && busy.length) return `${busy[0]} isn't idle any more. Nothing was typed. Send its note when it's free.`;
+  const wait = busy.length === 1 ? `${busy[0]} is busy. Send its note from its card when it's free.`
+    : busy.length > 1 ? `${busy.join(" and ")} are busy. Send each note from its card when it's free.` : "";
+  const all = !wait && !unsure.length ? (linked ? "Both agents have their note." : `${names[Object.keys(out)[0]]} has its note.`) : "";
+  return [head, wait, ...unsure, all].filter(Boolean).join(" ");
 }

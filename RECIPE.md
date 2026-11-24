@@ -131,9 +131,21 @@ rendered at 4x. It is a schematic, not a screenshot.
     a send it reads back the model or effort (session data) or the mode
     (Claude Code's own line under its prompt), else says Sent.
   - Archived list, 600px, from Report's Archived pill: archived chats newest
-    first, each with its folder, the exact argv Resume runs (programs.json
-    `run` plus the resume arguments), a warning when it may reopen another
-    chat, and **Resume** (dimmed while the chat still runs).
+    first, each with where Resume opens it (its squad while the space exists,
+    else a new space of the squad's name), its folder, the exact argv Resume
+    runs (programs.json `run` plus the resume arguments), a warning when it
+    may reopen another chat, and **Resume** (dimmed while the chat still runs).
+  - Squad dialog, 580px, from a squad header's Archive squad or Close squad:
+    every live terminal that ends with the space, in three groups (Agents,
+    Sub-agents, Shells and servers, each headed with its count; a scrolling
+    list), agents in tree order (pinned ones too, marked Pinned), each with
+    its status word (Idle, Blocked, Ends) and, once running, its progress
+    (Next, Typing, Ending, Archived, Refused, Still running, Not sent); a
+    Needs line (Archive: every agent that isn't idle or can't be resumed, by
+    name) or a red Kills line (Close: the count and names of each group that
+    ends); a Does line; a Kept line when a fresh read found something new; the
+    graphite strip with every command Confirm runs, the `space.close` line
+    last. Close squad's strip adds **Archive squad instead**.
   - Footer, 40px: settings (with an orange diamond when an update is ready),
     add machine, fold sidebar, and the palette key in mono.
 - **Tab strip, 36px**, drags the window: tabs run full height, separated by
@@ -273,7 +285,24 @@ rendered at 4x. It is a schematic, not a screenshot.
   session card opens while something is held. A double-click on a squad's
   name (which never folds) edits the name in place
   (`space.rename` on Enter). Right-click on a squad header opens a popup
-  menu: Rename squad, Move up, Move down. Right-click on an agent or
+  menu: Rename squad, Move up, Move down, Archive squad, Close squad (not on
+  Pinned). Both list what ends from Herdr's lists, not the roster
+  (`archive.js` `spaceTerminals`): a terminal whose pane is in one of the
+  space's tabs, or with no pane, whose `herdr.space` or `herdr.tab` label
+  names it, and every live descendant of those; so shells, servers and
+  archived chats' hidden shells are named too. Archive squad archives every
+  chat in the space one at a time as the card's Archive does, stops at the
+  first refusal, and runs `space.close {id, confirmed: true}` only once each
+  one was seen to end. Shells and servers don't block it: nothing resumes
+  them, so they are listed under Ends. Close squad runs that `space.close`
+  at once, which ends every terminal in the space, agents included. Just
+  before `space.close`, both read the space again, and anything in a terminal
+  life the person wasn't shown, or an agent where they were shown none (an
+  archived chat's shell counts as none), keeps the space open with Kept and
+  its names (`unconfirmed`). A chat is seen to end on a positive sign (its
+  terminal finished, now runs another program, or a new terminal took the
+  address) or when two reads in a row, a second apart, don't list its
+  terminal (`exitState`, `exitSeen`); one read without it is not enough. Right-click on an agent or
   sub-agent row holds its session card open.
   One gesture per drop target, in either sort: a held agent row dropped on
   another agent row links (Priority only), on another squad's header moves
@@ -332,7 +361,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   machine, one space, the helper with no hc parent or lead, no cycle, both
   sessions read). The row under the pointer is the one the pointer itself
   is over: the press records how far into its row it landed. Nothing slides.
-  Release on a valid row opens Link as helper; anywhere else does nothing.
+  Release on a valid row opens the Link dialog; anywhere else does nothing.
   A linked helper sits under its lead with the connector and a `linked` micro
   tag after its label; its hc parent, the Report tree and hc's parent notes
   are untouched. The link drops when either terminal ends, when either
@@ -373,34 +402,44 @@ rendered at 4x. It is a schematic, not a screenshot.
   Action. Archive types `/exit` (Claude Code) or `/quit` (Codex, Cursor),
   records the chat in `data/endfield/archive.json` and keeps the terminal out
   of Squads (`endfield.archived`). Resume runs `tab.new {name, space, folder,
-  argv}` with the program's `run` argv plus `--resume <id>` (Claude Code),
-  `resume --last` (Codex) or `resume` (Cursor), and drops the record.
+  argv}` while the chat's space exists (or a space of its squad's name on its
+  machine), else `space.new {name: squad, tab, folder, argv, machine}`, with
+  the program's `run` argv plus `--resume <id>` (Claude Code),
+  `resume --last` (Codex) or `resume` (Cursor), and drops the record. The
+  folder is the chat's own; the home base only when the record has none.
   The dimming and every send gate on Herdr's own status, so an agent that
   reads Waiting but Herdr calls idle takes typed actions.
-- **Link as helper:** the dialog names the lead and the helper, says
-  whether both are idle, and lists the two lines Confirm runs:
-  `hc send <lead> --if idle -- "<note>"` then the same into the helper.
-  Confirm first writes `{a, b, sa, sb, at, noted}` (lives,
-  `address@created`, their session ids, and `noted: {lead, helper}`, whose
-  note was typed) to `data/endfield/links.json` (read again just before the
-  write, expected-snapshot write, one re-read retry). A helper the file
-  already gives another lead, linked from another window, is refused with
-  that reason, never moved. Then it types the lead's note, then the
-  helper's, noting each one sent. Either one not idle refuses before
-  anything is written. A refused lead takes the link back out; a refused
-  helper keeps it, and Confirm again types only the helper's note. Closed
-  before that, the helper's card offers **Send note again** while its note
-  is unsent, which opens the same dialog at the helper's note alone
-  (`{from: 1}`). Each note names the other by folder, terminal and task
-  (the label its row shows), and asks them to
-  coordinate through Claude Code's cross-session messaging (`ListAgents`,
-  `SendMessage`, `notify_when_idle`; see
+- **Link:** the dialog is titled `// Link <helper> under <lead>` (callsigns)
+  and says one sentence: both agents get a short note about each other so
+  they can coordinate. Its footer has **Show note** (reveals both note
+  texts, wrapped), **Cancel** and **Link**. Busy agents don't block it. Link
+  first writes `{a, b, sa, sb, at, noted}` (lives, `address@created`, their
+  session ids, and `noted: {lead, helper}`, both false) to
+  `data/endfield/links.json` (read again just before the write,
+  expected-snapshot write, one re-read retry), so Squads nests the helper at
+  once. A helper the file already gives another lead, linked from another
+  window, is refused with that reason, never moved, and nothing is typed.
+  Then, for the lead and then the helper, it types
+  `hc send <t> --if idle -- "<note>"` (never `--force`) only if Herdr says
+  that agent is idle at the click, and marks its side noted. A working
+  agent is skipped; one hc refuses stays unnoted; an uncertain send counts
+  as noted, so it is never offered twice. The dialog then shows one line,
+  such as `Linked. TYPHOEUS is busy. Send its note from its card when it's
+  free.`, and closes. Each agent whose side is still unnoted gets **Send
+  note** on its card (one per link it is owed a note on), which opens the
+  same dialog for that side alone (`{side}`), titled `// Send <X> its note`;
+  its **Send** waits until that agent is idle and types only its note. Each
+  note names the other by folder, terminal and task (the label its row
+  shows), and asks them to coordinate through Claude Code's cross-session
+  messaging (`ListAgents`, `SendMessage`, `notify_when_idle`; see
   https://code.claude.com/docs/en/cross-session-messaging.md) and to agree
   file ownership or use separate worktrees; `hc read` is the fallback for
-  watching the other's screen. The dialog notes that a `--bare` session
-  can't receive messages and that `crossSessionInbound` can refuse or hold
-  them. The helper's card shows **Linked**, its lead and **Unlink**, which
-  rewrites the file and types nothing; the lead's card lists its helpers.
+  watching the other's screen. Messaging needs Claude Code 2.1.234 on
+  Windows (`notify_when_idle` 2.1.236); a `--bare` session can't receive
+  messages, and `crossSessionInbound` can refuse or hold them. The dialog
+  says none of this. The helper's card shows **Linked**, its lead and
+  **Unlink**, which rewrites the file and types nothing; the lead's card
+  lists its helpers.
 - **Claude Code agent waiting on background work:** when Herdr says idle or
   done but the session's turn ended (or it sits in a wait) with a
   background shell, agent, monitor or sub-agent still running, the agent
@@ -473,7 +512,7 @@ rendered at 4x. It is a schematic, not a screenshot.
 - `themes/endfield.json` and `themes/endfield-night.json`: terminal colours
   plus every panel colour by name.
 - `mods/endfield`: one mod in roles, routed by `ROLES` in `main.js` (`boot`,
-  `brand`, `footer`, `spaces`, `agents`, `sortmenu`, `squadmenu`, `card`, `tabs`, `pane`,
+  `brand`, `footer`, `spaces`, `agents`, `sortmenu`, `squadmenu`, `squad`, `card`, `tabs`, `pane`,
   `status`, `toast`, `cutin`, `report`, `dispatch`, `comms`, `transcript`,
   `action`, `archived`). `kit.js` holds the tables every role reads: `PALETTE` (`paper`
   and `night`), `STATUS` (word, glyph, colour, entrance, rank per agent
@@ -519,8 +558,10 @@ rendered at 4x. It is a schematic, not a screenshot.
   drop, which the Squads list runs) and `endfield.dock.done` (`{at, ok}`).
 - A card action's dialog is `{role: "action", terminal, action, snap}`, a
   dialog with `frame: "none"`; the archived list is `{role: "archived"}`;
-  Link as helper is `{role: "link", lead, helper, from}` (`from: 1` types
-  only the helper's note); the dock overlay is `{role: "dock", terminal,
+  a squad header's dialog is `{role: "squad", id, mode: "archive" | "close"}`.
+  Link is `{role: "link", lead, helper, side}` (`side: "lead"` or `"helper"`:
+  Send note, typing only that side's note);
+  the dock overlay is `{role: "dock", terminal,
   anchor, left, from, grip, pointer, title}`, a popup with `frame: "none"`,
   `width` and `height` 1 at `{x: 0, y: 0}`.
   The actions are data: `ACTIONS[programKey]` in `orders.js`.

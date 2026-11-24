@@ -105,7 +105,7 @@ test("Move up and Move down swap with the next shown squad on the same machine, 
 
 test("a squad header's menu: rename always, a move only where there is somewhere to go", () => {
   const menu = squadMenu(ORDER, SQUADS, "a");
-  assert.deepEqual(menu.map((i) => i.key), ["rename", "up", "down"]);
+  assert.deepEqual(menu.map((i) => i.key), ["rename", "up", "down", "archive", "close"]);
   assert.equal(menu[1].move, null);
   assert.ok(menu[1].why);
   assert.deepEqual(applyMove(ORDER, menu[2].move), ["b", "c", "a", "d", "r1", "r2"]);
