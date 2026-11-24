@@ -1,6 +1,7 @@
 // agents: the squad sidebar. Every agent grouped by its space (a squad), each squad in tree order
 // (a lead, then the agents it started, joined by right-angle connectors whatever their vendor),
-// each agent a party chip with its operator's callsign. Past 12 agents the rows go compact and the
+// each agent a party chip named by its program or sub-agent type (the operator's callsign is on its
+// card). Past 12 agents the rows go compact and the
 // agents that need input are also pinned above every squad. Behaviour kept from the shipped
 // `agents` mod: setAgentOrder, sort modes, pins, peek for sub-agents, title cleaning. Claude Code
 // agents and their sub-agents also show their model and effort, how long they have run and a
@@ -13,7 +14,7 @@ import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, settings } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, spaced, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE } from "./kit.js";
 import { roster, holdCrew } from "./roster.js";
-import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, PANE_ROLES, opening, transcriptsIn, transcriptPlan, rowShape, rowMeta, tasksOf } from "./fleet.js";
+import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, subLabel, siblingLabels, PANE_ROLES, opening, transcriptsIn, transcriptPlan, rowShape, rowMeta, tasksOf } from "./fleet.js";
 import { toggleReport, goTo, showWork } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
@@ -22,11 +23,13 @@ import { holding, slotTops, chatBlocks } from "./squads.js";
 import { openSquadMenu } from "./squadmenu.js";
 
 // Fixed heights, so the selection marker knows where the selected row starts (the row's own ink plate snaps).
-// Compact (DENSE_AT agents and up): 34px rows that keep the chip, badge and callsign over the task.
+// Compact (DENSE_AT agents and up): 34px rows that keep the chip, badge and label over the task.
 // An idle row (fleet.js rowShape) is one line at either size, with its own smaller chip.
+// lines: the gap between a two-line row's label line and task line. The row centres the pair, so
+// what a smaller gap frees goes above and below it, between one row and the next.
 const H = {
-  full: { lead: 56, child: 50, idle: 34, head: 28, chip: [36, 28], idleChip: 22, pad: [16, 46], more: 26 },
-  dense: { lead: 34, child: 34, idle: 26, head: 26, chip: [24, 20], idleChip: 18, pad: [14, 34], more: 22 },
+  full: { lead: 56, child: 50, idle: 34, head: 28, chip: [36, 28], idleChip: 22, pad: [16, 46], more: 26, lines: 2 },
+  dense: { lead: 34, child: 34, idle: 26, head: 26, chip: [24, 20], idleChip: 18, pad: [14, 34], more: 22, lines: 1 },
 };
 const PIN = { max: 3, row: 34, more: 22 };
 // A wheel notch in lines, as pixels, for the "N below" estimate (the scroll area reports no offset).
@@ -45,8 +48,8 @@ const stacked = (heights) => (heights.length ? slotTops(heights, 0, 0) : []);
 const cwdOf = (a) => panes().find((p) => p.terminal === a.address)?.cwd ?? null;
 
 // A session or sub-agent (sessions.js; both carry these fields) as fleet.js rowMeta reads it.
-const runOf = (s, live, program) => ({ startedAt: s?.startedAt, lastAt: s?.lastAt, live, model: s?.model?.short, modelId: s?.model?.id,
-  effort: s?.effort, used: s?.ctx?.used, total: s?.ctx?.total, program, tasks: tasksOf(s) });
+const runOf = (s, live) => ({ startedAt: s?.startedAt, lastAt: s?.lastAt, live, model: s?.model?.short, modelId: s?.model?.id,
+  effort: s?.effort, used: s?.ctx?.used, total: s?.ctx?.total, tasks: tasksOf(s) });
 
 const SORTS = [
   { id: "priority", label: "Priority", icon: "clock", by: BY.priority },
@@ -287,7 +290,7 @@ export class Agents {
     for (const pane of plan.close) run("pane.close", { pane });
     const next = opening(reg, panes(), tab, "transcript");
     setShared(PANE_ROLES, next);
-    run("pane.split", { direction: "right", pane: anchor, mod: "endfield", props: { role: "transcript", path: k.path, title: k.title, id: k.id, parent: parent.address, via: parent.ident.callsign } });
+    run("pane.split", { direction: "right", pane: anchor, mod: "endfield", props: { role: "transcript", path: k.path, title: k.title, id: k.id, parent: parent.address, via: parent.label } });
     const all = panes();
     this.viewing = Object.fromEntries(Object.entries({ ...this.viewing, [tab]: k.path }).filter(([t]) => t === tab || transcriptsIn(all, t, next).length));
     localStorage.setItem("transcripts", JSON.stringify(this.viewing));
@@ -413,14 +416,15 @@ export class Agents {
   }
 
   /**
-   * One agent row. r: { key, m, depth, shape, h, size, top, y, travel, grab, on, here?, title, meta, native, up, click }, tops relative
+   * One agent row. r: { key, m, depth, shape, h, size, top, y, travel, grab, on, here?, label, title, meta, native, up, click }, tops relative
    * to its squad; `up` is the parent's row. It is drawn at `y` (its top, or where a chat drag
    * carries it), sliding by `travel` while a chat in its squad is held. `grab`: the squad whose
    * chat a press on it holds (in Tab order, the first row of each tab), else null.
-   * An idle row is one line: chip, callsign, task, status.
-   * A two-line row: callsign, model, effort, then elapsed and status at the right; under it the task,
+   * `label`: the program or sub-agent type (fleet.js subLabel, programLabel); the operator's callsign is on the card.
+   * An idle row is one line: chip, label, task, status.
+   * A two-line row: label, model, effort, then elapsed and status at the right; under it the task,
    * then the context gauge at the right. Status and elapsed never shrink: the model and effort give
-   * way first, then the callsign truncates.
+   * way first, then the label truncates.
    */
   row(C, D, r) {
     const { m, depth, size } = r;
@@ -456,17 +460,17 @@ export class Agents {
       .when(Boolean(effort), (el) => el.child(micro(effort, on ? C.selDim : C.dim).flex_none()));
     const label = one
       ? nudge(h_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(8).items_center()
-        .child(wide(m.ident.callsign, fg, 9).flex_none())
+        .child(wide(r.label, fg, 9).flex_none())
         .child(div().min_w(0).truncate().font_medium().text_size(11.5).child(r.title))
       : dense
-      ? nudge(v_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(4)
+      ? nudge(v_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(D.lines)
         .child(h_flex().min_w(0).gap(6).items_center()
-          .child(wide(m.ident.callsign, fg, 9).flex_none())
+          .child(wide(r.label, fg, 9).flex_none())
           .child(head))
         .child(div().min_w(0).truncate().font_medium().text_size(11.5).child(r.title))
-      : nudge(v_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(6)
+      : nudge(v_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(D.lines)
         .child(h_flex().min_w(0).gap(8).items_center()
-          .child(wide(m.ident.callsign, fg, 10).flex_shrink(1).min_w(0).truncate())
+          .child(wide(r.label, fg, 10).flex_shrink(1).min_w(0).truncate())
           .child(head)
           .when(Boolean(pin), (el) => el.child(pin))
           .when(running > 0, (el) => el.child(h_flex().id(`${r.key}-tasks`).flex_none().gap(3).items_center().text_color(sub)
@@ -597,11 +601,11 @@ export class Agents {
           .when(on, (el) => el.bg(C.selBg))
           .on_hover((over, cx) => { if (over) this.hovered = key; else if (this.hovered === key) this.hovered = null; cx.notify(); })
           .on_click((_e, cx) => { this.folded.delete(m.space); this.focus(m); cx.notify(); })
-          .tooltip(`${m.ident.callsign}, ${m.title}, squad ${num.get(m.space)}`)
+          .tooltip(`${m.label}, ${m.title}, squad ${num.get(m.space)}`)
           .child(wipe(`${key}-wipe`, C.sunken, this.width, hot && !on))
           .child(chip(C, m.ident, "blocked", { size: 22, on, ground: on ? C.selBg : C.raised }))
           .child(nudge(v_flex(), `${key}-label`, hot).flex_1().min_w(0).gap(4)
-            .child(wide(m.ident.callsign, fg, 9))
+            .child(wide(m.label, fg, 9))
             .child(div().min_w(0).truncate().text_size(11.5).font_medium().text_color(fg).child(m.title)))
           .child(div().relative().w(20).h(16).flex_none().flex().items_center().justify_center().rounded(3).border_1()
             .border_color(on ? C.selMuted : C.hairStrong).font_family(FONT.mono).text_size(8.5).text_color(fg).child(num.get(m.space)))
@@ -689,37 +693,42 @@ export class Agents {
       };
       const push = (r) => { rows.push(r); inner += r.h; };
       for (const m of q.members) {
-        const meta = rowMeta(runOf(this.sessions.get(m.address), inFlight(m.status), m.program?.name), now, GAUGE.segments);
+        const meta = rowMeta(runOf(this.sessions.get(m.address), inFlight(m.status)), now, GAUGE.segments);
         const r = { key: `ag-${m.address}`, m, depth: m.depth, ...sized(m.status, m.depth), top: inner, on: m.agent ? m.focused : m.address === shown,
-          title: label(m), meta, up: m.parent ? placed.get(m.parent) : null, click: () => this.focus(m) };
+          label: m.label, title: label(m), meta, up: m.parent ? placed.get(m.parent) : null, click: () => this.focus(m) };
         placed.set(m.address, r);
         if (m.agent) {
           const where = [m.address.includes("/") ? m.address.split("/")[0] : null, m.spaceName, m.agent.tab_name && !/^\d+$/.test(m.agent.tab_name) ? m.agent.tab_name : pad2(m.tabIndex)].filter(Boolean);
-          this.info[r.key] = { title: r.title, where, callsign: m.ident.callsign };
+          this.info[r.key] = { title: r.title, where, callsign: m.ident.callsign, label: m.label };
         }
         push(r);
-        // Claude Code's own sub-agents, read from its transcript, hang under it like any child.
-        const subs = m.agent && isClaude(m.agent) ? this.natives(m) : { shown: [], earlier: 0 };
-        const shownSubs = subs.shown;
+        // Claude Code's own sub-agents, read from its transcript, hang under it like any child: the
+        // ones in flight, then the toggle, then (opened) the finished ones, so "Show less" sits
+        // right under the active ones.
+        const subs = m.agent && isClaude(m.agent) ? this.natives(m) : { active: [], finished: [], earlier: 0 };
+        const shownSubs = [...subs.active, ...subs.finished];
         // Each draws from its own model's pool (its parent's model when the transcript names none).
         const crew = castCrew(IDENTITY, this.subNums.get(m.address), shownSubs.map((k) => ({ id: k.id, startedAt: k.startedAt,
           ident: IDENTITY.resolve(m.program, null, { parent: m.program, model: k.model?.id ?? m.model }), program: m.program })), taken);
         if (shownSubs.length) nextNums.set(m.address, crew);
+        const names = siblingLabels(shownSubs.map((k) => ({ id: k.id, label: subLabel(k.type), title: k.title, at: k.startedAt ?? k.lastAt })));
         const docked = shownSubs.length ? transcriptsIn(panes(), m.tab, shared(PANE_ROLES))[0] : null;
-        for (const k of shownSubs) {
+        const subRow = (k) => {
           // The one its tab's transcript pane shows wears the selected plate; the yellow marker only while that pane is focused.
           const viewed = Boolean(docked) && this.viewing[m.tab] === k.path;
           subRows.set(`sa-${k.id}`, { parent: m, k });
-          this.info[`sa-${k.id}`] = { title: k.title, where: [`via ${m.ident.callsign}`, m.spaceName], callsign: crew.get(k.id).callsign, ident: crew.get(k.id) };
+          this.info[`sa-${k.id}`] = { title: k.title, where: [`via ${m.label}`, m.spaceName], callsign: crew.get(k.id).callsign, label: names.get(k.id), ident: crew.get(k.id) };
           push({ key: `sa-${k.id}`, m: { address: `sa-${k.id}`, status: k.status, ident: crew.get(k.id) }, depth: m.depth + 1,
-            ...sized(k.status, m.depth + 1), top: inner, on: viewed, here: viewed && docked.focused, title: k.title, native: true, meta: rowMeta(runOf(k, inFlight(k.status)), now, GAUGE.segments),
+            ...sized(k.status, m.depth + 1), top: inner, on: viewed, here: viewed && docked.focused, label: names.get(k.id), title: k.title, native: true, meta: rowMeta(runOf(k, inFlight(k.status)), now, GAUGE.segments),
             up: r, click: () => this.openTranscript(m, k) });
-        }
+        };
+        subs.active.forEach(subRow);
         if (subs.earlier) {
           const open = this.opened.has(m.address);
           push({ key: `sm-${m.address}`, more: true, h: D.more, top: inner, on: false, open, earlier: subs.earlier,
             click: (_e, cx) => { open ? this.opened.delete(m.address) : this.opened.add(m.address); cx.notify(); } });
         }
+        subs.finished.forEach(subRow);
       }
       y = start + (folded ? 0 : inner);
       return { q, folded, start, rows, inner, blocked: q.members.filter((m) => m.status === "blocked").length };
@@ -836,7 +845,7 @@ export class Agents {
           return v_flex().id(`ag-${m.address}`).relative().w(44).h(48).flex_none().items_center().justify_center().gap(4)
             .when(on, (el) => el.bg(C.selBg))
             .when(!on, (el) => el.hover((h) => h.bg(C.sunken)))
-            .tooltip(`${m.ident.callsign}, ${m.title}, ${st?.word ?? m.status}`)
+            .tooltip(`${m.label}, ${m.title}, ${st?.word ?? m.status}`)
             .on_click(() => this.focus(m))
             .when(st?.edge === "hazard", (el) => el.child(div().absolute().left(0).top(8).flex().child(hazard(C, 3, 32))))
             .child(chip(C, m.ident, m.status, { size: 26, on }))

@@ -155,11 +155,11 @@ export class Dispatch {
       const on = m.address === this.target;
       return v_flex().id(`dl-t-${m.address}`).relative().flex_1().min_w(0).h(96).items_center().justify_center().gap(6).rounded(3).border_1().cursor_pointer()
         .border_color(on ? C.selBg : C.hair).bg(on ? C.selBg : C.ground)
-        .tooltip(`${m.ident.callsign}, ${m.title}`)
+        .tooltip(`${m.label}, ${m.title}`)
         .on_click((_e, cx) => { this.target = m.address; this.parent = m.address; cx.notify(); })
         .when(on, (el) => el.child(div().absolute().left(-1).top(14).bottom(14).w(3).bg(C.signal)))
         .child(chip(C, m.ident, m.status, { size: 40, on, ground: on ? C.selBg : C.ground }))
-        .child(wide(m.ident.callsign, on ? C.selText : C.text, 8.5).max_w_full().truncate())
+        .child(wide(m.label, on ? C.selText : C.text, 8.5).max_w_full().truncate())
         .child(h_flex().h(10).gap(4).items_center().child(glyph(C, m.status, { inv: on, size: 8 }) ?? div()).child(micro(m.address, on ? C.selMuted : C.muted, 8.5)));
     };
     const progTile = (g) => {
@@ -209,7 +209,7 @@ export class Dispatch {
             .children([...targets.slice(k, k + 6).map(targetTile), ...Array.from({ length: Math.max(0, 6 - targets.slice(k, k + 6).length) }, () => div().flex_1())]))))
           .when(Boolean(term), (el) => el.child(spaced([`Target: ${term.address}`, `${term.program?.name ?? "terminal"} (opened on it)`], C.text, { rest: C.muted })))
           .child(h_flex().gap(10).items_center().px(10).py(8).bg(C.ground).border_l(2).border_color(C[warn[0]]).rounded_r(3)
-            .when(Boolean(T), (el) => el.child(pair(T.ident.callsign, T.address, C.text, C.muted, 9.5).flex_none()))
+            .when(Boolean(T), (el) => el.child(pair(T.label, T.address, C.text, C.muted, 9.5).flex_none()))
             .child(div().text_size(12).text_color(C.muted).child(warn[1])))))
         .when(!send, (el) => el.child(v_flex().px(22).pt(4).pb(14).gap(10)
           .child(section("01", "Program", "Installed on this machine"))
@@ -221,7 +221,7 @@ export class Dispatch {
             .child(box(["Squad", "space"], h_flex().id("dl-space").gap(6).items_center().cursor_pointer().on_click(cycleSpace).tooltip("Click for the next space")
               .child(div().w(22).h(16).flex().items_center().justify_center().rounded(3).bg(C.selBg).font_family(FONT.mono).text_size(9).text_color(C.selText).child(squad?.num ?? String(spaces().findIndex((s) => s.id === this.space) + 1).padStart(2, "0")))
               .child(wide(space?.name ?? "none", C.text, 10).flex_1().min_w(0).truncate()).child(micro("▸", C.muted))))
-            .child(box(["Parent", "reports to"], lone ? pair("None", "top level", C.text, C.muted, 10) : pair(parentM?.ident.callsign ?? this.parent, this.parent, C.text, C.muted, 10)))
+            .child(box(["Parent", "reports to"], lone ? pair("None", "top level", C.text, C.muted, 10) : pair(parentM?.label ?? this.parent, this.parent, C.text, C.muted, 10)))
             .when(onAccount, (el) => el.child(box(["Account", "login"], h_flex().id("dl-account").gap(6).items_center().cursor_pointer().on_click(cycleAccount).tooltip("Click for the next saved account")
               .child(wide(this.account ?? (this.def ? `default ${this.def}` : "default"), C.text, 10).flex_1().min_w(0).truncate()).child(micro("▸", C.muted))))))))
         .child(v_flex().px(22).pb(14).gap(8)
@@ -249,7 +249,7 @@ export class Dispatch {
               .child(micro("Current formula", STRIP.dim))
               .child(wide("You", STRIP.text, 10).flex_none())
               .child(div().text_size(9).text_color("#31ACF0").child("▶▶"))
-              .child(send ? (T ? pair(T.ident.callsign, T.address, STRIP.text, STRIP.dim, 10) : wide(this.target ?? "—", STRIP.text, 10).min_w(0).truncate())
+              .child(send ? (T ? pair(T.label, T.address, STRIP.text, STRIP.dim, 10) : wide(this.target ?? "—", STRIP.text, 10).min_w(0).truncate())
                 : pair(`New ${prog?.name ?? ""}`, lone ? space?.name ?? "" : `child of ${this.parent}`, STRIP.text, STRIP.dim, 10)))
             // Every argument, wrapped rather than cut: this line runs exactly what Dispatch runs.
             .child(stripCode(div().id("dl-cmd").min_w(0).max_h(58).overflow_y_scrollbar()).child(text)))

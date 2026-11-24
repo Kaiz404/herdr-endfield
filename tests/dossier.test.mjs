@@ -35,23 +35,23 @@ test("Recent lists the last calls newest first, each with its age", () => {
 
 const run = { model: { short: "Opus 5.5" }, effort: "medium", startedAt: START - 616000, lastAt: START - 300000 };
 
-test("a sub-agent's header names it, its parent and space, then its status, model, effort and elapsed", () => {
-  const h = headerOf({ sub: true, callsign: "TYPHOEUS", program: "Claude Code", where: ["via LIFENG", "films"], title: "Moni main film", status: "working", s: run, now: START });
-  assert.deepEqual(h.who, ["TYPHOEUS", "Sub-agent", "via LIFENG", "films"]);
+test("a sub-agent's header names its operator, its type, its parent and space, then its status, model, effort and elapsed", () => {
+  const h = headerOf({ callsign: "TYPHOEUS", label: "poteto-agent", where: ["via CLAUDE", "films"], title: "Moni main film", status: "working", s: run, now: START });
+  assert.deepEqual(h.who, ["TYPHOEUS", "poteto-agent", "via CLAUDE", "films"]);
   assert.equal(h.title, "Moni main film");
   assert.equal(h.status, "Generating");
   assert.deepEqual(h.facts, ["Opus 5.5", "med", "10m 16s"]);
 });
 
-test("a lead agent's header names its program; a run that is over stops its clock at its last write", () => {
-  const h = headerOf({ callsign: "PERLICA", program: "Claude Code", where: ["films", "fix login"], title: "Fix login", status: "done", s: run, now: START });
-  assert.deepEqual(h.who, ["PERLICA", "Claude Code", "films", "fix login"]);
+test("a lead agent's header names its operator and its row's label; a run that is over stops its clock at its last write", () => {
+  const h = headerOf({ callsign: "PERLICA", label: "CLAUDE", where: ["films", "fix login"], title: "Fix login", status: "done", s: run, now: START });
+  assert.deepEqual(h.who, ["PERLICA", "CLAUDE", "films", "fix login"]);
   assert.equal(h.status, "Finished");
   assert.equal(h.facts.at(-1), "05m 16s");
 });
 
 test("a header with no session says only what it knows, and marks a folder-matched transcript", () => {
-  const h = headerOf({ callsign: "PERLICA", program: "Codex", where: ["films"], title: "", status: "idle", s: null, now: START });
+  const h = headerOf({ callsign: "PERLICA", label: "CODEX", where: ["films"], title: "", status: "idle", s: null, now: START });
   assert.equal(h.title, "—");
   assert.equal(h.status, "Idle");
   assert.deepEqual(h.facts, []);
