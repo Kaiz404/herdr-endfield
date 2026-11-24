@@ -157,7 +157,7 @@ To build a pack from your own images instead, see [`art-pack/README.md`](../art-
 
    - `programs` maps a program key to an operator slug, and wins over the model. The keys are `claude`, `codex`, `gemini`, `opencode` and `cursor`. `sub-agent` is for sub-agents, and `shell` is for any program with no entry of its own. For example, `"claude": "perlica"` draws every Claude Code agent as Perlica whatever its model.
    - `terminals` gives one terminal its own operator, and wins over `programs`. A terminal's address is the `T3` on its pane's name plate, written in lower case. `herdr-app ls` also lists the addresses.
-   - `spares` lists operators that an agent takes once every operator in its pool is taken, before callsigns get numbers. Without spares, the next agent is numbered, for example `PERLICA·2`.
+   - `spares` lists operators that an agent takes once every operator in its pool is taken, before callsigns get numbers. Without spares, the next agent is numbered, for example `PERLICA-2`.
    - `null`, or a slug that is not in the pack, means no operator. That agent keeps its program tile.
 
 3. Save the file.

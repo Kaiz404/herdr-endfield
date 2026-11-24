@@ -42,7 +42,7 @@ rendered at 4x. It is a schematic, not a screenshot.
     a 1px halo in the operator's accent, a class badge bottom right: `C`
     Claude Code, `X` Codex, `Cu` Cursor, `O` OpenCode, `G` Gemini); the
     callsign in wide caps 10px (`PERLICA`; a repeat takes a spare operator,
-    then `PERLICA·2`), then in mono the model and, 6px on in a dimmer grey,
+    then `PERLICA-2`), then in mono the model and, 6px on in a dimmer grey,
     the effort level: `OPUS 5.5  MED` (effort reads LOW, MED, HIGH, XHIGH or
     MAX; an agent with no Claude Code session shows its program; no
     terminal address, no tool count); at the right of that line a clock icon
@@ -336,7 +336,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   An agent with a known model is drawn from its model's tier: `CASTING` in
   `fleet.js` maps the model id to fable, opus, sonnet or haiku, and each tier
   has a pool of operators, strongest first (docs/CASTING.md). Siblings draw
-  different operators; a callsign is numbered (`YVONNE·2`) only once its pool
+  different operators; a callsign is numbered (`YVONNE-2`) only once its pool
   is spent. An unknown model draws the Endministrator.
   Behaviour is adapted from Herdr's shipped `spaces`, `agents`, `tabs`, `pane`,
   `workspace-chrome`, `workspace-status` and `toast` mods.

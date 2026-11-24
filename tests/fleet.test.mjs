@@ -17,15 +17,15 @@ test("callsigns follow creation order, so a newcomer listed first never takes on
   const terms = [term("t1", 100), term("t2", 200), term("t3", 300)];
   const before = build([agent("t1", "s1", "idle"), agent("t2", "s1", "idle")], terms);
   const after = build([agent("t3", "s1", "blocked"), agent("t1", "s1", "idle"), agent("t2", "s1", "idle")], terms);
-  assert.equal(before.all.get("t2").ident.callsign, "PERLICA·2");
+  assert.equal(before.all.get("t2").ident.callsign, "PERLICA-2");
   assert.equal(after.all.get("t1").ident.callsign, "PERLICA");
-  assert.equal(after.all.get("t2").ident.callsign, "PERLICA·2");
-  assert.equal(after.all.get("t3").ident.callsign, "PERLICA·3");
+  assert.equal(after.all.get("t2").ident.callsign, "PERLICA-2");
+  assert.equal(after.all.get("t3").ident.callsign, "PERLICA-3");
 });
 
 test("a repeated operator takes a spare before it takes a number", () => {
   const R = build([agent("t1", "s1", "idle"), agent("t2", "s1", "idle"), agent("t3", "s1", "idle")], [term("t1", 1), term("t2", 2), term("t3", 3)], { spares: ["ember"] });
-  assert.deepEqual(["t1", "t2", "t3"].map((a) => R.all.get(a).ident.callsign), ["PERLICA", "EMBER", "PERLICA·2"]);
+  assert.deepEqual(["t1", "t2", "t3"].map((a) => R.all.get(a).ident.callsign), ["PERLICA", "EMBER", "PERLICA-2"]);
 });
 
 test("pinned agents lead the whole list and agent.next, ahead of every space", () => {
