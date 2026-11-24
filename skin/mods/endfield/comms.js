@@ -103,7 +103,7 @@ export class Comms {
     if (who === "you") return h_flex().gap(6).items_center().child(div().size(22).rounded_full().bg(C.ink).border_2().border_color(C.signal).flex().items_center().justify_center().text_size(5.5).font_semibold().text_color(C.signal).child("YOU")).child(wide("You", C.text, 9));
     const m = R.all.get(who);
     if (!m) return h_flex().gap(6).items_center().child(div().size(22).rounded(3).bg(C.sunken).border_1().border_color(C.hairStrong).flex().items_center().justify_center().font_family(FONT.mono).text_size(7).child(who === "hc" ? "hc" : who)).child(wide(who === "hc" ? "hc note" : who, C.text, 9));
-    return h_flex().gap(6).items_center().child(chip(C, m.ident, m.status, { size: 22, ground: C.raised })).child(wide(`${m.ident.callsign} ${m.address}`, C.text, 9));
+    return h_flex().gap(6).items_center().child(chip(C, m.ident, m.status, { size: 22, ground: C.raised })).child(wide(`${m.label} ${m.address}`, C.text, 9));
   }
 
   render(cx) {

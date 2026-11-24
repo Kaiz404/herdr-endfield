@@ -57,7 +57,7 @@ export default class PaneHeader {
     const name = (role === "comms" && "Comms") || (role === "transcript" && "Transcript") || (p.program?.agent && telling(p)) || ((p.program?.agent || p.program?.shell) && p.program.name) || p.title || p.program?.name || "shell";
     // The skin's own pane (Comms) is named for what it is, with the "//" tile, not an unknown program.
     const comms = role === "comms";
-    const where = comms ? ["Who sent what to whom"] : [m?.ident.callsign, p.terminal?.toUpperCase(), basename(p.cwd), midTrunc(p.branch)];
+    const where = comms ? ["Who sent what to whom"] : [m?.label, p.terminal?.toUpperCase(), basename(p.cwd), midTrunc(p.branch)];
     const pane = p.pane;
     const on = p.focused;
     const open = this.hovered;

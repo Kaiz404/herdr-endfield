@@ -30,7 +30,10 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   (`Entrance`, `StatusFx`).
 - `roster.js` is the fleet every surface reads, built by `fleet.js` from Herdr's
   live lists: each agent's identity and callsign (a repeated operator draws the
-  next free one in its pool, then a spare, then a number, `PERLICA-2`; each agent keeps its draw so it never hops), its
+  next free one in its pool, then a spare, then a number, `PERLICA-2`; each agent keeps its draw so it never hops),
+  its `label` (what its Squads row, pane plate, Report, toast, cut-in, Dispatch and Comms
+  call it: `programLabel`, numbered among siblings by `siblingLabels` only when two would
+  read the same row; a Claude Code sub-agent's row uses `subLabel` on its type), its
   parent and depth, and squads in tree order: pinned agents first (they also lead
   `agent.next`), then one per space. Priority ranks an agent by the most urgent
   status in its tree. A member's `status` is Herdr's, except that `fleet.js
@@ -347,7 +350,7 @@ with nothing to run, sends nothing and says why (`relayRefusal()`). The run and
 its refusals are `relayOrder()` and `deliver()` in `orders.js`, as for Dispatch:
 a refusal (exit 2, 3, 7, 9, 10) may be retried, any other failure leaves Send
 disabled until the text changes. Each sent follow-up is a Comms `Message` from
-you to the parent, `via` "Follow-up via PERLICA to sub-agent `<id>`".
+you to the parent, `via` "Follow-up via CLAUDE to sub-agent `<id>`" (`via` is the parent's label).
 
 A done parent has a race that `--if idle` would close for an idle one. Between
 the status read and hc's paste, the parent can start a turn (a background task

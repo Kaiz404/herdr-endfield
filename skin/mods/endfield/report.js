@@ -28,7 +28,7 @@ const BARS = 16;
 // Status order: Needs input, then Finished, Generating, Idle.
 const ORDER = { blocked: 0, error: 0, done: 1, waiting: 1.5, working: 2, idle: 3 };
 const COLS = [
-  { k: "name", label: "Agent", grow: 2.3, key: (r) => r.m.ident.callsign },
+  { k: "name", label: "Agent", grow: 2.3, key: (r) => r.m.label },
   { k: null, label: ["Session", "link"], grow: 1.25 },
   { k: null, label: ["Output", "10 min"], grow: 1.4 },
   { k: "rate", label: "Rate", grow: 0.8, key: (r) => -r.rate },
@@ -148,7 +148,7 @@ export class Report {
             .when(r.depth > 0, (el) => el.child(div().absolute().left(indent(r.depth) - (dense ? 13 : 15)).top(-4).w(10).h(RH / 2 + 4).border_l(1).border_b(1).border_color(on ? C.selMuted : C.hairStrong)))
             .child(chip(C, m.ident, m.status, { size, on, ground: on ? C.selBg : C.raised }))
             .child((dense ? h_flex().gap(8).items_center() : v_flex().gap(4)).min_w(0)
-              .child(wide(m.ident.callsign, fg, 9.5).flex_none())
+              .child(wide(m.label, fg, 9.5).flex_none())
               .child(div().min_w(0).truncate().font_medium().text_size(dense ? 12 : 13).child(m.title))),
           h_flex().gap(6).items_center().min_w(0).child(micro(m.address, fg).flex_none()).child(h_flex().min_w(0).gap(8).children(link.map((t) => div().min_w(0).truncate().font_family(FONT.mono).text_size(10).text_color(meta).child(t)))),
           h_flex().h(dense ? 20 : 28).p(3).gap(2).items_end().rounded(3).bg(on ? "#2C2C2C" : C.sunken)

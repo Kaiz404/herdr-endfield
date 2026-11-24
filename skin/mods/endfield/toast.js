@@ -154,7 +154,7 @@ export class Toast {
       .child(m ? chip(C, m.ident, "done", { size: 32, id: "toast-chip", flash: { lit: !shown }, ground: C.raised }) : div())
       .child(v_flex().flex_1().min_w(0).gap(7)
         .child(h_flex().gap(8).items_center()
-          .child(wide(m?.ident.callsign ?? a.program?.name ?? "", C.text, 11).flex_none())
+          .child(wide(m?.label ?? a.program?.name ?? "", C.text, 11).flex_none())
           .child(div().id("toast-finished").h(16).px(7).flex_none().flex().items_center().rounded_full().bg(C.lime).text_size(10).font_semibold().text_color(C.ink)
             .opacity(shown ? 1 : 0).transition("opacity", MOTION.done.check).child("Finished ✓"))
           .child(div().flex_1())

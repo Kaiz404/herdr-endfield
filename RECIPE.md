@@ -41,10 +41,15 @@ rendered at 4x. It is a schematic, not a screenshot.
     operator's round portrait in a 2px white ring, yellow when it needs input,
     a 1px halo in the operator's accent, a class badge bottom right: `C`
     Claude Code, `X` Codex, `Cu` Cursor, `O` OpenCode, `G` Gemini); the
-    callsign in wide caps 10px (`PERLICA`; a repeat draws the next free
-    operator in its pool, then a spare, and only then reads `PERLICA-2`), then in mono the model and, 6px on in a dimmer grey,
+    label in wide caps 10px: an agent's program (`CLAUDE`, `CODEX`, `CURSOR`),
+    a Claude Code sub-agent's type with any plugin prefix dropped
+    (`POTETO-AGENT` for `pstack:poteto-agent`, `GENERAL-PURPOSE`, `EXPLORE`;
+    `SUB-AGENT` when the transcript names none). Two siblings that would read
+    the same row (same label and task) are numbered `-2`, `-3` in start
+    order; otherwise the task tells them apart. The operator's callsign is on
+    the session card, and the portrait is the operator. Then in mono the model and, 6px on in a dimmer grey,
     the effort level: `OPUS 5.5  MED` (effort reads LOW, MED, HIGH, XHIGH or
-    MAX; an agent with no Claude Code session shows its program; no
+    MAX; left out for an agent with no Claude Code session; no
     terminal address, no tool count); at the right of that line a clock icon
     and how long the run has gone (to now while generating, else to its
     last write: `42s`, `27m`, `1h07`, `12h`, `3d`), then the status: "▶▶ Generating", two still bars and "Waiting", a
@@ -53,7 +58,10 @@ rendered at 4x. It is a schematic, not a screenshot.
     2px apart; lit share = used / window, red from 75%; its tooltip reads
     `157K / 1M, 16%`; an unknown window is 1M for a `[1m]` model or a
     context past 200K, else 200K). The status and elapsed never shrink; the
-    model and effort give way first, then the callsign truncates. While a
+    model and effort give way first, then the label truncates. The label line
+    and the task sit 2px apart (1px compact) and the row centres the pair, so
+    the row's spare height falls above and below it, between one agent and
+    the next. While a
     generating row under a minute is on screen the list redraws each second
     so its seconds count; otherwise every 30 seconds. While a Claude Code run
     has background tasks running, a stack glyph and their count (`3`, muted,
@@ -62,16 +70,17 @@ rendered at 4x. It is a schematic, not a screenshot.
     known is left out. Compact rows keep only the
     status glyph at the right. An idle
     row folds to one 34px line (26px compact): a 22px chip (18px compact),
-    the callsign, the task at 11.5px and "zZ Idle". Blocked rows carry 4px hazard stripes on the left edge.
+    the label, the task at 11.5px and "zZ Idle". Blocked rows carry 4px hazard stripes on the left edge.
     Children (terminals started with `hc run`, and Claude Code's own
     sub-agents read from its transcript) hang under their parent with a 1px
     right angle from the parent chip's foot, whatever their vendor. Claude
     Code sub-agents show while working or waiting ("Waiting" beside two still
-    bars in the working blue, no march), newest started first; below them a
+    bars in the working blue, no march), newest started first; right below them a
     26px row (22px compact) reads "▾ +N earlier" and lists the finished ones
-    too, newest first, or "▴ Show less" to fold them back. Each parent keeps
+    under it, newest first, or "▴ Show less" to fold them back, so folding
+    never needs a scroll past the finished ones. Each parent keeps
     its choice until the mod reloads; there is no cap, the list scrolls. From 12
-    agents everything goes compact: 34px rows, 24/20px chips, callsign over
+    agents everything goes compact: 34px rows, 24/20px chips, label over
     task, a status glyph only (`▶▶`, the still bars, `!`, `✓`, `×`, `zZ`); the spaces block becomes
     numbered squares, six a row; and a pinned "Needs input" box (hazard edge,
     count, three rows, then "+N more need input" left and "Report ▶" right) sits above every squad. The
@@ -80,8 +89,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   - Session panel, 368px, beside the sidebar while a squad row is hovered,
     laid out as a dossier. A header strip: the operator's bust in a dotted
     frame with a range ring and an accent foot, beside three lines. Line 1
-    is the callsign, the kind (the program, or `Sub-agent`) and where it runs
-    (`via <parent>` first for a sub-agent, then the space and tab; `≈` when
+    is the operator's callsign, the label its Squads row shows (`CLAUDE`,
+    `poteto-agent`) and where it runs (`via <parent label>` first for a sub-agent, then the space and tab; `≈` when
     the transcript was matched by folder only), set apart by gaps, all but
     the callsign muted. Line 2 is the task in 15px semibold. Line 3 is the
     status glyph and word, then the model, effort (`med`) and elapsed time
@@ -137,8 +146,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   even when alone. A 34px white name plate: a 2px grey strip on its left edge
   that a 6px yellow bar grows down when focused (300ms), the program's 34px
   square tile (ink when focused), the operator's 22px chip on an agent's pane,
-  the title in wide caps 12px, a mono line of callsign, terminal, folder and branch 10px apart (the
-  callsign muted, the rest dimmer), the
+  the title in wide caps 12px, a mono line of the agent's label (as its Squads row reads), terminal, folder and branch 10px apart (the
+  label muted, the rest dimmer; the chip's tooltip is the operator's callsign), the
   status at the right, and a 4px ink square in the top-right corner when
   focused. When that agent needs input while its pane has focus, the plate
   washes yellow and back (opacity 0 to .42, 1400ms), a 4px hazard rule runs
@@ -153,7 +162,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   with a muted `Group` and `Squad` (or None); sortable headings (Agent, Rate, Reserves, Turn, Status; the active
   one inverts to ink with ▼/▲; Status is the default: Needs input and Error, Finished,
   Waiting, Generating, Idle); squad headers like the sidebar's with `▶▶ n ✓ n` and a
-  yellow `! n need input`, folding on click; rows with the chip and callsign,
+  yellow `! n need input`, folding on click; rows with the chip and label,
   the terminal and its link (`◀ T3` and, 8px on, `Claude Code ▶ Cursor`, or `3 children`),
   a 16-bar output sparkline over 10 minutes (ink, never yellow), tokens a
   minute on a blue edge, context on a grey edge that turns red past 75%, the
@@ -163,14 +172,14 @@ rendered at 4x. It is a schematic, not a screenshot.
 - **Dispatch**: a 660px paper dialog with two corner brackets, `// Dispatch`
   under the engine line (`hc send` then a dimmer `to a running agent`, or `hc run`
   then `new agent in a space`) and a barcode, a Send to agent / New agent switch and a round
-  close. Send: target operators as party-chip tiles (yellow edge on the chosen
+  close. Send: target agents as party-chip tiles, each with its Squads label and address (yellow edge on the chosen
   one) and a line that says what hc will do for its status. New agent: program
   tiles on ink with a lime "installed" bar (not installed: dimmed), the
-  operator it will be drawn as (automatic), the squad (click for the next
+  operator it will be drawn as (automatic, by callsign), the squad (click for the next
   space) and the parent. Then the task (or, for Shell, the command) in
   brackets, the delivery (Only if idle, Now, Now and wait for reply) or
   lifetime (Ends with parent, Outlives parent, No parent), and a graphite
-  footer: `Current formula YOU ▶▶ PERLICA T3` (the address
+  footer: `Current formula YOU ▶▶ CLAUDE T3` (the address
   dimmer, 6px on), the exact hc command, Cancel
   and the yellow Dispatch pill. Opened from a squad header's `+`, the session
   panel's Dispatch, or the empty sidebar. Errors from hc show in the dialog.
@@ -201,7 +210,7 @@ rendered at 4x. It is a schematic, not a screenshot.
 - **Toasts**: a white slab with a 3px edge and a round glyph in the level's
   colour, title, body, `// space` top right, a yellow "Open ▶" pill and a 2px
   countdown. An agent that finished gets the Finished slip: its chip flashes
-  yellow once (.9 to 0, 300ms), the callsign, a lime "Finished ✓" pill, the
+  yellow once (.9 to 0, 300ms), the agent's label, a lime "Finished ✓" pill, the
   task, a "View ▶" pill, and `// space` and the terminal address 10px apart
   (the address dimmer).
 - **Needs input, elsewhere: the cut-in.** A 440x214 ink slab at the bottom
@@ -209,7 +218,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   a yellow diagonal band, the operator's signal duotone in a white frame with a
   yellow diamond above and a `!` badge, `// space` and `T3` 10px apart, a barcode, a white
   caption plate that a yellow block grows across (330ms), holds and retracts to
-  a 4px edge (350ms, from 630ms), revealing "PERLICA NEEDS INPUT" in wide
+  a 4px edge (350ms, from 630ms), revealing "CLAUDE NEEDS INPUT" (the agent's label) in wide
   caps, a hazard rule, the question from its screen in brackets, and Answer ▶ /
   Later. It stays until answered or Later, and closes itself when the agent
   stops needing input or its pane gets focus.
@@ -280,7 +289,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   Answer/Focus runs
   `agent.focus`, Peek `terminal.peek`, Pin `terminal.pin`.
 - **Sub-agent card:** the same dossier for a Claude Code sub-agent, headed
-  by its own operator and `Sub-agent  via <parent callsign>`: the same header
+  by its own operator's callsign, its type and `via <parent label>`: the same header
   strip, Context, Tools, Recent and Tasks, read from its own transcript. It has
   no Chat row, no Comms and no Peek, Pin or Dispatch. Open transcript opens
   the transcript pane as a click on the row does; Follow-up opens it with the
@@ -323,7 +332,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   clicking another sub-agent replaces it, clicking the one shown focuses it.
   The shown sub-agent's row wears the selected plate, and the yellow marker
   while its pane has focus. The pane's foot is a follow-up box on a raised
-  ground: `// FOLLOW-UP` and `SENT VIA PERLICA, WHO PASSES IT ON WITH
+  ground: `// FOLLOW-UP` and `SENT VIA CLAUDE, WHO PASSES IT ON WITH
   SENDMESSAGE`, a one-line input and a round Send button, then the exact `hc
   send` command in mono, wrapped. The sub-agent has no terminal, so the text
   goes to its parent, asking it to forward the text with SendMessage. Send is
@@ -386,7 +395,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   notification props and no role, and `main.js` routes those to `toast`.
 - The transcript pane is the `endfield` mod's `transcript` role, props
   `{role: "transcript", path, title, id, parent, via}` (the sub-agent's id,
-  its parent's terminal and callsign). It runs `hc send` to the parent
+  its parent's terminal and label). It runs `hc send` to the parent
   (`orders.js` `relayOrder`), reads `agents()` for the parent's status, and
   appends to `data/endfield/comms.jsonl`. `panes()` doesn't report a mod
   pane's props, so the shared key `endfield.panes` records which endfield

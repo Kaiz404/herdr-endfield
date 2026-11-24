@@ -205,7 +205,7 @@ const sub = (id, status, startedAt) => ({ id, status, startedAt, lastAt: started
 
 test("a waiting sub-agent shows under its parent like a working one, and is not counted as earlier", () => {
   const view = subagentView([sub("a1", "done", 1), sub("a2", "waiting", 2), sub("a3", "working", 3), sub("a4", "idle", 4)], false);
-  assert.deepEqual(view.shown.map((k) => k.id), ["a3", "a2"]);
+  assert.deepEqual(view.active.map((k) => k.id), ["a3", "a2"]);
   assert.equal(view.earlier, 2);
 });
 

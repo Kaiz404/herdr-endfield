@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildRoster, BY, PINNED, subagentView, rowMeta, rowShape } from "../skin/mods/endfield/fleet.js";
+import { buildRoster, BY, PINNED, subagentView, rowMeta, rowShape, subLabel, programLabel, siblingLabels } from "../skin/mods/endfield/fleet.js";
 import { identityOf } from "./identity.mjs";
 
 // Every claude agent with no model is PERLICA; a repeat takes a spare, then a number.
@@ -56,26 +56,30 @@ test("tab order ignores urgency but still keeps trees whole", () => {
 
 const sub = (id, status, startedAt, lastAt = startedAt) => ({ id, status, startedAt, lastAt });
 
+const ids = (ks) => ks.map((k) => k.id);
+
 test("a parent shows its working sub-agents newest first, and offers the rest as earlier", () => {
   const subs = [sub("a1", "done", 1), sub("a2", "working", 2), sub("a3", "idle", 3), sub("a4", "done", 4),
     sub("a5", "working", 5), sub("a6", "done", 6), sub("a7", "done", 7), sub("a8", "done", 8)];
   const folded = subagentView(subs, false);
-  assert.deepEqual(folded.shown.map((k) => k.id), ["a5", "a2"], "eight sub-agents, two working: only those two, newest first");
+  assert.deepEqual(ids(folded.active), ["a5", "a2"], "eight sub-agents, two working: only those two, newest first");
+  assert.deepEqual(folded.finished, [], "folded: none of the finished ones");
   assert.equal(folded.earlier, 6);
   const open = subagentView(subs, true);
-  assert.deepEqual(open.shown.map((k) => k.id), ["a8", "a7", "a6", "a5", "a4", "a3", "a2", "a1"], "open: every one, newest first, no cap");
+  assert.deepEqual(ids(open.active), ["a5", "a2"], "open: the active ones still come first, above the toggle");
+  assert.deepEqual(ids(open.finished), ["a8", "a7", "a6", "a4", "a3", "a1"], "then every finished one, newest first, no cap");
   assert.equal(open.earlier, 6, "the toggle stays so it can fold back");
 });
 
 test("newest means started last, so a busy old sub-agent doesn't jump ahead of a newer one", () => {
   const view = subagentView([sub("old", "working", 1, 99), sub("new", "working", 2, 3)], false);
-  assert.deepEqual(view.shown.map((k) => k.id), ["new", "old"]);
+  assert.deepEqual(ids(view.active), ["new", "old"]);
 });
 
 test("with none working only the toggle is offered; with none finished there is no toggle", () => {
-  assert.deepEqual(subagentView([sub("a1", "done", 1), sub("a2", "idle", 2)], false), { shown: [], earlier: 2 });
-  const busy = subagentView([sub("a1", "working", 1)], false);
-  assert.deepEqual([busy.shown.map((k) => k.id), busy.earlier], [["a1"], 0]);
+  assert.deepEqual(subagentView([sub("a1", "done", 1), sub("a2", "idle", 2)], false), { active: [], finished: [], earlier: 2 });
+  const busy = subagentView([sub("a1", "working", 1)], true);
+  assert.deepEqual([ids(busy.active), busy.finished, busy.earlier], [["a1"], [], 0]);
 });
 
 const MIN = 60000;
@@ -115,8 +119,8 @@ test("with no total the window is inferred: 1M for a [1m] model or a context pas
   assert.equal(rowMeta({ used: 300000 }, 0, 8).gauge.tip, "300K / 1M, 30%");
 });
 
-test("what isn't known is null or left out, and an agent with no session shows its program", () => {
-  assert.deepEqual(rowMeta({ program: "Codex" }, 0, 8), { model: "Codex", effort: null, time: null, ticking: false, running: 0, gauge: null });
+test("what isn't known is null or left out; the program is the row's label, not its model", () => {
+  assert.deepEqual(rowMeta({ program: "Codex" }, 0, 8), { model: null, effort: null, time: null, ticking: false, running: 0, gauge: null });
   assert.equal(rowMeta({ model: "Opus 5.5", used: 0 }, 0, 8).gauge, null, "no assistant turn yet: no gauge");
   assert.deepEqual(["low", "medium", "high", "xhigh", "max", "ultra"].map((effort) => rowMeta({ model: "M", effort }, 0, 8).effort),
     ["low", "med", "high", "xhigh", "max", "ultra"]);
@@ -130,7 +134,37 @@ test("only idle rows fold to one line; working, blocked, done and error keep the
 
 test("a sub-agent whose transcript has no timestamp yet sorts by its last write", () => {
   const view = subagentView([sub("old", "done", 10), sub("new", "done", null, 20)], true);
-  assert.deepEqual(view.shown.map((k) => k.id), ["new", "old"]);
+  assert.deepEqual(ids(view.finished), ["new", "old"]);
+});
+
+test("a sub-agent row reads its Claude Code type without the plugin prefix, else sub-agent", () => {
+  assert.deepEqual(["pstack:poteto-agent", "general-purpose", "Explore", "a:b:deep", null, "", " "].map(subLabel),
+    ["poteto-agent", "general-purpose", "Explore", "deep", "sub-agent", "sub-agent", "sub-agent"]);
+});
+
+test("a lead row reads its program in capitals", () => {
+  assert.deepEqual([claude, codex, { key: "cursor", name: "Cursor" }, { name: "pi" }, null].map(programLabel), ["CLAUDE", "CODEX", "CURSOR", "PI", "AGENT"]);
+});
+
+test("siblings get a number only when two would read the same row, the earliest keeping the bare label", () => {
+  const named = siblingLabels([
+    { id: "c", label: "Explore", title: "find the bug", at: 3 },
+    { id: "a", label: "Explore", title: "find the bug", at: 1 },
+    { id: "b", label: "Explore", title: "read the docs", at: 2 },
+    { id: "d", label: "general-purpose", title: "find the bug", at: 4 },
+    { id: "e", label: "Explore", title: "find the bug", at: 5 },
+  ]);
+  assert.deepEqual(Object.fromEntries(named), { a: "Explore", b: "Explore", c: "Explore-2", d: "general-purpose", e: "Explore-3" });
+  assert.ok(![...named.values()].some((l) => /[\u00b7\u2022]/.test(l)), "no dot divider in a name");
+});
+
+test("the roster labels each agent by its program, numbered among its own siblings only", () => {
+  const listed = [agent("t1", "s1", "idle", { title: "fix" }), agent("t2", "s1", "idle", { title: "fix" }), agent("t3", "s2", "idle", { title: "fix" }), agent("t4", "s1", "working", { title: "ship", program: codex })];
+  const R = build(listed, [term("t1", 1), term("t2", 2), term("t3", 3), term("t4", 4), term("t9", 9, "t1", { title: "fix" })]);
+  const label = (a) => R.all.get(a).label;
+  assert.deepEqual(["t1", "t2", "t3", "t4", "t9"].map(label), ["CLAUDE", "CLAUDE-2", "CLAUDE", "CODEX", "CLAUDE"],
+    "t3 is in another squad and t9 under t1, so neither is a sibling of t1");
+  assert.deepEqual(["t1", "t2"].map((a) => R.all.get(a).ident.callsign), ["PERLICA", "PERLICA-2"], "the callsign is still cast for the card and portrait");
 });
 
 test("an archived chat's leftover shell stays out; an agent started there, or a new terminal at its address, shows", () => {

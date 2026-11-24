@@ -49,7 +49,8 @@ export const PINNED = "pinned";
  * Member: { address, agent (AgentInfo, null for a child without a pane), program, status (memberStatus),
  *   herdrStatus (Herdr's own: what `hc send --if idle` and the typed actions gate on), title,
  *   space, spaceName, tab, tabIndex, pane, seq, pinned, focused, created, turn, parent (address | null),
- *   depth, kids (addresses), urgency, model (id | null), ident: identity.resolve(...) + { callsign, drawn } }
+ *   depth, kids (addresses), urgency, model (id | null), ident: identity.resolve(...) + { callsign, drawn },
+ *   label: what its row calls it (programLabel, numbered among its siblings by siblingLabels) }
  * Pinned agents (and their trees) come first, in a squad of their own ahead of every space's, so
  * the list and agent.next start with them. `sort` orders siblings; children stay under their parent.
  * identity: { resolve(program, terminal, {parent, model}) -> ident + {pool}, as(slug, program) } (IDENTITY in kit.js).
@@ -123,6 +124,14 @@ export function buildRoster({ listed, terms, spaces, identity, models = {}, prev
     const mine = tops.filter((m) => m.space === sp.id && !m.pinned);
     if (mine.length) squads.push(squad(sp.id, String(i + 1).padStart(2, "0"), sp.name, sp.machine ?? null, mine));
   });
+  for (const q of squads) {
+    const groups = new Map();
+    for (const m of q.members) groups.set(m.parent, [...(groups.get(m.parent) ?? []), m]);
+    for (const sibs of groups.values()) {
+      const named = siblingLabels(sibs.map((m) => ({ id: m.address, label: programLabel(m.program), title: m.title, at: m.created })));
+      for (const m of sibs) m.label = named.get(m.address);
+    }
+  }
   return { all, squads, flat: squads.flatMap((q) => q.members), cast: crew, taken };
 }
 
@@ -166,14 +175,40 @@ export function pollPace(sessions) {
 }
 
 // A Claude Code session's own sub-agents under its row: the ones in flight (working or waiting),
-// or all of them while `open`, newest started first (by start, not last write, so a busy one
-// doesn't hop past a newer one). `earlier` counts the ones that are over, which a toggle row offers.
-// subs: [{status, startedAt | null, lastAt}] -> {shown: subs, earlier: number}
+// then a toggle row offering the ones that are over, then (while `open`) those. Each list is newest
+// started first (by start, not last write, so a busy one doesn't hop past a newer one).
+// subs: [{status, startedAt | null, lastAt}] -> {active: subs, finished: subs ([] unless open), earlier: number}
 export function subagentView(subs, open) {
   const at = (k) => k.startedAt ?? k.lastAt ?? 0;
   const newest = [...subs].sort((a, b) => at(b) - at(a));
-  const active = newest.filter((k) => inFlight(k.status));
-  return { shown: open ? newest : active, earlier: newest.length - active.length };
+  const finished = newest.filter((k) => !inFlight(k.status));
+  return { active: newest.filter((k) => inFlight(k.status)), finished: open ? finished : [], earlier: finished.length };
+}
+
+/**
+ * What a Squads row calls an agent (the operator's callsign is on its card and portrait). A Claude
+ * Code sub-agent: its type with any plugin prefix dropped ("pstack:poteto-agent" is "poteto-agent"),
+ * else "sub-agent". Any other agent: its program's key in capitals, as a callsign is ("CLAUDE", "CODEX").
+ */
+export const subLabel = (type) => String(type ?? "").split(":").pop().trim() || "sub-agent";
+export const programLabel = (program) => (program?.key ?? program?.name ?? "agent").toUpperCase();
+
+/**
+ * Siblings' labels, numbered only where two would read the same row (same label and task): the
+ * earliest keeps the bare label, the next is "-2", and so on.
+ * crew: [{id, label, title, at}] -> Map<id, label>
+ */
+export function siblingLabels(crew) {
+  const seen = new Map();
+  const out = new Map();
+  for (const k of [...crew].sort((x, y) => (x.at ?? 0) - (y.at ?? 0))) {
+    const same = `${k.label}
+${k.title ?? ""}`;
+    const n = (seen.get(same) ?? 0) + 1;
+    seen.set(same, n);
+    out.set(k.id, n > 1 ? `${k.label}-${n}` : k.label);
+  }
+  return out;
 }
 
 // How a finished background task's row names its end. hue: a palette colour for the word, else muted.
@@ -399,11 +434,10 @@ const EFFORT = { low: "low", medium: "med", high: "high", xhigh: "xhigh", max: "
 export const effortWord = (e) => EFFORT[e] ?? e ?? null;
 
 /**
- * What a Squads row says about a run. model (or, with no session, the program) and effort sit
- * beside the callsign. time: how long the run has gone, to now while it works, else to its last
+ * What a Squads row says about a run. model and effort sit beside the row's label. time: how long the run has gone, to now while it works, else to its last
  * write. ticking: the time reads seconds and changes each second. gauge: how full its context is,
  * in `segments` blocks. running: how many background tasks it runs. What isn't known is null.
- * run: {startedAt, lastAt, live, model, modelId, effort, used, total, program, tasks}, every field optional
+ * run: {startedAt, lastAt, live, model, modelId, effort, used, total, tasks}, every field optional
  * -> {model, effort, time, ticking, running, gauge: {lit, hot, tip} | null}
  */
 export function rowMeta(run, now, segments) {
@@ -412,7 +446,7 @@ export function rowMeta(run, now, segments) {
   const total = run.total ?? contextWindow(run.modelId, run.used);
   const share = run.used ? run.used / total : null;
   return {
-    model: run.model ?? run.program ?? null,
+    model: run.model ?? null,
     effort: effortWord(run.effort),
     time: ms == null ? null : elapsed(ms),
     running: taskView(run.tasks ?? [], now).running.length,

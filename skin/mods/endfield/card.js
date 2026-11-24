@@ -9,7 +9,7 @@
 // The chat row's buttons never act themselves: each opens its confirm dialog (actions.js). A
 // sub-agent's two buttons ask the list (shared "endfield.card.ask"), which owns the transcript pane.
 // props: {role: "card", terminal (a sub-agent's parent's), sub: sub-agent id | null, title,
-//   where: [machine?, space, tab], callsign, ident (a sub-agent's), snap: Session | Sub, overlay,
+//   where: [machine?, space, tab], callsign, label (its Squads row's), ident (a sub-agent's), snap: Session | Sub, overlay,
 //   fit: the panel's height cap (hovercard.js cardPlace), shown: it replaces a card already up, so no reveal}
 
 import { div, image } from "gpui-kit";
@@ -86,7 +86,7 @@ export class Card {
     const m = roster().all.get(p.terminal);
     const s = sessionOf(p);
     const status = (p.sub ? s?.status : m?.status) ?? "idle";
-    const head = headerOf({ sub: Boolean(p.sub), callsign: (p.sub ? p.ident : m?.ident)?.callsign ?? p.callsign, program: m?.program?.name,
+    const head = headerOf({ callsign: (p.sub ? p.ident : m?.ident)?.callsign ?? p.callsign, label: p.label ?? m?.label,
       where: p.where, title: p.title ?? m?.title, approx: s?.approx, status, s, now });
     return { m, s, status, head, recent: recentView(s?.recent, now), tasks: taskView(tasksOf(s), now) };
   }
