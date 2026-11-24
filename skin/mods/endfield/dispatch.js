@@ -90,12 +90,12 @@ export class Dispatch {
       exec: (a) => exec("hc", a, { timeout: timeoutFor({ mode: this.mode, delivery: this.opt.send }) }),
       log: async (r) => {
         const to = send ? target : (/"address":"([^"]+)"/.exec(r.stdout ?? "")?.[1] ?? "new");
-        await append({ at: Date.now(), from: "you", to, kind: "task", via: `Dispatch · ${commandLine(args.slice(0, -1), appWindow()?.platform)}`, text: task });
+        await append({ at: Date.now(), from: "you", to, kind: "task", via: ["Dispatch", commandLine(args.slice(0, -1), appWindow()?.platform)], text: task });
         if (!wait) return;
         // Not a reply: the screen's last line once the turn ended, which may be a prompt, a spinner or a draft.
         const screen = await hc(["read", target, "--lines", "20"]);
         const last = `${screen.stdout ?? ""}`.split(/\r?\n/).map((l) => l.trim()).filter((l) => /[\p{L}\p{N}]/u.test(l)).at(-1);
-        if (last) await append({ at: Date.now(), from: target, to: "you", kind: "screen", via: "hc send --wait · last screen line after the turn", text: last });
+        if (last) await append({ at: Date.now(), from: target, to: "you", kind: "screen", via: ["hc send --wait", "last screen line after the turn"], text: last });
       },
     });
     if (r.phase === "sent") cue("tick");
