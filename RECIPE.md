@@ -44,9 +44,10 @@ rendered at 4x. It is a schematic, not a screenshot.
     label in wide caps 10px: an agent's program (`CLAUDE`, `CODEX`, `CURSOR`),
     a Claude Code sub-agent's type with any plugin prefix dropped
     (`POTETO-AGENT` for `pstack:poteto-agent`, `GENERAL-PURPOSE`, `EXPLORE`;
-    `SUB-AGENT` when the transcript names none). Two siblings that would read
-    the same row (same label and task) are numbered `-2`, `-3` in start
-    order; otherwise the task tells them apart. The operator's callsign is on
+    `SUB-AGENT` when the transcript names none). Two sub-agent siblings
+    with the same type and task are numbered `-2`, `-3` in start order;
+    pane agents are never numbered (their task line comes from a tab name or
+    a live title that changes), so the task tells them apart. The operator's callsign is on
     the session card, and the portrait is the operator. Then in mono the model and, 6px on in a dimmer grey,
     the effort level: `OPUS 5.5  MED` (effort reads LOW, MED, HIGH, XHIGH or
     MAX; left out for an agent with no Claude Code session; no

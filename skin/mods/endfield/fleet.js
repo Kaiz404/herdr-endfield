@@ -124,14 +124,9 @@ export function buildRoster({ listed, terms, spaces, identity, models = {}, prev
     const mine = tops.filter((m) => m.space === sp.id && !m.pinned);
     if (mine.length) squads.push(squad(sp.id, String(i + 1).padStart(2, "0"), sp.name, sp.machine ?? null, mine));
   });
-  for (const q of squads) {
-    const groups = new Map();
-    for (const m of q.members) groups.set(m.parent, [...(groups.get(m.parent) ?? []), m]);
-    for (const sibs of groups.values()) {
-      const named = siblingLabels(sibs.map((m) => ({ id: m.address, label: programLabel(m.program), title: m.title, at: m.created })));
-      for (const m of sibs) m.label = named.get(m.address);
-    }
-  }
+  // Pane agents are never numbered: their rows show a tab name or a live title that changes (a
+  // spinner, a rename), so a number keyed on it would come and go. Their task line tells them apart.
+  for (const m of [...all.values(), ...squads.flatMap((q) => q.members)]) m.label = programLabel(m.program);
   return { all, squads, flat: squads.flatMap((q) => q.members), cast: crew, taken };
 }
 

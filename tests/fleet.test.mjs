@@ -158,12 +158,12 @@ test("siblings get a number only when two would read the same row, the earliest 
   assert.ok(![...named.values()].some((l) => /[\u00b7\u2022]/.test(l)), "no dot divider in a name");
 });
 
-test("the roster labels each agent by its program, numbered among its own siblings only", () => {
+test("the roster labels each pane agent by its program, never numbered (its task line tells it apart)", () => {
   const listed = [agent("t1", "s1", "idle", { title: "fix" }), agent("t2", "s1", "idle", { title: "fix" }), agent("t3", "s2", "idle", { title: "fix" }), agent("t4", "s1", "working", { title: "ship", program: codex })];
   const R = build(listed, [term("t1", 1), term("t2", 2), term("t3", 3), term("t4", 4), term("t9", 9, "t1", { title: "fix" })]);
   const label = (a) => R.all.get(a).label;
-  assert.deepEqual(["t1", "t2", "t3", "t4", "t9"].map(label), ["CLAUDE", "CLAUDE-2", "CLAUDE", "CODEX", "CLAUDE"],
-    "t3 is in another squad and t9 under t1, so neither is a sibling of t1");
+  assert.deepEqual(["t1", "t2", "t3", "t4", "t9"].map(label), ["CLAUDE", "CLAUDE", "CLAUDE", "CODEX", "CLAUDE"],
+    "a number keyed on a live title would come and go with its spinner");
   assert.deepEqual(["t1", "t2"].map((a) => R.all.get(a).ident.callsign), ["PERLICA", "PERLICA-2"], "the callsign is still cast for the card and portrait");
 });
 
