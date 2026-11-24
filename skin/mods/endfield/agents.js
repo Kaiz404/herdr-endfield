@@ -5,7 +5,8 @@
 // `agents` mod: setAgentOrder, sort modes, pins, peek for sub-agents, title cleaning. Claude Code
 // agents and their sub-agents also show their model and effort, how long they have run and a
 // context gauge (sessions.js, fleet.js rowMeta), their own sub-agents read from
-// the transcript, and a session card while hovered (card.js). An idle row folds to one line.
+// the transcript. Agents and sub-agents get a session card while hovered, held open by a
+// right-click (card.js, hovercard.js). An idle row folds to one line.
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
@@ -16,7 +17,7 @@ import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, PANE_RO
 import { toggleReport, goTo } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
-import { CARD, wantedCard, dismissed, cardHeight, cardPlace, windowHeight, resized } from "./hovercard.js";
+import { CARD, cardKind, wantedCard, dismissed, cardHeight, cardPlace, windowHeight, resized } from "./hovercard.js";
 import { squadMove, dropEdge } from "./squads.js";
 import { openSquadMenu } from "./squadmenu.js";
 
@@ -105,7 +106,11 @@ export class Agents {
     this.subNums = new Map();
     // Parents whose finished sub-agents are listed too; kept until the mod reloads.
     this.opened = new Set();
+    // open: {id, key (the row's), address (its terminal, or a sub-agent's parent's), winH, held}.
     this.card = { open: null, hot: null, seq: 0, armed: false, kept: null };
+    // The shown sub-agent rows, by row key: {parent: Member, k: Sub}. Rebuilt at every render.
+    this.subs = new Map();
+    setShared("endfield.card.ask", null);
     // The one card this list owns; a card that isn't it (left from a reload) closes itself.
     setShared("endfield.card.open", null);
     // Shared values outlive a restart and overlay ids may not: an old report must not close a new card.
@@ -128,11 +133,17 @@ export class Agents {
     setShared("endfield.card.open", null);
   }
 
-  // What wantedCard reads, taken when a decision is made. The hovered row counts only while the
-  // list draws rows (the rail has none to report the pointer leaving) and its agent is still listed.
+  // Whether row `key` has a card now: the list draws rows (the rail has none to report the pointer
+  // leaving) and the row's agent or sub-agent is still listed.
+  carded(key) {
+    if (narrow()) return false;
+    return cardKind(key) === "agent" ? agents().some((a) => `ag-${a.address}` === key) : this.subs.has(key);
+  }
+
+  // What wantedCard reads, taken when a decision is made.
   cardFacts() {
-    const row = !narrow() && agents().some((a) => `ag-${a.address}` === this.hovered) ? this.hovered.slice(3) : null;
-    return { row, hot: this.card.hot, open: this.card.open };
+    const open = this.card.open;
+    return { row: this.carded(this.hovered) ? this.hovered : null, hot: this.card.hot, open, live: Boolean(open) && this.carded(open.key) };
   }
 
   // The window's height now, in this list's px. The list is as tall as the window lets it be, so a
@@ -141,29 +152,38 @@ export class Agents {
     try { return windowHeight(window.viewport_size().height, settings().zoom ?? 1); } catch { return null; }
   }
 
-  // shown: the card replaces itself (the window changed size), so it draws at rest with no reveal.
-  setCard(address, shown = false) {
+  // held: opened by a right-click, it stays until a press beside it or Esc. shown: it replaces the
+  // same row's card (the window changed size, or a right-click holds it), so it draws with no reveal.
+  setCard(key, { held = false, shown = false } = {}) {
     if (this.card.open) closeOverlay(this.card.open.id);
-    this.card.open = address ? this.openCard(address, shown) : null;
+    this.card.open = key ? this.openCard(key, held, shown) : null;
     setShared("endfield.card.open", this.card.open?.id ?? null);
   }
 
   /**
-   * The card follows the pointer with a grace period: the wanted card is the hovered agent row's,
-   * else the open one while the pointer is on it. Every hover change re-arms one timer.
+   * The card follows the pointer with a grace period: the wanted card is the hovered row's, else
+   * the open one while the pointer is on it or it is held. Every hover change re-arms one timer.
    */
   cardTick(cx) {
     const seq = ++this.card.seq;
     const { row } = this.cardFacts();
     this.card.armed = true;
-    cx.timer.after((row && row !== this.card.open?.address ? MOTION.card.open : MOTION.card.close).delay, () => {
+    cx.timer.after((row && row !== this.card.open?.key ? MOTION.card.open : MOTION.card.close).delay, () => {
       if (seq !== this.card.seq) return;
       this.card.armed = false;
       const want = wantedCard(this.cardFacts());
       const open = this.card.open;
-      if (want !== (open?.address ?? null)) this.setCard(want);
-      else if (resized(open, this.winH())) this.setCard(want, true);
+      if (want !== (open?.key ?? null)) this.setCard(want);
+      else if (resized(open, this.winH())) this.setCard(want, { held: open.held, shown: true });
     });
+  }
+
+  /** A right-click on row `key`: its card opens at once and is held. */
+  hold(key, cx) {
+    this.card.seq++;
+    this.card.armed = false;
+    this.setCard(key, { held: true, shown: this.card.open?.key === key });
+    cx.notify();
   }
 
   /**
@@ -180,7 +200,7 @@ export class Agents {
     const closed = shared("endfield.card.closed") ?? null;
     if (dismissed({ closed, open: this.card.open, kept })) {
       // The press landed elsewhere, so a hover the row still claims is one whose exit went unreported.
-      if (this.hovered === `ag-${this.card.open.address}`) this.hovered = null;
+      if (this.hovered === this.card.open.key) this.hovered = null;
       this.card.seq++;
       this.card.armed = false;
       this.setCard(null);
@@ -188,25 +208,28 @@ export class Agents {
       if (this.cardFacts().row) { this.cardTick(cx); return; }
     } else if (closed && closed === this.card.open?.id) setShared("endfield.card.closed", null);
     const open = this.card.open;
-    if (moved || (open && !this.card.armed && (wantedCard(this.cardFacts()) !== open.address || resized(open, this.winH())))) this.cardTick(cx);
+    if (moved || (open && !this.card.armed && (wantedCard(this.cardFacts()) !== open.key || resized(open, this.winH())))) this.cardTick(cx);
   }
 
-  // Beside the row, where hovercard.js cardPlace puts it.
-  openCard(address, shown) {
-    const b = this.bounds[`ag-${address}`];
+  // Beside the row, where hovercard.js cardPlace puts it. A held card is a popup, so Herdr closes
+  // it on Esc and on a press beside it; a hovered one is a window, which never takes the keyboard.
+  openCard(key, held, shown) {
+    const b = this.bounds[key];
+    const sub = this.subs.get(key);
+    const address = sub ? sub.parent.address : key.slice(3);
     const a = agents().find((x) => x.address === address);
     if (!b || !a) return null;
-    const s = this.sessions.get(address);
+    const s = sub ? sub.k : this.sessions.get(address);
     const winH = this.winH();
-    const { y, tall, fit } = cardPlace({ want: cardHeight(s, a.status), row: b, winH });
+    const { y, tall, fit } = cardPlace({ want: cardHeight(s, sub ? sub.k.status : a.status, cardKind(key)), row: b, winH });
     const id = openOverlay({
-      mod: "endfield", kind: "window", frame: "none",
+      mod: "endfield", kind: held ? "popup" : "window", frame: "none",
       at: { x: Math.round(b.x + b.width - 12 - CARD.pad), y },
       width: CARD.width + CARD.slide + 2 * CARD.pad,
       height: tall,
-      props: { role: "card", terminal: address, ...this.info[address], snap: s ?? null, fit, shown },
+      props: { role: "card", terminal: address, sub: sub?.k.id ?? null, ...this.info[key], snap: s ?? null, fit, shown, held },
     });
-    return { id, address, winH };
+    return { id, key, address, winH, held };
   }
 
   // Keys seen for the first time draw once at their start (a connector at height 0, a pinned row
@@ -234,7 +257,9 @@ export class Agents {
     return subagentView(this.sessions.get(m.address)?.subagents ?? [], this.opened.has(m.address));
   }
 
-  openTranscript(parent, k) {
+  // compose: the pane's follow-up box takes the keyboard (the sub-agent card's Follow-up).
+  openTranscript(parent, k, compose = false) {
+    setShared("endfield.followup", compose ? { path: k.path, at: Date.now() } : null);
     const tab = parent.tab;
     const reg = shared(PANE_ROLES);
     const plan = transcriptPlan(panes(), tab, this.viewing[tab], k.path, reg);
@@ -336,7 +361,7 @@ export class Agents {
     const fx = this.fx.of(m.address);
     const pin = this.pinButton(C, r, hot, on);
     const keep = (_e, cx) => { this.card.kept = this.card.open?.id ?? null; cx.notify(); };
-    const carded = r.key === `ag-${this.card.open?.address}`;
+    const carded = r.key === this.card.open?.key;
     // The connector: a 1px right angle from the parent chip's foot to this chip's side, drawn top-down when the child arrives.
     let link = null;
     if (r.up) {
@@ -396,8 +421,9 @@ export class Agents {
       // Told to the list before its next render, where the card's report of the same press is read.
       .when(carded, (el) => el.on_mouse_down("left", keep).on_mouse_down("middle", keep))
       .on_mouse_down("right", (e, cx) => {
-        if (carded) keep(e, cx);
-        if (!r.native) openSquadMenu({ kind: "chat", terminal: m.address, snap: this.sessions.get(m.address) ?? null });
+        if (!this.carded(r.key)) return;
+        this.bounds[r.key] = e.bounds ?? this.bounds[r.key];
+        this.hold(r.key, cx);
       })
       .child(wipe(`${r.key}-wipe`, C.sunken, this.width, hot && !on))
       .when(st?.edge === "hazard", (el) => el.child(div().absolute().left(0).top(6).flex().child(hazard(C, 4, r.h - 12))))
@@ -453,7 +479,7 @@ export class Agents {
       .on_mouse_move(this.dragOver(q, order))
       .when(!q.pinned, (el) => el
         .on_mouse_down("left", (e) => { if (e.click_count === 1) this.drag = { from: q.id, over: q.id, y: e.position?.y ?? null, live: false }; })
-        .on_mouse_down("right", () => openSquadMenu({ kind: "squad", id: q.id })))
+        .on_mouse_down("right", () => openSquadMenu(q.id)))
       .when(lifted, (el) => el.opacity(0.5))
       .tooltip(q.pinned ? "Pinned agents, from every space. Click to fold." : `Squad ${q.num} ${q.name}. Click to fold, drag to reorder, double-click the name to rename, right-click for more.`)
       .child(wipe(`${id}-wipe`, C.sunken, this.width, hot))
@@ -568,6 +594,7 @@ export class Agents {
     const nextNums = new Map();
     // Sub-agents draw around the fleet's operators and the ones sub-agents already hold (holdCrew).
     const taken = new Set(R.taken);
+    const subRows = new Map();
     const sections = R.squads.map((q) => {
       const folded = this.folded.has(q.id);
       const start = y + D.head;
@@ -588,7 +615,7 @@ export class Agents {
         placed.set(m.address, r);
         if (m.agent) {
           const where = [m.address.includes("/") ? m.address.split("/")[0] : null, m.spaceName, m.agent.tab_name && !/^\d+$/.test(m.agent.tab_name) ? m.agent.tab_name : pad2(m.tabIndex)].filter(Boolean);
-          this.info[m.address] = { title: r.title, where, callsign: m.ident.callsign };
+          this.info[r.key] = { title: r.title, where, callsign: m.ident.callsign };
         }
         push(r);
         // Claude Code's own sub-agents, read from its transcript, hang under it like any child.
@@ -602,6 +629,8 @@ export class Agents {
         for (const k of shownSubs) {
           // The one its tab's transcript pane shows wears the selected plate; the yellow marker only while that pane is focused.
           const viewed = Boolean(docked) && this.viewing[m.tab] === k.path;
+          subRows.set(`sa-${k.id}`, { parent: m, k });
+          this.info[`sa-${k.id}`] = { title: k.title, where: [`via ${m.ident.callsign}`, m.spaceName], callsign: crew.get(k.id).callsign, ident: crew.get(k.id) };
           push({ key: `sa-${k.id}`, m: { address: `sa-${k.id}`, status: k.status, ident: crew.get(k.id) }, depth: m.depth + 1,
             ...sized(k.status, m.depth + 1), top: inner, on: viewed, here: viewed && docked.focused, title: k.title, native: true, meta: rowMeta(runOf(k, inFlight(k.status)), now, GAUGE.segments),
             up: r, click: () => this.openTranscript(m, k) });
@@ -616,6 +645,7 @@ export class Agents {
       return { q, folded, start, rows, inner, blocked: q.members.filter((m) => m.status === "blocked").length };
     });
     this.subNums = nextNums;
+    this.subs = subRows;
     holdCrew(held([...nextNums.values()].flatMap((c) => [...c.values()])));
     this.arrive([...sections.flatMap((s) => [...s.rows.map((r) => r.key), ...(s.folded ? [`sq-${s.q.id}-stack`] : [])]), ...blocked.map((m) => `pin-${m.address}`)], cx);
 
@@ -638,6 +668,13 @@ export class Agents {
     // The geometric layer fills the list's empty foot, never behind a row.
     const room = this.viewH - y > 170;
     const order = spaces().map((sp) => ({ id: sp.id, machine: sp.machine ?? null }));
+    // A sub-agent card's button: only this list can open the transcript pane (it knows which one each tab shows).
+    const act = shared("endfield.card.ask");
+    if (act && act.at !== this.acted) {
+      this.acted = act.at;
+      const sub = this.subs.get(act.key);
+      if (sub) cx.timer.after(MOTION.settle.delay, () => this.openTranscript(sub.parent, sub.k, act.act === "followup"));
+    }
     const ask = shared("endfield.squad.rename");
     if (ask && ask.at !== this.asked) {
       this.asked = ask.at;

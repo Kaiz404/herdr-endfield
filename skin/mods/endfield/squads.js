@@ -1,10 +1,9 @@
-// squads: where a squad lands when it is dragged or moved, and what each right-click menu in Squads
-// offers, with no Herdr in it (tests/squads.test.mjs runs it in node). agents.js and squadmenu.js
-// draw these and run the Herdr command an item names, on the person's click only.
+// squads: where a squad lands when it is dragged or moved, and what a squad header's right-click
+// menu offers, with no Herdr in it (tests/squads.test.mjs runs it in node). agents.js and
+// squadmenu.js draw these and run the Herdr command an item names, on the person's click only.
 // A squad is a Herdr space with agents in it, so its order is Herdr's space order (space.move).
 // order: every space in Herdr's order, [{id, machine}]. Empty spaces are in it but have no squad.
 
-import { ACTIONS, gate } from "./orders.js";
 import { PINNED } from "./fleet.js";
 
 const at = (order, id) => order.findIndex((s) => s.id === id);
@@ -36,23 +35,9 @@ export function stepSquad(order, squads, id, dir) {
 }
 
 /**
- * A chat row's menu. member: the roster member. Only an agent with a pane has a tab of its own to
- * rename or a pin; a child without one and a Claude Code sub-agent get no menu. Rename and Archive
- * open the session card's confirm dialog (actions.js); Archive types /exit, so it waits for idle.
- * Moving a chat to another squad is not offered: Herdr has no command that moves a tab across spaces.
- * Item: {key, label, why}: why is null when it can be clicked, else what it waits for.
+ * A squad header's menu: rename, and the click alternative to dragging it. None for Pinned.
+ * Item: {key, label, why, move}: why is null when it can be clicked, else what it waits for.
  */
-export function chatMenu(member) {
-  if (!member?.agent) return [];
-  const actions = ACTIONS[member.program?.key] ?? {};
-  return [
-    ...(actions.rename ? [{ key: "rename", label: "Rename", why: null }] : []),
-    { key: "pin", label: member.agent.pinned ? "Unpin" : "Pin to the top", why: null },
-    ...(actions.archive ? [{ key: "archive", label: "Archive", why: gate(member.herdrStatus ?? member.status) }] : []),
-  ];
-}
-
-/** A squad header's menu: rename, and the click alternative to dragging it. None for Pinned. */
 export function squadMenu(order, squads, id) {
   if (id === PINNED || !squads.some((q) => q.id === id)) return [];
   const up = stepSquad(order, squads, id, -1), down = stepSquad(order, squads, id, 1);
