@@ -17,40 +17,16 @@ import { openDispatch } from "./dispatch.js";
 import { showWork } from "./report.js";
 import { actionsFor, gate, MODE_WORD } from "./orders.js";
 import { openAction } from "./actions.js";
+import { CARD, questionOf } from "./hovercard.js";
 
-export const CARD = { width: 368, pad: 14, slide: 14 };
 const SEGS = 20;
 const HOT_FROM = 0.75;
-
-// The Tasks section: its frame, then one row per running task (or the "None running" line).
-const TASKS_H = { frame: 34, row: 22 };
 
 // The list's live session while it is this card's, else the one the card opened with.
 const sessionOf = (p) => {
   const live = shared("endfield.card.session");
   return (live?.terminal === p.terminal ? live : null) ?? p.snap ?? null;
 };
-
-// The question a blocked agent asks, shown under the panel.
-const questionOf = (s, status) => (status === "blocked" ? s?.question ?? null : null);
-
-/** How tall the panel draws, so the list can keep it inside the window before it exists. Finished tasks start folded. */
-export function cardHeight(s, status, now = Date.now()) {
-  const { running, finished } = taskView(tasksOf(s), now);
-  const tasks = running.length + finished.length ? TASKS_H.frame + TASKS_H.row * Math.max(1, running.length) : 0;
-  return 516 + (questionOf(s, status) ? 52 : 0) + tasks;
-}
-
-/**
- * The card's window for a window `winH` tall: its height, and `fit`, the panel's height cap. The
- * panel draws at its own height up to the cap; past it (a short window, or a task list that grew
- * or unfolded while open) the middle scrolls, and the head and the button row stay.
- */
-export function cardFit(s, status, winH) {
-  const want = cardHeight(s, status) + 2 * CARD.pad;
-  const tall = Math.min(want, Math.max(winH - 16, 2 * CARD.pad + 240));
-  return { tall, fit: tall - 2 * CARD.pad };
-}
 
 export class Card {
   init(p, cx) {

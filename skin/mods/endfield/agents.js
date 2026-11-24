@@ -16,8 +16,7 @@ import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, PANE_RO
 import { toggleReport, goTo } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
-import { CARD, cardFit } from "./card.js";
-import { wantedCard, dismissed } from "./hovercard.js";
+import { CARD, wantedCard, dismissed, cardHeight, cardPlace, windowHeight } from "./hovercard.js";
 import { squadMove, dropEdge } from "./squads.js";
 import { openSquadMenu } from "./squadmenu.js";
 
@@ -183,20 +182,18 @@ export class Agents {
     if (moved || (open && !this.card.armed && wantedCard(this.cardFacts()) !== open.address)) this.cardTick(cx);
   }
 
-  // Beside the row, its top 12px above the row's (or its bottom 12px below, near the window's foot).
+  // Beside the row, where hovercard.js cardPlace puts it.
   openCard(address) {
     const b = this.bounds[`ag-${address}`];
     const a = agents().find((x) => x.address === address);
     if (!b || !a) return null;
     const s = this.sessions.get(address);
     let winH = 900;
-    try { winH = window.bounds().height; } catch {}
-    const { tall, fit } = cardFit(s, a.status, winH);
-    let y = b.y - 12 - CARD.pad;
-    if (y + tall > winH - 8) y = b.y + b.height + 12 + CARD.pad - tall;
+    try { winH = windowHeight(window.bounds().height); } catch {}
+    const { y, tall, fit } = cardPlace({ want: cardHeight(s, a.status), row: b, winH });
     const id = openOverlay({
       mod: "endfield", kind: "window", frame: "none",
-      at: { x: Math.round(b.x + b.width - 12 - CARD.pad), y: Math.round(Math.max(0, y)) },
+      at: { x: Math.round(b.x + b.width - 12 - CARD.pad), y },
       width: CARD.width + CARD.slide + 2 * CARD.pad,
       height: tall,
       props: { role: "card", terminal: address, ...this.info[address], snap: s ?? null, fit },
