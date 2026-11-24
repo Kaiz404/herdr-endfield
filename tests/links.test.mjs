@@ -70,7 +70,7 @@ test("a drop links only two Claude Code sessions in one squad on one machine, an
   assert.match(linkProblem(R.all, "t2", "t2"), /another agent/);
   assert.match(linkProblem(R.all, "t4", "t1"), /Claude Code/);
   assert.match(linkProblem(R.all, "box/t6", "t1"), /same machine/);
-  assert.equal(linkProblem(R.all, "t5", "t1"), "Link agents in the same squad; Herdr can't move a chat between squads.");
+  assert.equal(linkProblem(R.all, "t5", "t1"), "Link agents in the same squad. Drag one onto the other's squad first.");
   assert.match(linkProblem(R.all, "t7", "t1"), /sessions show/, "a link is keyed to a session, so one not read yet can't be linked");
   assert.match(linkProblem(R.all, "t9", "t2"), /sub-agent of t1/);
   assert.match(linkProblem(R.all, "t3", "t1"), /already linked/);

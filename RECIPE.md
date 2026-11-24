@@ -310,11 +310,74 @@ rendered at 4x. It is a schematic, not a screenshot.
   terminal finished, now runs another program, or a new terminal took the
   address) or when two reads in a row, a second apart, don't list its
   terminal (`exitState`, `exitSeen`); one read without it is not enough. Right-click on an agent or
-  sub-agent row holds its session card open. Nothing moves a chat to
-  another squad: Herdr has no cross-space tab move, and relabelling a live
-  terminal's `herdr.space`/`herdr.tab` (`hc label`) leaves its pane where it
-  is (measured on one throwaway terminal: new space alone, new space and tab,
-  and labels removed all kept it in its first tab).
+  sub-agent row holds its session card open.
+  One gesture per drop target, in either sort: a held agent row dropped on
+  another agent row links (Priority only), on another squad's header moves
+  the chat into that squad, and carried out of the list by its right edge
+  docks it in the work area (below). A squad header only reorders squads.
+  A header becomes a target only once armed (`dock.js` `headerArmed`):
+  the pointer has travelled 16px from the press and has been over that
+  header for 250ms, read off timestamps as the pointer moves, with no
+  timer. Until then nothing lifts and a release there moves nothing, so a
+  wobble at a row's edge can't move an agent.
+  Over another squad's armed header the header lifts (raised plate, large
+  shadow, a 2px yellow edge: where it lands), a ghost plate springs after
+  the pointer (`MOTION.dock.ghost`) saying `Move to <squad>` or why not
+  (`dock.js` `movePlan`: its own squad, no pane there, another machine, a
+  link in its squad); on release the ghost shrinks into the header
+  (`MOTION.dock.shrink`, 200ms) and the chat moves: `terminal.park`,
+  `pane.focus` on the pane focused in the tab that squad shows, then
+  `terminal.keep` with `place: "right"` (`docking.js` `moveChat`, each step
+  once `panes()` shows the last). `terminal.keep` splits whatever pane has
+  the focus, so the keep runs only while the pane it was planned beside has
+  it. If the focus isn't seen there within 4s, a step isn't seen, or
+  anything throws, the chat is never kept in a pane the person didn't
+  choose: it goes back to the tab it came from, right of another pane there
+  (`homeOf`), and if it was alone there it stays parked. Whenever it ends
+  anywhere but the tab planned, a toast that stays says where it is now
+  (`moveToast`), with `herdr-app do terminal.keep --terminal <t>` and
+  `hc attach <t>` to show it again. The program keeps running; nothing is
+  typed, so a working agent or one waiting on a question moves too. A tab's
+  other panes stay where they are. Relabelling a live terminal's
+  `herdr.space`/`herdr.tab` (`hc label`) would not do it: its pane stays
+  where it is (measured on one throwaway terminal).
+- **Dock (drag a chat into the work area):** carrying a held agent row out
+  of Squads by its right edge (the nearest edge to where the pointer left,
+  `dock.js` `exitSide`) ends the list's drag and opens the `dock` overlay: a
+  frameless popup over the whole window. Its ghost (raised plate, large
+  shadow: portrait, label, task) pops in from the row (opacity and 94%
+  size, 120ms) and springs after the pointer, held where the row was
+  pressed. The work area's outline and its centre box (hairlines) fade in
+  (160ms) once the pointer is over it. The five zones split the work area,
+  not the focused pane, because `panes()` gives no rectangles: the
+  middle half each way is the centre, the rest goes to the nearest edge
+  (`zoneAt`). The work area is the window right of the sidebar, under the
+  tab strip and over the status bar, inside work-body's padding, as
+  `layout()` sizes them (`workRect`). The zone under the pointer gets the
+  slab: a translucent plate with a 2px yellow edge and the zone's words,
+  which grows out of its edge to half the work area and slides to the next
+  zone's half (left, top, width and height, 220ms). A zone it can't land in
+  has a grey edge and says why (the focused pane itself, no focused pane,
+  another machine, a link in another squad). Right and bottom keep it
+  right of or below the focused pane (the pane focused when the drag
+  began); left and top keep it there and then `pane.swap` it with that
+  pane; the centre splits right too, so nothing is ever replaced or
+  closed. A chat already in that tab trades places with the focused pane
+  (`pane.swap`, no park) from every zone. `panes()` can't say which side
+  of the focused pane it is on now, so no zone promises a side there: the
+  slab covers the whole work area and says `Trade places with the focused
+  pane`. On a drop the
+  ghost springs into the slab, the list runs the steps (asked through
+  `endfield.dock.ask`, answered in `endfield.dock.done`), and once they
+  show the slab holds a beat (160ms) over Herdr's instant re-layout, then
+  slab and ghost fade (180ms). Herdr has no layout transition, so the
+  panes themselves jump; the slab covers the jump. Esc, a drop outside the
+  work area or on a grey zone, or a failed move springs the ghost home to
+  its row and fades it. The overlay opens with the button held, so it never
+  expects a press: a mouse-down in it cancels, 10s with no pointer move
+  cancels (`MOTION.dock.idle`), and a release drops only on a zone a
+  pointer move in the overlay set. A release it missed therefore can't arm
+  the next click. A failed move recovers and toasts as for a squad drop.
   In Priority, an agent row drags onto another to link it as a helper
   (`links.js`): it stays in place at 45% opacity, a ghost plate (raised,
   large shadow) follows the pointer and names the row under it, and that row
@@ -328,8 +391,9 @@ rendered at 4x. It is a schematic, not a screenshot.
   tag after its label; its hc parent, the Report tree and hc's parent notes
   are untouched. The link drops when either terminal ends, when either
   shell runs a new Claude Code session or another program (the link keeps
-  both session ids), or when the two sit in different spaces (Herdr can't
-  move a chat between spaces, so such a link is never drawn).
+  both session ids), or when the two sit in different spaces (such a link
+  is never drawn, and a linked chat can't be moved or docked out of its
+  squad until it is unlinked).
   The sort pill opens Priority or Tab order. A new child draws its connector
   top-down (240ms); a newly pinned agent fades in. `alt-up` /
   `alt-down` follow the list's order.
@@ -515,12 +579,17 @@ rendered at 4x. It is a schematic, not a screenshot.
   Squads list reads it again every 5s, so another window's links show;
   every roster nests helpers by it), `endfield.sessionIds` (each Claude
   Code agent's session id, which a link is kept to), `endfield.rowTitles`
-  (each agent row's task label, which a link's note quotes).
+  (each agent row's task label, which a link's note quotes),
+  `endfield.dock.ask` (`{terminal, zone, anchor, at}`: the dock overlay's
+  drop, which the Squads list runs) and `endfield.dock.done` (`{at, ok}`).
 - A card action's dialog is `{role: "action", terminal, action, snap}`, a
   dialog with `frame: "none"`; the archived list is `{role: "archived"}`;
   a squad header's dialog is `{role: "squad", id, mode: "archive" | "close"}`.
   Link is `{role: "link", lead, helper, side}` (`side: "lead"` or `"helper"`:
-  Send note, typing only that side's note).
+  Send note, typing only that side's note);
+  the dock overlay is `{role: "dock", terminal,
+  anchor, left, from, grip, pointer, title}`, a popup with `frame: "none"`,
+  `width` and `height` 1 at `{x: 0, y: 0}`.
   The actions are data: `ACTIONS[programKey]` in `orders.js`.
 - `herdr` calls: `spaces`, `agents`, `terminals`, `panes`, `focused`,
   `machines`, `layout`, `settings`, `keys`, `updates`, `fonts`, `shared`,
