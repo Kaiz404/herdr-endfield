@@ -31,6 +31,7 @@ These keep the skin coherent. A change that breaks one needs a reason in its PR.
 
 - **Yellow means "you, here, now".** `#FFFA00` marks only the active tab, the selected space, the focused pane, an agent that needs you, and primary buttons. Nothing decorative is yellow.
 - **Status is a word plus a glyph.** Colour alone never carries meaning.
+- **No dots between data.** No middle dot (`·`), bullet (`•`), pipe (`|`) or slash used as a divider between pieces of data. Set pieces apart with layout (a gap, alignment, a second line), typographic contrast (size, weight, colour) or a hairline. In a row, `spaced()` in `kit.js` does this. A tooltip is plain text, so it uses a comma or a line break. This holds for names too: a second Perlica is `PERLICA-2`. `verify.mjs` fails on a `·` or `•` in skin code outside comments.
 - **Motion only where work happens.** A working agent moves. An idle one is still. Interactions get one short piece of feedback, then stop.
 - **Art is accent, never wallpaper.** Nothing sits behind text.
 - **One decision, one place.** Colours live in `PALETTE`, agent statuses in `STATUS`, timings in `MOTION`, and who an agent is drawn as in `IDENTITY`, all in `kit.js`. Which operator a model draws is `CASTING` in `fleet.js`. A new status, colour, timing or operator is a new row in a table. It is not a new `if` in a surface, and not a number in a surface.
