@@ -9,11 +9,12 @@
 // on with SendMessage; the argv and its refusals are orders.js. Send runs exactly the command last
 // drawn: render reads agents(), so it redraws when the parent's status changes, and a click that
 // beats that redraw is refused with the reason. Nothing goes without the person's click or Enter,
-// and each send is logged to Comms the way Dispatch logs.
+// and each send is logged to Comms the way Dispatch logs. A sub-agent card's Follow-up opens or
+// focuses this pane and names its path in the shared key "endfield.followup": the box takes the keyboard.
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle, TextView, InputState, Input } from "gpui-base";
-import { props, exec, appHome, watchFolder, settings, checking, agents, window as appWindow } from "herdr";
+import { props, exec, appHome, watchFolder, settings, checking, agents, shared, setShared, window as appWindow } from "herdr";
 import * as fs from "fs/promises";
 import { relayOrder, relayRefusal, commandLine, deliver, timeoutFor } from "./orders.js";
 import { append } from "./comms.js";
@@ -23,6 +24,8 @@ const C = { text: "#E6E6E1", muted: "#A9A9A3", dim: "#6F6F6A", rule: "#2C2C2C", 
 const MONO = "JetBrains Mono";
 // The newest entries drawn; a long run's earliest ones are counted, not drawn.
 const KEEP = 400;
+// The follow-up box takes the keyboard once the card that asked for it has closed.
+const COMPOSE_FOCUS_MS = 300;
 
 const base = (p) => String(p ?? "").split(/[\\/]/).pop();
 
@@ -173,6 +176,12 @@ export class Transcript {
 
   render(cx) {
     const p = props() ?? this.p;
+    const compose = shared("endfield.followup");
+    if (compose?.path === p.path && compose.at !== this.composed) {
+      this.composed = compose.at;
+      // Consumed once: the key persists in shared.json, so a restart must not refocus the box.
+      cx.timer.after(COMPOSE_FOCUS_MS, () => { setShared("endfield.followup", null); this.input.focus(); });
+    }
     const body = this.entries.map((e, i) => this.entry(e, i));
     if (this.newest) {
       this.newest = false;

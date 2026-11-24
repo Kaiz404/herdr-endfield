@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { squadMove, dropEdge, stepSquad, chatMenu, squadMenu } from "../skin/mods/endfield/squads.js";
+import { squadMove, dropEdge, stepSquad, squadMenu } from "../skin/mods/endfield/squads.js";
 
 // Herdr's space.move {id, index}: the space ends at `index` (1 = first), as the real command does.
 const applyMove = (order, { id, index }) => {
@@ -43,26 +43,4 @@ test("a squad header's menu: rename always, a move only where there is somewhere
   assert.deepEqual(applyMove(ORDER, menu[2].move), ["b", "c", "a", "d", "r1", "r2"]);
   assert.deepEqual(squadMenu(ORDER, SQUADS, "pinned"), []);
   assert.deepEqual(squadMenu(ORDER, SQUADS, "b"), [], "a space with no agents has no header to click");
-});
-
-const claude = (status, pinned = false) => ({ agent: { pinned }, program: { key: "claude" }, status, herdrStatus: status });
-
-test("a chat's menu: Rename and Pin at any time, Archive only while idle", () => {
-  assert.deepEqual(chatMenu(claude("idle")).map((i) => [i.key, i.why]), [["rename", null], ["pin", null], ["archive", null]]);
-  const working = chatMenu(claude("working"));
-  assert.equal(working.find((i) => i.key === "rename").why, null, "renaming the tab is Herdr's and types nothing");
-  assert.ok(working.find((i) => i.key === "archive").why, "Archive types /exit, so it waits for idle");
-  assert.ok(chatMenu(claude("done")).find((i) => i.key === "archive").why);
-  assert.equal(chatMenu(claude("idle", true)).find((i) => i.key === "pin").label, "Unpin");
-});
-
-test("only a chat with a pane gets a menu; a program the card has no actions for can still be pinned", () => {
-  assert.deepEqual(chatMenu({ agent: null, program: { key: "claude" }, status: "idle" }), []);
-  assert.deepEqual(chatMenu({ agent: { pinned: false }, program: { key: "shell" }, status: "idle" }).map((i) => i.key), ["pin"]);
-  assert.ok(!chatMenu(claude("idle")).some((i) => i.key === "move"), "Herdr can't move a tab to another space");
-});
-
-test("a chat Herdr calls idle while its session waits on tasks can still be archived", () => {
-  const waiting = { ...claude("idle"), status: "waiting" };
-  assert.equal(chatMenu(waiting).find((i) => i.key === "archive").why, null);
 });

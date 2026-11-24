@@ -238,18 +238,21 @@ rendered at 4x. It is a schematic, not a screenshot.
   header at half opacity and a 2px ink line on the edge it lands at, drawn
   over the rows so no height changes); a double-click on its name (which never folds) edits the name in place; a
   drag starts only after 4px of travel
-  (`space.rename` on Enter). Right-click opens a popup menu: on a squad header
-  Rename squad, Move up, Move down; on an agent row with a pane Rename and
-  Archive (the card's confirm dialogs) and Pin. No item moves a chat to
+  (`space.rename` on Enter). Right-click on a squad header opens a popup
+  menu: Rename squad, Move up, Move down. Right-click on an agent or
+  sub-agent row holds its session card open. Nothing moves a chat to
   another squad: Herdr has no cross-space tab move.
   The sort pill opens Priority or Tab order. A new child draws its connector
   top-down (240ms); a newly pinned agent fades in. `alt-up` /
   `alt-down` follow the list's order.
-- **Session card:** after 250ms on an agent row it fades in and slides 16px
-  right (300ms) and the context blocks light 18ms apart. Moving onto the card
-  keeps it; leaving both closes it after 160ms. A press outside the card
-  closes it at once, except on its own row. A hover-out Herdr never reports
-  closes nothing until the next press: the pointer's position is not read.
+- **Session card:** after 250ms on an agent or sub-agent row it fades in and
+  slides 16px right (300ms) and the context blocks light 18ms apart. Moving
+  onto the card keeps it; leaving both closes it after 160ms. A press outside
+  the card closes it at once, except on its own row. A hover-out Herdr never
+  reports closes nothing until the next press: the pointer's position is not
+  read. A right-click on the row opens the card at once and holds it: hover
+  no longer closes it, and it goes on a press outside it (its own row too) or
+  Esc. A held card that was already up is replaced with no reveal.
   Its top sits 12px above its row's, or as far up as keeps it 8px inside the
   window. In a window too short for it the head and the ink footer stay and
   the middle scrolls, never under 120px. The window's height is its viewport
@@ -257,6 +260,13 @@ rendered at 4x. It is a schematic, not a screenshot.
   placed again 160ms later with no reveal.
   Answer/Focus runs
   `agent.focus`, Peek `terminal.peek`, Pin `terminal.pin`.
+- **Sub-agent card:** the same panel for a Claude Code sub-agent, headed by
+  its own operator and `Sub-agent  via <parent callsign>`. It shows the
+  status word and glyph, elapsed time, model and effort (in place of the tool
+  count), the context gauge, its background tasks and its last action. It has
+  no Chat row, no Comms and no Peek, Pin or Dispatch. Open transcript opens
+  the transcript pane as a click on the row does; Follow-up opens it with the
+  follow-up box focused 300ms later. Nothing is sent from the card.
 - **Chat actions:** a Chat pill closes the card and opens its dialog; nothing
   runs from the pill. Confirm runs the shown lines once: typed text as
   `hc send <t> --if idle -- "<text>"` (never `--force`), Next mode as
@@ -363,12 +373,18 @@ rendered at 4x. It is a schematic, not a screenshot.
   appends to `data/endfield/comms.jsonl`. `panes()` doesn't report a mod
   pane's props, so the shared key `endfield.panes` records which endfield
   pane is Comms and which a transcript (`fleet.js` `paneRole`).
-- The session card is the `endfield` mod as an overlay window (`kind:
-  "window"`, `frame: "none"`, props `{role: "card", terminal, title, where,
-  snap}`). Shared keys: `endfield.card.open` (the one card the agents list
-  owns), `endfield.card.hot` (the pointer is on the card),
+- The session card is the `endfield` mod as an overlay with `frame: "none"`:
+  `kind: "window"` while hovered, `kind: "popup"` when a right-click holds it
+  (Herdr closes a popup on Esc and on a press beside it). Props `{role:
+  "card", terminal, sub, title, where, ident, snap, fit, shown, held}`; `sub`
+  is a sub-agent's id and `terminal` then its parent's. Shared keys:
+  `endfield.card.open` (the one card the agents list owns),
+  `endfield.card.hot` (the pointer is on the card),
   `endfield.card.closed` (the overlay id of a card pressed beside, or closed
-  by itself; a press on the card's own row is not a dismissal),
+  by itself; a press on a hovered card's own row is not a dismissal),
+  `endfield.card.ask` (`{key, act, at}`: a sub-agent card's button asks the
+  list to open the transcript pane), `endfield.followup` (`{path, at}`: the
+  transcript pane showing `path` focuses its follow-up box),
   `endfield.identity` (the identity table changed), `endfield.models` (each
   Claude Code agent's model id, for casting), `endfield.archived` (Hides,
   `{life: "address@created", program}`, of archived chats' leftover shells,
