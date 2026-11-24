@@ -10,7 +10,6 @@ import { transcripts } from "./fixtures/waiting.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROBE = path.join(HERE, "..", "skin", "mods", "endfield", "tools", "probe.mjs");
-const HOUR = 3600000;
 // The fixtures' clock starts here; a process that started later can't own what they launched.
 const BEFORE_FIXTURES = Date.parse("2026-01-01T00:00:00Z");
 const AFTER_FIXTURES = Date.parse("2026-03-01T00:00:00Z");
@@ -19,8 +18,9 @@ const SESSIONS = ["session-live", "session-dead", "session-batch"];
 let dir;
 before(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), "endfield-waiting-"));
-  // Every transcript was last written an hour ago: nothing here is fresh.
-  const old = new Date(Date.now() - HOUR);
+  // Every transcript was last written 90s ago: nothing here is fresh, yet a foreground shell call
+  // that old is still within its time limit.
+  const old = new Date(Date.now() - 90000);
   for (const [rel, text] of Object.entries(transcripts)) {
     const p = path.join(dir, "projects", rel);
     fs.mkdirSync(path.dirname(p), { recursive: true });
@@ -215,4 +215,12 @@ test("Waiting is a word and a still glyph, ranked between Generating and Finishe
   assert.equal(st.kind, "pause", "its glyph does not move: motion is kept for where work happens");
   assert.ok(rank("working") < rank("waiting") && rank("waiting") < rank("done"));
   assert.deepEqual([rowShape("waiting", 0), rowShape("waiting", 1)], ["lead", "child"]);
+});
+
+test("a foreground shell call quiet past its time limit no longer reads working", () => {
+  const now = 10_000_000;
+  const pending = { tool: "Bash", wait: false, limit: 120000 };
+  assert.equal(runStatus({ live: true, now, mtime: now - 30000, pending, final: false }, "working"), "working");
+  assert.equal(runStatus({ live: true, now, mtime: now - 15821000, pending, final: false }, "working"), "done");
+  assert.equal(runStatus({ live: true, now, mtime: now - 15821000, pending: { ...pending, limit: null }, final: false }, "working"), "working");
 });

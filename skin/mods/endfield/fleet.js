@@ -124,9 +124,13 @@ const FRESH_MS = 20000;
  * parent: the owning agent's status; a run that is over reads idle under an idle parent, else done.
  * -> working | waiting | done | idle
  */
+const PENDING_GRACE_MS = 60000;
+
 export function runStatus(run, parent) {
   const over = parent === "idle" ? "idle" : "done";
   if (!(run.live ?? run.now - run.mtime < FRESH_MS)) return over;
+  // A call quiet past its own time limit died with its process (the session lives on): it's over.
+  if (run.pending?.limit && run.now - run.mtime > run.pending.limit + PENDING_GRACE_MS) return over;
   if (run.pending) return run.pending.wait ? "waiting" : "working";
   if (!run.final) return "working";
   return (run.tasks ?? []).some((t) => t.state === "running") ? "waiting" : over;

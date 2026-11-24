@@ -108,6 +108,15 @@ const LOOKS = new RegExp(String.raw`^(?:\[\[?\s|:(?:\s|$)|\$(?:true|false)\b|\w+
   + String.raw`|break|exit|ls|wc|date|curl|pgrep|ps|netstat|tasklist|get-process|done|fi|jq|cd|cut|sort|uniq|awk|tr|seq|for|select)(?:\s|$))`, "i");
 const PAUSES = /^(?:sleep|start-sleep|wait)(?:\s|$)/i;
 const TASK_OUTPUT = /[\\/]tasks[\\/][\w-]+\.output/;
+// The longest a foreground shell call can run: its own timeout, else Claude Code's 2-minute default,
+// capped at its 10-minute maximum. Other tools have no known bound.
+const SHELL_DEFAULT_MS = 120000, SHELL_MAX_MS = 600000;
+function limitOf(name, input = {}) {
+  if (name !== "Bash" && name !== "PowerShell") return null;
+  if (input.run_in_background) return null;
+  return Math.min(Number(input.timeout) || SHELL_DEFAULT_MS, SHELL_MAX_MS);
+}
+
 function waits(name, input = {}) {
   if (name !== "Bash" && name !== "PowerShell") return false;
   const command = String(input.command ?? "");
@@ -183,7 +192,7 @@ function fold(f, j) {
         f.uses[c.id] = { at, description: c.input?.description ?? (String(c.input?.command ?? "").split("\n")[0].trim().slice(0, 120) || null) };
         // A sub-agent ends its turn by handing its report back, not with a last message.
         const handback = c.name === "SubagentHandback";
-        f.pending = handback ? null : { id: c.id, tool: c.name, arg: f.last.arg, question: q, wait: waits(c.name, c.input) };
+        f.pending = handback ? null : { id: c.id, tool: c.name, arg: f.last.arg, question: q, wait: waits(c.name, c.input), limit: limitOf(c.name, c.input) };
         f.final = handback;
       } else if (c.type === "text" && c.text?.trim()) {
         f.final = true;
