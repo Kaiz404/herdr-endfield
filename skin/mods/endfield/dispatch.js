@@ -11,7 +11,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { props, closeOverlay, openOverlay, spaces, terminals, knownAgents, exec, hc, checking, window as appWindow } from "herdr";
-import { palette, root, micro, wide, chip, glyph, pill, barcode, dots, cue, growDisc, IDENTITY, MOTION, FONT, STRIP, strip, stripCode, stripCancel } from "./kit.js";
+import { palette, root, micro, spaced, wide, chip, glyph, pill, barcode, dots, cue, growDisc, IDENTITY, MOTION, FONT, STRIP, strip, stripCode, stripCancel } from "./kit.js";
 import { roster } from "./roster.js";
 import { cast } from "./fleet.js";
 import { append } from "./comms.js";
@@ -133,7 +133,8 @@ export class Dispatch {
     const ready = Boolean(task) && !held && !problem && (this.state.phase === "edit" || this.state.phase === "refused") && (send ? Boolean(this.target) : Boolean(this.space));
     this.ready = ready;
     const banner = this.state.error ? { refused: ["hc said", C.error], uncertain: ["Check before sending again", C.error], sent: ["Sent", C.text] }[this.state.phase] ?? ["hc said", C.error] : problem ? ["Not sent", C.error] : null;
-    const section = (n, label, right) => h_flex().gap(8).items_center().child(micro(`${n} · ${label}`, C.muted)).child(div().flex_1().h(1).bg(C.hair)).when(Boolean(right), (el) => el.child(micro(right, C.muted)));
+    const pair = (a, b, fg, dim, size) => h_flex().min_w(0).gap(6).items_center().child(wide(a, fg, size).flex_none()).child(wide(b, dim, size).min_w(0).truncate());
+    const section = (n, label, right) => h_flex().gap(8).items_center().child(spaced([n, label], C.dim, { rest: C.muted, gap: 6 })).child(div().flex_1().h(1).bg(C.hair)).when(Boolean(right), (el) => el.child(micro(right, C.muted)));
     const tabBtn = (k, label, cmd) => {
       const on = this.mode === k;
       return h_flex().id(`dl-mode-${k}`).h(28).px(12).gap(6).items_center().rounded_full().cursor_pointer().when(on, (el) => el.bg(C.selBg))
@@ -146,7 +147,7 @@ export class Dispatch {
       const on = m.address === this.target;
       return v_flex().id(`dl-t-${m.address}`).relative().flex_1().min_w(0).h(96).items_center().justify_center().gap(6).rounded(3).border_1().cursor_pointer()
         .border_color(on ? C.selBg : C.hair).bg(on ? C.selBg : C.ground)
-        .tooltip(`${m.ident.callsign} · ${m.title}`)
+        .tooltip(`${m.ident.callsign}, ${m.title}`)
         .on_click((_e, cx) => { this.target = m.address; this.parent = m.address; cx.notify(); })
         .when(on, (el) => el.child(div().absolute().left(-1).top(14).bottom(14).w(3).bg(C.signal)))
         .child(chip(C, m.ident, m.status, { size: 40, on, ground: on ? C.selBg : C.ground }))
@@ -164,7 +165,7 @@ export class Dispatch {
         .child(micro(g.installed ? "installed" : "not installed", "#A9A9A3", 8.5).relative())
         .child(div().absolute().left(0).right(0).bottom(0).h(3).bg(g.installed ? C.lime : "#3A3A3A"));
     };
-    const box = (label, body) => v_flex().flex_1().min_w(0).gap(5).px(10).py(8).rounded(3).border_1().border_color(C.hair).child(micro(label, C.muted, 8.5)).child(body);
+    const box = (label, body) => v_flex().flex_1().min_w(0).gap(5).px(10).py(8).rounded(3).border_1().border_color(C.hair).child(spaced([label].flat(), C.muted, { rest: C.dim, size: 8.5, gap: 6 })).child(body);
     const cycleSpace = (_e, cx) => {
       const ids = spaces().map((s) => s.id);
       this.space = ids[(ids.indexOf(this.space) + 1) % ids.length] ?? null;
@@ -180,7 +181,7 @@ export class Dispatch {
         .child(div().absolute().right(-7).bottom(-7).size(10).border_r(1.5).border_b(1.5).border_color(C.text))
         .child(h_flex().pl(22).pr(20).pt(18).pb(14).gap(12).items_end()
           .child(v_flex().gap(8)
-            .child(h_flex().gap(8).items_center().child(micro(send ? "hc send · to a running agent" : "hc run · new agent in a space", C.muted)).child(barcode(C.cross)))
+            .child(h_flex().gap(8).items_center().child(spaced(send ? ["hc send", "to a running agent"] : ["hc run", "new agent in a space"], C.muted, { rest: C.dim })).child(barcode(C.cross)))
             .child(div().text_size(20).font_semibold().child("// Dispatch")))
           .child(div().flex_1())
           .child(h_flex().p(3).gap(2).rounded_full().bg(C.sunken).child(tabBtn("send", "Send to agent", "hc send")).child(tabBtn("new", "New agent", "hc run")))
@@ -192,21 +193,21 @@ export class Dispatch {
           .child(section("01", "Target operator", `${String(R.flat.length).padStart(2, "0")} in this window`))
           .child(v_flex().gap(8).children([0, 6].filter((k) => k < Math.max(1, targets.length)).map((k) => h_flex().gap(8)
             .children([...targets.slice(k, k + 6).map(targetTile), ...Array.from({ length: Math.max(0, 6 - targets.slice(k, k + 6).length) }, () => div().flex_1())]))))
-          .when(Boolean(term), (el) => el.child(micro(`Target: ${term.address} · ${term.program?.name ?? "terminal"} (opened on it)`, C.text)))
+          .when(Boolean(term), (el) => el.child(spaced([`Target: ${term.address}`, `${term.program?.name ?? "terminal"} (opened on it)`], C.text, { rest: C.muted })))
           .child(h_flex().gap(10).items_center().px(10).py(8).bg(C.ground).border_l(2).border_color(C[warn[0]]).rounded_r(3)
-            .when(Boolean(T), (el) => el.child(wide(`${T.ident.callsign} · ${T.address}`, C.text, 9.5).flex_none()))
+            .when(Boolean(T), (el) => el.child(pair(T.ident.callsign, T.address, C.text, C.muted, 9.5).flex_none()))
             .child(div().text_size(12).text_color(C.muted).child(warn[1])))))
         .when(!send, (el) => el.child(v_flex().px(22).pt(4).pb(14).gap(10)
           .child(section("01", "Program", "Installed on this machine"))
           .child(h_flex().gap(8).children(this.progs.slice(0, 6).map(progTile)))
           .child(h_flex().gap(8)
-            .child(box(model ? "Operator · by model" : "Operator · program default", h_flex().gap(10).items_center()
+            .child(box(["Operator", model ? "by model" : "program default"], h_flex().gap(10).items_center()
               .child(ident ? chip(C, ident, "idle", { size: 30, ground: C.raised }) : div())
               .child(wide(callsign, C.text, 10).truncate())))
-            .child(box("Squad · space", h_flex().id("dl-space").gap(6).items_center().cursor_pointer().on_click(cycleSpace).tooltip("Click for the next space")
+            .child(box(["Squad", "space"], h_flex().id("dl-space").gap(6).items_center().cursor_pointer().on_click(cycleSpace).tooltip("Click for the next space")
               .child(div().w(22).h(16).flex().items_center().justify_center().rounded(3).bg(C.selBg).font_family(FONT.mono).text_size(9).text_color(C.selText).child(squad?.num ?? String(spaces().findIndex((s) => s.id === this.space) + 1).padStart(2, "0")))
               .child(wide(space?.name ?? "none", C.text, 10).flex_1().min_w(0).truncate()).child(micro("▸", C.muted))))
-            .child(box("Parent · reports to", wide(lone ? "None · top level" : `${parentM?.ident.callsign ?? this.parent} · ${this.parent}`, C.text, 10).truncate())))))
+            .child(box(["Parent", "reports to"], lone ? pair("None", "top level", C.text, C.muted, 10) : pair(parentM?.ident.callsign ?? this.parent, this.parent, C.text, C.muted, 10))))))
         .child(v_flex().px(22).pb(14).gap(8)
           .child(section("02", prog?.shell && !send ? "Command" : "Task", `${task.length} chars`))
           .child(h_flex().min_h(58).px(12).py(10).gap(8).items_stretch().rounded(3).border_1().border_color(C.hairStrong).bg(C.ground)
@@ -214,7 +215,7 @@ export class Dispatch {
             .child(div().flex_1().min_w(0).font_family("JetBrains Mono").text_size(12).child(Input.new(this.input)))
             .child(div().w(4).flex_none().border_t(1.5).border_b(1.5).border_r(1.5).border_color(C.text))))
         .child(h_flex().px(22).pb(16).gap(8).items_center()
-          .child(micro(`03 · ${optRow.title}`, C.muted).w(92))
+          .child(spaced(["03", optRow.title], C.dim, { rest: C.muted, gap: 6 }).w(92).flex_none())
           .children(optRow.list.filter((o) => send || o.k === "none" || this.parent).map((o) => {
             const on = this.opt[this.mode] === o.k;
             return h_flex().id(`dl-o-${o.k}`).h(26).px(10).gap(6).items_center().rounded_full().border_1().cursor_pointer()
@@ -232,7 +233,8 @@ export class Dispatch {
               .child(micro("Current formula", STRIP.dim))
               .child(wide("You", STRIP.text, 10).flex_none())
               .child(div().text_size(9).text_color("#31ACF0").child("▶▶"))
-              .child(wide(send ? (T ? `${T.ident.callsign} · ${T.address}` : this.target ?? "—") : `New ${prog?.name ?? ""} · ${lone ? space?.name ?? "" : `child of ${this.parent}`}`, STRIP.text, 10).min_w(0).truncate()))
+              .child(send ? (T ? pair(T.ident.callsign, T.address, STRIP.text, STRIP.dim, 10) : wide(this.target ?? "—", STRIP.text, 10).min_w(0).truncate())
+                : pair(`New ${prog?.name ?? ""}`, lone ? space?.name ?? "" : `child of ${this.parent}`, STRIP.text, STRIP.dim, 10)))
             // Every argument, wrapped rather than cut: this line runs exactly what Dispatch runs.
             .child(stripCode(div().id("dl-cmd").min_w(0).max_h(58).overflow_y_scrollbar()).child(text)))
           .when(!done, (el) => el.child(stripCancel("dl-cancel", () => closeOverlay(p.overlay))))
