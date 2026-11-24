@@ -10,23 +10,34 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
 
 - `main.js` routes a role to its class: `boot`, `brand`, `footer`, `spaces`,
   `agents`, `sortmenu`, `card`, `tabs`, `pane`, `status`, `toast`, `cutin`,
-  `report`, `dispatch`, `comms`.
+  `report`, `dispatch`, `comms`, `transcript`.
+- Two roles open as panes, `comms` and `transcript` (`pane.split` with `mod:
+  "endfield"` and the role in props). `panes()` reports a mod pane's mod but not
+  its props, so `fleet.js` keeps a registry in the shared key `endfield.panes`:
+  `{roles: {pane: role}, opening: {tab: role}}`. `openComms()` and Squads call
+  `opening()` just before their split, which records the role of every endfield
+  pane open now and the role about to open in that tab; the endfield pane that
+  then appears there takes it. `paneRole()` answers for any pane, and an endfield
+  pane the registry never saw is Comms. A pane of the retired
+  `endfield-transcript` mod counts as a transcript, so the next click on a
+  sub-agent replaces it.
 - `kit.js` owns the registries every role reads: `PALETTE` (keyed `paper` /
-  `night`, picked by `settings().dark`), `IDENTITY` (who an agent is drawn as)
+  `night`, picked by `settings().dark`), `IDENTITY` (who an agent is drawn as;
+  the casting rules are `CASTING` in `fleet.js`)
   and `MOTION` (every timing). It also holds the shared shapes (tiles, brackets,
   hatch, odometer, wipes, the selection plate and marker) and the motion helpers
   (`Entrance`, `StatusFx`).
 - `roster.js` is the fleet every surface reads, built by `fleet.js` from Herdr's
   live lists: each agent's identity and callsign (a repeated operator takes a
-  spare, then a number, `PERLICA·2`, in creation order so it never hops), its
+  spare, then a number, `PERLICA·2`; each agent keeps its draw so it never hops), its
   parent and depth, and squads in tree order: pinned agents first (they also lead
   `agent.next`), then one per space. Priority ranks an agent by the most urgent
   status in its tree.
 - Five modules hold the rules with no Herdr import, so `tests/` runs them under
   `node --test` (CI and `verify.mjs --static` too): `fleet.js` (the `STATUS`
   table, agent status to word, glyph kind, bar colour, entrance effect and rank,
-  and the roster), `orders.js` (Dispatch's argv, the command line it shows, and
-  what became of a run), `messages.js` (which Comms screen tags count, how
+  and the roster), `orders.js` (Dispatch's argv and the transcript pane's
+  follow-up relay, the command line each shows, and what became of a run), `messages.js` (which Comms screen tags count, how
   many are kept, the log's size cap), `base.js` (the home base: which folder a
   new local space opens in), `usage.js` (the HUD footer's Claude usage limits:
   which windows show, when one has reset, how time to reset reads) and
@@ -57,7 +68,7 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   newest transcript in `~/.claude/projects/<cwd slug>/` (approximate: two sessions
   in one folder can't be told apart; the card marks it `≈`).
 - `tools/probe.mjs` reads transcripts for `sessions.js` and for
-  `mods/endfield-transcript`. It runs under `node` because `readTextFile` stops at
+  `transcript.js`. It runs under `node` because `readTextFile` stops at
   1 MiB and transcripts reach tens of MB. It folds each file once and keeps the
   fold and byte offset in `data/endfield/probe-cache.json`, so a poll reads only
   appended lines. Without `node` on PATH the rows and card show `—`.
@@ -90,12 +101,27 @@ python mods/endfield/tools/make_art.py
 
 ## Operators
 
-`IDENTITY.resolve(program, terminal, { parent })` in `kit.js` is the one place that
-decides an agent's operator. It returns `{ operator, name, accent, avatar, badge, fallbackIcon }`,
+`IDENTITY.resolve(program, terminal, { parent, model })` in `kit.js` is the one place
+surfaces ask who an agent is. It returns `{ operator, name, accent, avatar, badge, fallbackIcon, pool }`,
 where `avatar` holds the paths `32`, `64`, `128`, `round`, `bust` and `signal`, `badge`
-is the class badge (`C`, `X`, `Cu`, `O`, `G`), and `fallbackIcon` is the program, drawn
-as its tile inside the chip when `avatar` is null. `chip()` draws every party chip;
-`roster.js` adds the callsign.
+is the class badge (`C`, `X`, `Cu`, `O`, `G`), `fallbackIcon` is the program, drawn
+as its tile inside the chip when `avatar` is null, and `pool` is the draw order.
+`chip()` draws every party chip.
+
+The rules are pure, in `fleet.js`, and `tests/casting.test.mjs` runs them:
+`CASTING` maps a model id to a tier and a tier to a pool of operators (see
+[docs/CASTING.md](../../../docs/CASTING.md)); `choose()` picks the slug and pool;
+`cast()` draws the first operator of the pool no other agent holds and names the
+callsign, numbering (`YVONNE·2`) only once the pool is spent. `castCrew()`
+casts a crew from the last render's cast: each member keeps its operator while
+it stays and draws from the same pool, and newcomers draw in start order.
+`buildRoster()` casts the pane agents that way, in creation order, with newcomers
+skipping the slots shown sub-agents hold; a same-program child with no model of
+its own runs its parent's. The agents list casts each Claude Code session's
+sub-agents around the fleet the same way. `roster.js` keeps the last cast and
+the sub-agents' slots (`holdCrew()`) in module scope, which every copy of the
+mod shares, so every surface casts alike. The agents list's session poller
+publishes each Claude Code agent's model id as the shared key `endfield.models`.
 
 Two files feed it, both optional:
 
@@ -111,19 +137,22 @@ Two files feed it, both optional:
   }
   ```
 
-  An optional `"spares": ["laevatain"]` lists the operators a repeat takes before
-  callsigns get numbers (default: the manifest's `unassigned`).
+  The installed seed is empty, so the model decides. An optional
+  `"spares": ["laevatain"]` lists the operators a repeat takes after its pool and
+  before callsigns get numbers (default: the manifest's `unassigned`).
   `programs` maps a program key (`program.key`: `claude`, `codex`, ...) to an
-  operator slug. `sub-agent` is used for sub-agents and `shell` for any agent
-  with no entry of its own. `terminals` maps one terminal address to a slug and
-  wins over `programs`. `null` means no operator: that agent keeps its program
-  tile. Unknown slugs also fall back to the tile.
+  operator slug and wins over the model. `sub-agent` is used for sub-agents.
+  `terminals` maps one terminal address to a slug and wins over everything.
+  `null` means no operator: that agent keeps its program tile. Unknown slugs
+  also fall back to the tile.
 
-Resolution order: `terminals[address]`, then `programs["sub-agent"]` for a
-child of the same program (a cross-vendor child keeps its own program's
-operator), then `programs[program.key]`, then `programs.shell`; overrides replace
-the manifest's `default_assignment` key by key. An operator whose avatar files
-are missing is dropped, so deleting `art/operators/` leaves every surface as it
+Resolution order: `terminals[address]`, then the person's `programs["sub-agent"]`
+for a child of the same program (a cross-vendor child keeps its own program's
+operator), then the person's `programs[program.key]`, then the model's pool (only
+the operators the pack has), then the manifest's `default_assignment`:
+`sub-agent` for a same-program child, the program key, `shell`. A model no rule
+knows draws `CASTING.fallback`. A pinned terminal never takes a spare. An
+operator whose avatar files are missing is dropped, so deleting `art/operators/` leaves every surface as it
 was. The agents list rereads both files on start and every 30 s; the table is
 rebuilt, and every copy redrawn, only when their text changed (mods have no
 file `stat`, so the cache is keyed by content, not mtime).
@@ -162,6 +191,21 @@ and harmless runs in a throwaway `ef-*` space whose terminal was a plain PowerSh
 
 The design board's "When idle" meant "queued until the turn ends". hc has no queue,
 so the option is "Only if idle" and the dialog says what happens when it isn't.
+`deliverPlan(status, onlyIfIdle)` in `orders.js` is the one rule for what a send to
+an agent runs and what the dialog says, and the transcript pane's relay uses it too:
+
+| Status | Only if idle | Now |
+| --- | --- | --- |
+| idle | `--if idle` | plain |
+| done | plain | plain |
+| working | disabled | plain |
+| error | disabled | plain |
+| blocked | disabled | disabled |
+| not listed | disabled | disabled |
+
+`done` goes plain because `--if idle` refuses it (exit 10) and hc has no
+`--if done`, while a Claude Code agent that finished its turn waits at its prompt
+until someone looks at it.
 
 Dispatch runs an order once. When hc exits 0 the order is sent: the Comms log is
 written in its own step, and a failure there is shown but never re-enables
@@ -177,6 +221,44 @@ tag counts only when its sender is a live terminal other than the recipient
 characters, and the pane keeps the newest 200. With "Now, wait for reply" the
 log records the last screen line after the turn as a "Screen line", not a
 reply: it may be a prompt, a spinner or a draft.
+
+### Follow-ups to a sub-agent (the transcript pane)
+
+The transcript pane's foot takes a follow-up for the sub-agent it shows. Which
+agents can take one:
+
+- An `hc`-started child is a terminal. Squads focuses its pane (or peeks it) and
+  never opens a transcript for it, so its follow-up goes the usual ways: type in
+  its pane, or Dispatch with "Only if idle". The box is not offered for it.
+- A Claude Code Task sub-agent has no terminal, so nothing can type into it. The
+  box asks its parent instead: `hc send <parent> -- "Use SendMessage to send your
+  sub-agent <id> (<description>) this follow-up, word for word: <text>"`. The
+  pane says so ("sent via PERLICA") and shows that exact command before Send.
+  `<id>` is the transcript's `agent-<id>.jsonl` name. That this is the id
+  SendMessage takes is an assumption, not checked against Claude Code.
+
+The parent must be waiting at its prompt: `deliverPlan(status, true)`, the
+Dispatch rule above with "Only if idle". Idle goes with `--if idle`, done goes
+plain, and any other status leaves Send disabled with the reason. The pane never
+forces. Send runs exactly the command the pane last drew. The pane reads the
+parent's status while it draws, so Herdr redraws it when that status changes. A
+click that lands before the redraw, while a send may already have arrived, or
+with nothing to run, sends nothing and says why (`relayRefusal()`). The run and
+its refusals are `relayOrder()` and `deliver()` in `orders.js`, as for Dispatch:
+a refusal (exit 2, 3, 7, 9, 10) may be retried, any other failure leaves Send
+disabled until the text changes. Each sent follow-up is a Comms `Message` from
+you to the parent, `via` "Follow-up via PERLICA to sub-agent `<id>`".
+
+A done parent has a race that `--if idle` would close for an idle one. Between
+the status read and hc's paste, the parent can start a turn (a background task
+reporting in, say), and the relay is then typed mid-turn. Claude Code is believed
+to queue input typed during a turn and read it when the turn ends. That is not
+tested. After a send the pane says only that the text was typed into the parent,
+not that the parent passed it on.
+
+Not verified live: that Claude Code's SendMessage takes the transcript's id and
+reaches a finished sub-agent, how the parent words what it does with the relay,
+and what Claude Code does with a relay typed mid-turn.
 
 ## Native limits
 

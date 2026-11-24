@@ -13,8 +13,9 @@ import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { props, closeOverlay, openOverlay, spaces, terminals, knownAgents, exec, hc, checking, window as appWindow } from "herdr";
 import { palette, root, micro, wide, chip, glyph, pill, barcode, dots, cue, growDisc, IDENTITY, MOTION, FONT } from "./kit.js";
 import { roster } from "./roster.js";
+import { cast } from "./fleet.js";
 import { append } from "./comms.js";
-import { sendArgs, runArgs, taskProblem, commandLine, deliver, timeoutFor } from "./orders.js";
+import { sendArgs, runArgs, taskProblem, commandLine, deliver, timeoutFor, deliverPlan } from "./orders.js";
 
 export const openDispatch = (p) => openOverlay({ mod: "endfield", kind: "dialog", frame: "none", width: 700, height: 620, props: { role: "dispatch", ...p } });
 
@@ -56,13 +57,16 @@ export class Dispatch {
     });
   }
 
-  // The exact command: the argv hc gets, and that argv as one line for this machine's shell.
+  // The exact command: the argv hc gets, and that argv as one line for this machine's shell. A send
+  // to an agent follows deliverPlan, so "Only if idle" to a finished agent goes plain, as the preview says.
   command() {
     const task = this.input.value().trim();
     const platform = appWindow()?.platform;
     if (this.mode === "send") {
-      const args = sendArgs({ target: this.target ?? "?", delivery: this.opt.send, task });
-      return { args, text: commandLine(args, platform), task };
+      const T = this.target ? roster().all.get(this.target) : null;
+      const plan = T ? deliverPlan(T.status, this.opt.send === "idle") : null;
+      const args = sendArgs({ target: this.target ?? "?", delivery: this.opt.send === "wait" ? "wait" : plan?.gate ?? this.opt.send, task });
+      return { args, text: commandLine(args, platform), task, plan };
     }
     const prog = this.progs.find((g) => g.key === this.prog) ?? SHELL();
     const space = spaces().find((s) => s.id === this.space);
@@ -73,8 +77,8 @@ export class Dispatch {
 
   async confirm(cx) {
     if (this.state.phase !== "edit" && this.state.phase !== "refused") return;
-    const { args, task } = this.command();
-    if (!task) return;
+    const { args, task, plan } = this.command();
+    if (!task || plan?.enabled === false) return;
     const send = this.mode === "send";
     const target = this.target;
     const wait = send && this.opt.send === "wait";
@@ -108,23 +112,24 @@ export class Dispatch {
     const send = this.mode === "send";
     const T = this.target ? R.all.get(this.target) : null;
     const term = this.target && !T ? terminals().find((t) => t.address === this.target) : null;
-    const { text, prog } = this.command();
+    const { text, prog, plan } = this.command();
     const task = this.input.value().trim();
     const space = spaces().find((s) => s.id === this.space);
     const squad = R.squads.find((q) => q.id === this.space);
     const parentM = this.parent ? R.all.get(this.parent) : null;
     const lone = this.opt.new === "none" || !this.parent;
-    const ident = prog ? (prog.shell ? IDENTITY.as(null, { key: "shell", name: "Shell" }) : IDENTITY.resolve(prog, null, { parent: lone ? null : parentM?.program })) : null;
-    const repeats = ident?.operator ? [...R.all.values()].filter((m) => m.ident.operator === ident.operator).length : 0;
-    const callsign = ident ? `${ident.name.toUpperCase()}${repeats ? `·${repeats + 1}` : ""}` : "";
-    const warn = !send ? null : T?.status === "blocked" ? ["signal", "Needs input. hc send refuses a blocked agent (only --force types into it, and this dialog never forces). Answer it first."]
-      : this.opt.send === "idle" && T?.status === "working" ? ["flow", `Generating, turn ${T.turn ?? "—"}. --if idle types nothing while it works; choose Now to send anyway.`]
-      : T?.status === "working" ? ["flow", "Generating. Sent now; it reads the message at its next step."]
-      : T ? ["lime", "Idle. Delivered now."] : term ? ["hairStrong", "A terminal with no agent status: the text is typed and Enter pressed."] : ["hairStrong", "Pick a target."];
-    const blocked = send && T?.status === "blocked";
+    // The roster's own draw: a same-program child runs its parent's model; any other starts on its program's default until its model is known.
+    const up = lone ? null : parentM;
+    const model = up && up.program?.key === prog?.key ? up.model ?? null : null;
+    const ident = prog ? (prog.shell ? IDENTITY.as(null, { key: "shell", name: "Shell" }) : cast(IDENTITY, IDENTITY.resolve(prog, null, { parent: up?.program ?? null, model }), prog, new Set(R.taken))) : null;
+    const callsign = ident?.callsign ?? ident?.name.toUpperCase() ?? "";
+    const tone = { blocked: "signal", working: "flow", error: "error" }[T?.status] ?? "lime";
+    const warn = !send ? null : plan ? [tone, plan.preview ?? (deliverPlan(T.status, false).enabled ? `${plan.reason} Choose Now to send anyway.` : plan.reason)]
+      : term ? ["hairStrong", "A terminal with no agent status: the text is typed and Enter pressed."] : ["hairStrong", "Pick a target."];
+    const held = send && plan?.enabled === false;
     const problem = taskProblem({ mode: this.mode, shell: Boolean(prog?.shell), task });
     const done = this.state.phase === "sent" || this.state.phase === "uncertain";
-    const ready = Boolean(task) && !blocked && !problem && (this.state.phase === "edit" || this.state.phase === "refused") && (send ? Boolean(this.target) : Boolean(this.space));
+    const ready = Boolean(task) && !held && !problem && (this.state.phase === "edit" || this.state.phase === "refused") && (send ? Boolean(this.target) : Boolean(this.space));
     this.ready = ready;
     const banner = this.state.error ? { refused: ["hc said", C.error], uncertain: ["Check before sending again", C.error], sent: ["Sent", C.text] }[this.state.phase] ?? ["hc said", C.error] : problem ? ["Not sent", C.error] : null;
     const section = (n, label, right) => h_flex().gap(8).items_center().child(micro(`${n} · ${label}`, C.muted)).child(div().flex_1().h(1).bg(C.hair)).when(Boolean(right), (el) => el.child(micro(right, C.muted)));
@@ -194,7 +199,7 @@ export class Dispatch {
           .child(section("01", "Program", "Installed on this machine"))
           .child(h_flex().gap(8).children(this.progs.slice(0, 6).map(progTile)))
           .child(h_flex().gap(8)
-            .child(box("Operator · auto", h_flex().gap(10).items_center()
+            .child(box(model ? "Operator · by model" : "Operator · program default", h_flex().gap(10).items_center()
               .child(ident ? chip(C, ident, "idle", { size: 30, ground: C.raised }) : div())
               .child(wide(callsign, C.text, 10).truncate())))
             .child(box("Squad · space", h_flex().id("dl-space").gap(6).items_center().cursor_pointer().on_click(cycleSpace).tooltip("Click for the next space")

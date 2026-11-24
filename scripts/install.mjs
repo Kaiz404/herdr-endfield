@@ -4,7 +4,7 @@
 // to .endfield-install/backup/; uninstall.mjs puts it back.
 import { mkdirSync, copyFileSync, existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { entries, home, owned, same, RETIRED } from "./skin.mjs";
+import { entries, home, owned, same, unedited, RETIRED } from "./skin.mjs";
 
 const HOME = home();
 if (!existsSync(HOME)) {
@@ -21,7 +21,7 @@ for (const e of entries()) {
   if (!owned(e.rel)) throw new Error(`refusing to write ${e.rel}: not an endfield path`);
   const dest = join(HOME, e.rel);
   if (existsSync(dest)) {
-    if (e.seed) { done.kept.push(e.rel); continue; }
+    if (e.seed && !unedited(e.rel, dest)) { done.kept.push(e.rel); continue; }
     if (same(e.src, dest)) { done.unchanged.push(e.rel); continue; }
     const backup = join(STATE, "backup", e.rel);
     if (!created.has(e.rel) && !existsSync(backup)) {

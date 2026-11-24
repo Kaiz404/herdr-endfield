@@ -4,7 +4,7 @@
 // No backups: run install.mjs first on a home whose endfield files you want to keep.
 import { mkdirSync, copyFileSync, existsSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { entries, home, owned, same, walk, posix, herdrWritten, modDirs, RETIRED } from "./skin.mjs";
+import { entries, home, owned, same, unedited, walk, posix, herdrWritten, modDirs, RETIRED } from "./skin.mjs";
 
 const DRY = process.argv.includes("--dry-run");
 const HOME = home();
@@ -16,7 +16,7 @@ for (const e of skin) {
   if (!owned(e.rel)) throw new Error(`refusing to write ${e.rel}: not an endfield path`);
   const dest = join(HOME, e.rel);
   if (!existsSync(dest)) plan.push(["add", e.rel, e.src]);
-  else if (!same(e.src, dest)) plan.push([e.seed ? "differs (your copy, kept)" : "update", e.rel, e.src]);
+  else if (!same(e.src, dest)) plan.push([e.seed && !unedited(e.rel, dest) ? "differs (your copy, kept)" : "update", e.rel, e.src]);
 }
 for (const m of modDirs()) {
   if (!existsSync(join(HOME, m))) continue;

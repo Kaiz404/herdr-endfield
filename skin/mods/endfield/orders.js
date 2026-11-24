@@ -1,9 +1,71 @@
-// orders: what Dispatch runs and what happened, with no Herdr in it (tests/orders.test.mjs runs it in
-// node). The dialog (dispatch.js) only draws these and passes the person's choices in.
+// orders: what Dispatch and the transcript pane's follow-up box run and what happened, with no Herdr
+// in it (tests/orders.test.mjs and tests/relay.test.mjs run it in node). The dialog (dispatch.js) and
+// the pane (transcript.js) only draw these and pass the person's choices in.
 
 /** hc send: the typed text always follows `--`, so text starting with "-" is never read as an option. */
 export function sendArgs({ target, delivery, task }) {
   return ["send", target, ...(delivery === "idle" ? ["--if", "idle"] : []), ...(delivery === "wait" ? ["--wait"] : []), "--", task];
+}
+
+const oneLine = (s) => `${s ?? ""}`.replace(/\s*[\r\n]+\s*/g, " ").trim();
+
+/** What a Claude Code parent is asked to type into SendMessage for its sub-agent `id`. */
+export function relayMessage({ id, title, text }) {
+  return `Use SendMessage to send your sub-agent ${id} (${oneLine(title)}) this follow-up, word for word: ${oneLine(text)}`;
+}
+
+const BLOCKED = "Needs input. hc refuses a blocked agent without --force, which is never used here. Answer it first.";
+
+// [gate, words] per agent status, for "Only if idle" and for a plain send. gate is the hc delivery
+// ("idle": --if idle, "now": plain) or null when nothing may go. Done is Claude Code after a turn,
+// waiting at its prompt until someone looks: --if idle refuses it (exit 10) and hc has no --if done,
+// so it goes plain either way.
+const PLAN = {
+  idle: { only: ["idle", "Idle. Delivered now."], any: ["now", "Idle. Delivered now."] },
+  done: { only: ["now", "Finished its turn and waiting at its prompt. Delivered now."], any: ["now", "Finished its turn and waiting at its prompt. Delivered now."] },
+  working: { only: [null, "Generating. Only if idle sends nothing while it works."], any: ["now", "Generating. Sent now; it reads the message at its next step."] },
+  error: { only: [null, "Stopped on an error. Only if idle sends nothing to it."], any: ["now", "Stopped on an error. Sent now."] },
+  blocked: { only: [null, BLOCKED], any: [null, BLOCKED] },
+};
+
+/**
+ * The one rule for sending to an agent with `status` (null: Herdr doesn't list it), shared by
+ * Dispatch and the transcript pane's relay. enabled is gate !== null; preview says what happens
+ * when it goes, reason why it can't.
+ */
+export function deliverPlan(status, onlyIfIdle) {
+  const [gate, words] = PLAN[status]?.[onlyIfIdle ? "only" : "any"] ?? [null, "Not running."];
+  return { gate, enabled: gate !== null, preview: gate ? words : null, reason: gate ? null : words };
+}
+
+/**
+ * A follow-up for a Claude Code sub-agent (the transcript pane). It has no terminal, so its parent is
+ * asked to pass the text on with SendMessage, and only while the parent waits at its prompt:
+ * deliverPlan(status, true). Returns {args, problem}: exactly one is null.
+ */
+export function relayOrder({ parent, status, id, title, text }) {
+  const plan = deliverPlan(status, true);
+  const problem = !parent ? "This pane doesn't know the sub-agent's parent. Close it and open it again from Squads."
+    : !plan.enabled ? `Its parent: ${plan.reason}`
+    : !oneLine(text) ? "Type a follow-up."
+    : null;
+  if (problem) return { args: null, problem };
+  return { args: sendArgs({ target: parent, delivery: plan.gate, task: relayMessage({ id, title, text }) }), problem: null };
+}
+
+/**
+ * Why a click on the relay's Send runs nothing, or null to run `shown.args`. shown is the order the
+ * pane last drew and now the one it would draw at the click ({args, problem, status}); a parent whose
+ * status moved in between changes the command, so the person sees the new one before anything goes.
+ */
+export function relayRefusal({ phase, shown, now }) {
+  if (phase === "busy") return "Still sending the last one.";
+  if (phase === "uncertain") return "Not sent. The last follow-up may have arrived: read the parent's screen, then change the text to send again.";
+  if (!shown.args) return `Not sent. ${shown.problem}`;
+  if (JSON.stringify(now.args) === JSON.stringify(shown.args)) return null;
+  return now.status !== shown.status
+    ? `Not sent. Its parent went from ${shown.status} to ${now.status ?? "not running"} after this command was shown. Check the new one and send again.`
+    : "Not sent. The command changed after it was shown. Check it and send again.";
 }
 
 /** hc run: a new terminal in a space, its program's argv after `--`, the task as its last argument. */

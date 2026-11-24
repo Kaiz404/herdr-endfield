@@ -5,7 +5,7 @@ import { div, svg, image, PathBuilder, Background } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { settings, layout, shared, setShared, run, keys, home, appHome, readTextFile, fonts, checking, playSound, spaces, exec, window as appWindow } from "herdr";
 import * as fs from "fs/promises";
-import { statusOf } from "./fleet.js";
+import { statusOf, choose } from "./fleet.js";
 import { resolveHomeBase } from "./base.js";
 
 export const ASSETS = "mods/endfield/art";
@@ -177,7 +177,7 @@ let prefs = { sounds: { alerts: true, ticks: false } };
 const AVATAR = { 32: "avatar32", 64: "avatar64", 128: "avatar128", round: "avatar64round", bust: "bust480", signal: "signal" };
 // The class badge on a chip: the program, in one or two letters.
 const BADGE = { claude: "C", codex: "X", cursor: "Cu", opencode: "O", gemini: "G" };
-let cast = { text: null, programs: {}, terminals: {}, operators: {}, spares: [] };
+let cast = { text: null, overrides: {}, defaults: {}, terminals: {}, operators: {}, spares: [] };
 let reading = null;
 
 async function readJson(rel) {
@@ -195,7 +195,8 @@ async function present(paths) {
 export const IDENTITY = {
   /** Rereads both files; rebuilds the table, and redraws every copy, only when their text changed. */
   refresh() {
-    reading ??= (async () => {
+    // try/finally: one failed read must not leave `reading` set, or no refresh would ever run again.
+    reading ??= (async () => { try {
       const [[mText, manifest], [oText, overrides], [, own]] = await Promise.all([readJson(MANIFEST), readJson(OVERRIDES), readJson(PREFS)]);
       prefs = { sounds: { ...prefs.sounds, ...(own?.sounds ?? {}) } };
       await baseFor(own);
@@ -208,26 +209,24 @@ export const IDENTITY = {
         }
         const defaults = Object.fromEntries(Object.entries(manifest?.default_assignment ?? {}).map(([k, v]) => [k, v?.operator ?? null]));
         const spares = (overrides?.spares ?? manifest?.unassigned ?? []).filter((slug) => operators[slug]);
-        cast = { text, operators, spares, programs: { ...defaults, ...(overrides?.programs ?? {}) }, terminals: { ...(overrides?.terminals ?? {}) } };
+        cast = { text, operators, spares, defaults, overrides: { ...(overrides?.programs ?? {}) }, terminals: { ...(overrides?.terminals ?? {}) } };
         if (!checking()) setShared("endfield.identity", Date.now());
       }
-      reading = null;
-    })();
+    } finally { reading = null; } })();
     return reading;
   },
 
   /**
    * An agent's identity: { operator, name, accent, avatar: {32, 64, 128, round, bust, signal}, badge,
-   * fallbackIcon, pinned }. First listed wins: the terminal's override, "sub-agent" for a child of the
-   * same program (a cross-vendor child keeps its own program's operator), the program's, "shell".
-   * A null there means "no operator": operator, accent and avatar come back null, and fallbackIcon
-   * (the program) is what the surface draws. `pinned` says the terminal override chose it.
+   * fallbackIcon, pinned, claim, pool }. choose() in fleet.js decides it: the terminal's pin, the person's
+   * overrides, the model's pool (CASTING), then the pack's defaults. A null operator means "no
+   * operator": accent and avatar come back null, and fallbackIcon (the program) is what the surface
+   * draws. `pinned` says the terminal override chose it; `claim` says a pin or override named it, so it draws
+   * ahead of the rest (fleet.js castCrew()); `pool` is its draw order (fleet.js cast()).
    */
-  resolve(program, terminal = null, { parent = null } = {}) {
-    const pinned = cast.terminals[terminal];
-    const slug = [pinned, parent && parent.key === program?.key ? cast.programs["sub-agent"] : undefined, cast.programs[program?.key], cast.programs.shell]
-      .find((v) => v !== undefined);
-    return this.as(slug, program, pinned !== undefined);
+  resolve(program, terminal = null, { parent = null, model = null } = {}) {
+    const c = choose(cast, program, terminal, { parent, model });
+    return { ...this.as(c.slug, program, c.pinned), pool: c.pool, claim: c.claim };
   },
 
   /** The identity of a given operator slug (null: none), drawn for `program`. */
@@ -236,9 +235,6 @@ export const IDENTITY = {
     const badge = BADGE[program?.key] ?? (program?.name ?? "?").slice(0, 1).toUpperCase();
     return { operator: op?.operator ?? null, name: op?.name ?? program?.name ?? "", accent: op?.accent ?? null, avatar: op?.avatar ?? null, badge, fallbackIcon: program ?? null, pinned };
   },
-
-  /** Operators held back for repeats (data/endfield/operators.json "spares", else the manifest's unassigned). */
-  spares() { return cast.spares; },
 };
 
 // ---- the home base: where new local spaces open (base.js decides; settings.json `homeBase`).

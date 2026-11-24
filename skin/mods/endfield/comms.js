@@ -12,10 +12,11 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { readTextFile, writeTextFile, appHome, panes, spaces, run, exec, checking } from "herdr";
+import { readTextFile, writeTextFile, appHome, panes, spaces, run, exec, checking, shared, setShared } from "herdr";
 import { palette, root, micro, wide, chip, barcode, dots, MOTION, FONT } from "./kit.js";
 import { roster } from "./roster.js";
 import { appendCapped, readTags, remember } from "./messages.js";
+import { PANE_ROLES, paneRole, opening } from "./fleet.js";
 
 const LOG = () => `${appHome()}/data/endfield/comms.jsonl`;
 const SCAN_MS = 15000;
@@ -45,14 +46,18 @@ export const KIND = {
   error: { tag: "Exited", edge: "red" },
 };
 
-/** The Comms pane in the shown tab, if one is open (the endfield mod's only pane). */
+const shownTab = () => spaces().find((s) => s.active)?.tabs.find((t) => t.active)?.id;
+
+/** The Comms pane in the shown tab, if one is open. */
 export const commsPane = () => {
-  const tab = spaces().find((s) => s.active)?.tabs.find((t) => t.active)?.id;
-  return panes().find((p) => p.mod === "endfield" && p.tab === tab) ?? null;
+  const tab = shownTab(), reg = shared(PANE_ROLES);
+  return panes().find((p) => p.tab === tab && paneRole(reg, p) === "comms") ?? null;
 };
 export const openComms = () => {
   const open = commsPane();
-  run(...(open ? ["pane.close", { pane: open.pane }] : ["pane.split", { direction: "right", mod: "endfield", props: { role: "comms" } }]));
+  if (open) return run("pane.close", { pane: open.pane });
+  setShared(PANE_ROLES, opening(shared(PANE_ROLES), panes(), shownTab(), "comms"));
+  run("pane.split", { direction: "right", mod: "endfield", props: { role: "comms" } });
 };
 
 const ago = (ms) => (ms < 60000 ? "now" : ms < 3600000 ? `${Math.floor(ms / 60000)}m ago` : `${Math.floor(ms / 3600000)}h ago`);
