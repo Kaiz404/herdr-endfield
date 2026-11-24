@@ -394,11 +394,25 @@ Every action that types into the agent waits until it is idle. If the agent is w
 
 **Archive** first writes the chat to the archived list in `data/endfield/archive.json`, then ends the agent with `/exit` (`/quit` for Codex and Cursor). The transcript stays. The dialog waits until Herdr shows the program has ended, and then says **Archived**. If the program is still running after 20 seconds, the dialog says **Still running** and the agent stays in Squads. A shell left behind in its terminal is kept out of Squads until another agent starts there.
 
-To bring one back, open the **Report**, click **Archived**, and click **Resume** on the chat. Each chat shows the exact command Resume runs, such as `claude --resume <session id>`. A new tab opens in its space and folder and runs it. The list warns when the command may reopen a different chat. This happens for Codex and Cursor, which resume their newest chat, for a Claude Code chat whose session id was matched by its folder, and for one with no session id at all, which resumes with `claude --continue`. **Resume** is dimmed while the chat is still running.
+To bring one back, open the **Report**, click **Archived**, and click **Resume** on the chat. Each chat shows where it opens and the exact command Resume runs, such as `claude --resume <session id>`. If the chat's space still exists, a new tab opens there. If the space was closed, a new space opens with the squad's old name, and the squad's other chats resume into that same space. Either way the chat runs in its own folder, because Claude Code finds a session by the folder it ran in. Only a chat with no known folder opens in the home base. The list warns when the command may reopen a different chat. This happens for Codex and Cursor, which resume their newest chat, for a Claude Code chat whose session id was matched by its folder, and for one with no session id at all, which resumes with `claude --continue`. **Resume** is dimmed while the chat is still running.
 
 **Check it worked.** After **Archive**, the dialog says **Archived**, the agent leaves Squads, and **Report > Archived** lists the chat. After **Resume**, a new tab runs the command and the chat leaves the list.
 
 **Undo.** **Resume** undoes **Archive**. To forget an archived chat without resuming it, delete its entry from `data/endfield/archive.json`. Its transcript stays in `~/.claude/projects/`.
+
+### Archive or close a whole squad
+
+Right-click a squad header. **Archive squad** and **Close squad** each open a dialog that lists the agents in the squad's space, including any you pinned, and shows every command it runs. Nothing runs until you click the dialog's primary button. **Pinned** has neither item, because it is not a space.
+
+**Archive squad** archives every chat in the space the way **Archive** does, one at a time, parents before their sub-agents. It refuses to start if any agent is not idle, and names each one and why. Every end command goes with `hc send --if idle`. Each row shows its progress: **Typing**, **Ending**, then **Archived** once Herdr stops listing the program. When every chat has ended, the squad's space closes with `space.close`. That also ends the shells the chats leave behind and any other terminal in the space, and the dialog names those first.
+
+If an agent's status changes before its turn, hc refuses the send and nothing is typed. Its record is removed, the rest are not sent, and the space stays open. If a chat is still running after 20 seconds, it stays in Squads, its record stays in **Archived** with **Resume** dimmed, and the space stays open. Open the menu again to archive what is left.
+
+**Close squad** closes the space at once. Herdr ends every terminal in it: agents, their sub-agents and shells. It does not keep or park them. A running agent is killed without `/exit` and without an archive record, so **Archived** can't resume it, and a turn in progress is lost. The dialog names those agents and offers **Archive squad instead**.
+
+**Check it worked.** After **Archive squad**, every row says **Archived**, the dialog says **Closed**, the squad leaves Squads and Spaces, and **Report > Archived** lists each chat. After **Close squad**, the squad leaves Squads and Spaces.
+
+**Undo.** Resume each chat from **Report > Archived**. The first one makes a space with the squad's name, and the rest join it. Close squad has no undo.
 
 ### Arrange squads and chats in Squads
 
@@ -408,6 +422,7 @@ A squad is a Herdr space with agents in it. Its name and its place in the list a
 - **Reorder a chat in its squad.** Click the sort pill and choose **Tab order**. Then drag an agent row up or down within its squad. It moves the chat's tab in its space, so the tab strip shows the new order too. The chat's sub-agents move with it. In **Priority** order, chats don't drag, because the sort decides their order. Sub-agent rows and **+N earlier** don't drag.
 - **Reorder without dragging.** Right-click the header, then click **Move up** or **Move down**. Empty spaces have no squad, so a squad moves past them.
 - **Rename a squad.** Double-click its name, or right-click it and click **Rename squad**. Type the name and press Enter. Press Esc, or click somewhere else, to keep the old name.
+- **Archive or close a squad.** Right-click the header, then click **Archive squad** or **Close squad**. See [Archive or close a whole squad](#archive-or-close-a-whole-squad).
 - **Act on a chat.** Right-click an agent row. Its session panel opens and stays open. **Rename**, **Archive** and the other chat actions are in its **Chat** row, and **Pin** (or **Unpin**) is in its footer. See [Change a chat from its session panel](#change-a-chat-from-its-session-panel).
 - **Look at a sub-agent.** A Claude Code sub-agent's row is named by its type, such as `EXPLORE` or `POTETO-AGENT`. The running ones come first, then **+N earlier**, which lists the finished ones under it; **Show less** stays right under the running ones. Hover or right-click the row. Its panel names its operator, such as `TYPHOEUS`, then shows its status, model, effort, run time, context, last action and background tasks. **Open transcript** opens its transcript pane. **Follow-up** opens the pane with the follow-up box ready, and the text goes through its parent. A sub-agent has no Rename, Pin or Archive, because it is not a terminal.
 

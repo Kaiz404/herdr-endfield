@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  archiveRecord, parseArchive, withChat, withoutChat, withEnded, updateFile, resumeArgv, resumeTab, resumeState,
-  canArchive, lifeKey, exitState, hideOf, withoutHide, isLeftover, keptHides, recordThenEnd, PICK_NOTE,
+  archiveRecord, parseArchive, withChat, withoutChat, withEnded, updateFile, resumeArgv, resumePlan, resumeState,
+  canArchive, lifeKey, exitState, hideOf, withoutHide, isLeftover, keptHides, recordThenEnd, PICK_NOTE, squadPlan, squadEnd,
 } from "../skin/mods/endfield/archive.js";
 
 const ID = "session-a";
@@ -39,8 +39,65 @@ test("without a session id, or for Codex and Cursor, Resume says it takes the ne
 test("Resume runs exactly the argv the row draws, with the program's run argv from programs.json", () => {
   const chat = archiveRecord({ sessionId: ID, program: "claude", cwd: "/w", title: "fix login", space: "s1", terminal: "t3", now: 1 });
   const run = ["claude", "--dangerously-skip-permissions"];
-  assert.deepEqual(resumeTab(chat, run, ["s1"]), { name: "fix login", space: "s1", folder: "/w", argv: ["claude", "--dangerously-skip-permissions", "--resume", ID] });
-  assert.equal(resumeTab(chat, run, ["s2"]).space, undefined, "a space that is gone opens in the shown one");
+  const plan = resumePlan(chat, run, [{ id: "s1", name: "auth" }]);
+  assert.deepEqual(plan, {
+    herdr: "tab.new", args: { name: "fix login", space: "s1", folder: "/w", argv: ["claude", "--dangerously-skip-permissions", "--resume", ID] }, where: "Into squad auth",
+  });
+});
+
+test("a chat whose space was closed reopens in a new space of its squad's name, in its own folder", () => {
+  const chat = archiveRecord({ sessionId: ID, program: "claude", cwd: "/w", title: "fix login", space: "s1", squad: "auth", terminal: "t3", now: 1 });
+  const plan = resumePlan(chat, ["claude"], [{ id: "s2", name: "other" }], "/base");
+  assert.equal(plan.herdr, "space.new");
+  assert.deepEqual(plan.args, { name: "auth", tab: "fix login", folder: "/w", argv: ["claude", "--resume", ID], machine: "" });
+  assert.equal(plan.where, "Into a new space, auth");
+  // The second chat of that squad joins the space the first Resume made, not a second one.
+  const later = resumePlan(chat, ["claude"], [{ id: "s2", name: "other" }, { id: "s9", name: "auth" }]);
+  assert.deepEqual([later.herdr, later.args.space], ["tab.new", "s9"]);
+  assert.equal(resumePlan(chat, ["claude"], [{ id: "s9", name: "auth", machine: "box" }]).herdr, "space.new", "a space of that name on another machine is not its squad");
+});
+
+test("a record with no folder opens in the home base on this computer, never on another machine", () => {
+  const here = archiveRecord({ program: "codex", terminal: "t4", now: 1 });
+  assert.equal(resumePlan(here, ["codex"], [], "/base").args.folder, "/base");
+  const remote = archiveRecord({ program: "codex", machine: "box", terminal: "t4", now: 1 });
+  const plan = resumePlan(remote, ["codex"], [], "/base");
+  assert.equal(plan.args.folder, undefined);
+  assert.equal(plan.args.machine, "box");
+});
+
+const member = (address, status, extra = {}) => ({ address, agent: { address }, program: claude, herdrStatus: status, title: `task ${address}`, label: "CLAUDE", ident: { callsign: address.toUpperCase() }, depth: 0, ...extra });
+
+test("Archive squad takes every chat in tree order, pinned ones too, and starts only when all are idle", () => {
+  const plan = squadPlan([member("lead", "idle"), member("kid", "idle", { agent: null, depth: 1 }), member("pin", "idle", { pinned: true })]);
+  assert.deepEqual(plan.chats.map((c) => [c.terminal, c.depth, c.pinned]), [["lead", 0, false], ["kid", 1, false], ["pin", 0, true]]);
+  assert.deepEqual(plan.blockers, []);
+});
+
+test("Archive squad refuses up front, naming each agent that isn't idle or can't be resumed", () => {
+  const nvim = { key: "nvim", name: "Neovim", agent: true };
+  const plan = squadPlan([member("a", "idle"), member("b", "working"), member("c", "done"), member("d", "idle", { program: nvim })]);
+  assert.deepEqual(plan.blockers.map((b) => b.name), ["B", "C", "D"]);
+  assert.match(plan.blockers[0].why, /Working/);
+  assert.match(plan.blockers[1].why, /Finished/);
+  assert.match(plan.blockers[2].why, /Neovim/);
+  assert.ok(!plan.chats.some((c) => c.terminal === "d"), "a program nothing resumes is never archived");
+});
+
+test("a terminal that is no chat is not archived, and is listed as ending with the space", () => {
+  const plan = squadPlan([member("lead", "idle"), member("srv", "idle", { agent: null, program: shell, depth: 1 })]);
+  assert.deepEqual(plan.chats.map((c) => c.terminal), ["lead"]);
+  assert.deepEqual(plan.others.map((c) => c.terminal), ["srv"]);
+  assert.deepEqual(plan.blockers, []);
+});
+
+test("the space closes only once every chat was seen to end", () => {
+  assert.equal(squadEnd(["ended", "ended"]), "close");
+  assert.equal(squadEnd(["ended", "watching"]), "wait");
+  assert.equal(squadEnd(["ended", "sending", "queued"]), "wait");
+  assert.equal(squadEnd(["ended", "running"]), "keep", "one still running after the wait keeps the space");
+  assert.equal(squadEnd(["refused", "skipped"]), "keep", "a refusal stops the rest and keeps the space");
+  assert.equal(squadEnd([]), "keep");
 });
 
 test("a chat still running can't be resumed: it would be opened twice", () => {

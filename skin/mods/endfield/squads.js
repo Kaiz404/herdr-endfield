@@ -82,7 +82,8 @@ export function stepSquad(order, squads, id, dir) {
 }
 
 /**
- * A squad header's menu: rename, and the click alternative to dragging it. None for Pinned.
+ * A squad header's menu: rename, the click alternative to dragging it, and Archive squad and Close
+ * squad, which open their confirm dialog (squadactions.js). None for Pinned: it is no space.
  * Item: {key, label, why, move}: why is null when it can be clicked, else what it waits for.
  */
 export function squadMenu(order, squads, id) {
@@ -92,5 +93,7 @@ export function squadMenu(order, squads, id) {
     { key: "rename", label: "Rename squad", why: null },
     { key: "up", label: "Move up", why: up ? null : "Already first", move: up },
     { key: "down", label: "Move down", why: down ? null : "Already last", move: down },
+    { key: "archive", label: "Archive squad", why: null },
+    { key: "close", label: "Close squad", why: null },
   ];
 }

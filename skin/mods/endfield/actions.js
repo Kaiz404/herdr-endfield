@@ -9,8 +9,10 @@
 //             types the end command, then watches Herdr until the program is gone. Only then is
 //             the record marked ended and a shell left behind kept out of Squads (shared
 //             "endfield.archived", roster.js); otherwise the dialog says it is still running.
+//             archiveChat and markEnded are those two halves; Archive squad (squadactions.js) runs them too.
 //   archived  props {role: "archived", overlay}: the archived chats, newest first, each with
-//             Resume: a new tab running the program's resume command (archive.js), on the click only.
+//             Resume: the program's resume command in a new tab of its space, or in a new space once
+//             that is closed (archive.js resumePlan), on the click only.
 //   account   props {role: "account", terminal, snap, overlay}: moves a Claude Code chat to another
 //             saved login. Switch opens one tab running tools/account.mjs switch (orders.js
 //             switchArgv), which waits for the turn, ends the old terminal and resumes there. Tokens
@@ -19,20 +21,20 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { props, closeOverlay, openOverlay, readTextFile, writeTextFile, appHome, exec, hc, run, shared, setShared, spaces, agents, terminals, knownAgents, checking, window as appWindow } from "herdr";
-import { palette, root, micro, pill, barcode, growDisc, cue, MOTION, FONT, STRIP, strip, stripCode, stripCancel } from "./kit.js";
+import { palette, root, micro, pill, barcode, growDisc, cue, MOTION, FONT, STRIP, strip, stripCode, stripCancel, homeBase } from "./kit.js";
 import { roster } from "./roster.js";
 import { append } from "./comms.js";
 import { ACTIONS, MODE_WORD, gate, valuesProblem, actionSteps, stepLine, modeOnScreen, deliver, timeoutFor, shQuote, switchArgv, switchPlan } from "./orders.js";
-import { archiveRecord, parseArchive, withoutChat, withEnded, updateFile, recordThenEnd, exitState, hideOf, keptHides, withoutHide, resumeTab, resumeState, programBin, PICK_NOTE } from "./archive.js";
+import { archiveRecord, parseArchive, withoutChat, withEnded, updateFile, recordThenEnd, exitState, hideOf, keptHides, withoutHide, resumePlan, resumeState, programBin, PICK_NOTE } from "./archive.js";
 import { ago } from "./sessions.js";
 
 const ARCHIVE = () => `${appHome()}/data/endfield/archive.json`;
 // Terminals kept out of Squads: enough for every archive a session sees, small enough for shared.json.
 const HIDDEN_CAP = 50;
 const READ_TRIES = 8;
-const READ_EVERY_MS = 1000;
+export const READ_EVERY_MS = 1000;
 // Claude Code saves and exits within a few seconds of /exit; past this the dialog says it is still running.
-const EXIT_TRIES = 20;
+export const EXIT_TRIES = 20;
 
 export const openAction = (p) => openOverlay({ mod: "endfield", kind: "dialog", frame: "none", width: 600, height: 520, props: { role: "action", ...p } });
 export const openArchived = () => openOverlay({ mod: "endfield", kind: "dialog", frame: "none", width: 640, height: 540, props: { role: "archived" } });
@@ -58,8 +60,42 @@ async function readArchive() {
 
 const updateArchive = (change) => updateFile({ read: readArchive, write: (text, expected) => writeTextFile(ARCHIVE(), text, expected), change });
 
+/**
+ * Archive's first half for one chat, from the card or Archive squad: the record (what Herdr and its
+ * session show now), then its end command with hc send --if idle (recordThenEnd). `via` heads the
+ * Comms line. -> {chat, r}: r is deliver()'s; on "refused" nothing was typed and the record is gone.
+ */
+export async function archiveChat({ terminal, snap, via }) {
+  const m = roster().all.get(terminal);
+  if (!m) return { chat: null, r: { phase: "refused", error: "Herdr no longer lists it. Nothing was typed." } };
+  const sp = spaces().find((s) => s.id === m.space);
+  // A program with no session sidecar (Codex, Cursor) still resumes in its terminal's folder.
+  const cwd = snap?.cwd ?? terminals().find((t) => t.address === terminal)?.cwd ?? null;
+  const chat = archiveRecord({
+    sessionId: snap?.sessionId ?? null, approx: Boolean(snap?.approx), program: m.program.key, cwd, title: m.title ?? null,
+    space: m.space ?? null, squad: sp?.name ?? m.spaceName ?? null, machine: sp?.machine ?? null, terminal, created: m.created ?? 0, now: Date.now(),
+  });
+  const [step] = actionSteps(ACTIONS[chat.program].archive, { target: terminal });
+  const r = await recordThenEnd({
+    chat,
+    update: updateArchive,
+    send: () => deliver({
+      args: step.hc,
+      exec: (a) => exec("hc", a, { timeout: timeoutFor({ mode: "send", delivery: "idle" }) }),
+      log: () => append({ at: Date.now(), from: "you", to: terminal, kind: "action", via: `${via} ${stepLine(step, appWindow()?.platform)}`, text: step.hc.at(-1) }),
+    }),
+  });
+  return { chat, r };
+}
+
+/** Archive's second half, once Herdr no longer lists the program: its leftover shell leaves Squads and the record is marked ended. */
+export async function markEnded(chat) {
+  setShared("endfield.archived", keptHides([...(shared("endfield.archived") ?? []), hideOf(chat)], terminals()).slice(-HIDDEN_CAP));
+  return updateArchive((text) => withEnded(text, chat.archivedAt, Date.now()));
+}
+
 // The dialogs' shared frame: corner brackets, a title block, a body, the graphite command strip.
-function frame(C, id, { kicker, title, close, body, strip }) {
+export function frame(C, id, { kicker, title, close, body, strip }) {
   return v_flex().id(id).relative().w_full().bg(C.raised).border_1().border_color(C.hairStrong).rounded(4)
     .child(div().absolute().left(-7).top(-7).size(10).border_l(1.5).border_t(1.5).border_color(C.text))
     .child(div().absolute().right(-7).bottom(-7).size(10).border_r(1.5).border_b(1.5).border_color(C.text))
@@ -73,7 +109,7 @@ function frame(C, id, { kicker, title, close, body, strip }) {
     .when(Boolean(strip), (el) => el.child(strip));
 }
 
-function closeButton(C, view, overlay) {
+export function closeButton(C, view, overlay) {
   return div().id("ac-close").relative().size(30).rounded_full().border_1().border_color(C.hairStrong).flex().items_center().justify_center().cursor_pointer()
     .on_hover(view.hover("ac-close")).on_click(() => closeOverlay(overlay))
     .child(growDisc("ac-close-disc", 30, 30, 28, view.hot === "ac-close", C.red))
@@ -167,24 +203,8 @@ export class ActionDialog {
     cx.notify();
   }
 
-  // The record first, then the end command (recordThenEnd), then Herdr is watched (watchExit).
   async archive(cx) {
-    const m = roster().all.get(this.p.terminal);
-    const s = this.p.snap;
-    const chat = archiveRecord({
-      sessionId: s?.sessionId ?? null, approx: Boolean(s?.approx), program: this.program, cwd: s?.cwd ?? null, title: m?.title ?? null,
-      space: m?.space ?? null, terminal: this.p.terminal, created: m?.created ?? 0, now: Date.now(),
-    });
-    const [step] = this.steps();
-    const r = await recordThenEnd({
-      chat,
-      update: updateArchive,
-      send: () => deliver({
-        args: step.hc,
-        exec: (a) => exec("hc", a, { timeout: timeoutFor({ mode: "send", delivery: "idle" }) }),
-        log: () => append({ at: Date.now(), from: "you", to: chat.terminal, kind: "action", via: `Session card ${stepLine(step, appWindow()?.platform)}`, text: step.hc.at(-1) }),
-      }),
-    });
+    const { chat, r } = await archiveChat({ terminal: this.p.terminal, snap: this.p.snap, via: "Session card" });
     if (r.phase === "refused") { this.state = r; return; }
     // Sent, or uncertain (it may have been typed): either way the lists say whether it took.
     this.state = r.phase === "sent" ? { phase: "sent", error: null } : r;
@@ -196,8 +216,7 @@ export class ActionDialog {
   watchExit(cx, chat, tries = 0) {
     cx.timer.after(READ_EVERY_MS, (cx) => cx.spawn(async (cx) => {
       if (exitState(chat, agents(), terminals()) === "ended") {
-        setShared("endfield.archived", keptHides([...(shared("endfield.archived") ?? []), hideOf(chat)], terminals()).slice(-HIDDEN_CAP));
-        const marked = await updateArchive((text) => withEnded(text, chat.archivedAt, Date.now()));
+        const marked = await markEnded(chat);
         this.exit = "ended";
         if (!marked.ok) this.state = { phase: "sent", error: `It ended, but the archive could not mark it (${marked.error}). Report > Archived still resumes it.` };
         cue("tick");
@@ -302,19 +321,19 @@ export class Archived {
 
   hover(id) { return (over, cx) => { if (over) this.hot = id; else if (this.hot === id) this.hot = null; cx.notify(); }; }
 
-  // What a row's Resume runs, and whether it may: one call for the drawing and the click.
+  // What a row's Resume runs, where, and whether it may: one call for the drawing and the click.
   plan(c) {
     const running = c.ended == null && exitState(c, agents(), terminals()) === "running";
-    return { tab: resumeTab(c, this.runs?.[c.program], spaces().map((s) => s.id)), ...resumeState(c, running) };
+    return { open: resumePlan(c, this.runs?.[c.program], spaces(), homeBase()?.folder ?? null), ...resumeState(c, running) };
   }
 
-  // A new tab in the chat's space (or the shown one), in its folder, running the drawn command.
+  // A new tab in the chat's space, or a new space once that is closed, in its folder, running the drawn command.
   async resume(cx, chat) {
     const plan = this.plan(chat);
     if (this.busy || !this.runs || !plan.can) return;
     this.busy = true;
     cx.notify();
-    run("tab.new", plan.tab);
+    run(plan.open.herdr, plan.open.args);
     setShared("endfield.archived", withoutHide(shared("endfield.archived") ?? [], chat));
     const r = await updateArchive((text) => withoutChat(text, chat.archivedAt));
     this.error = r.ok ? null : `Resumed, but the archive could not be updated: ${r.error}`;
@@ -337,9 +356,10 @@ export class Archived {
           .child(micro(ago(c.archivedAt), C.muted).flex_none())
           .child(div().when(!go, (el) => el.opacity(0.45)).child(pill(C, `ar-go-${c.archivedAt}`, "Resume", { kind: "dark", knob: "▶", hot: this.hot === c.archivedAt, on_hover: this.hover(c.archivedAt),
             action: (_e, cx) => cx.spawn(async (cx) => this.resume(cx, c)) }))))
-        // The folder and the exact argv Resume hands tab.new, wrapped rather than cut.
+        // Where it opens, then the folder and the exact argv Resume hands tab.new or space.new, wrapped rather than cut.
+        .child(micro(plan.open.where, C.muted, 9))
         .child(div().font_family(FONT.mono).text_size(10.5).text_color(C.muted)
-          .child(`${plan.tab.folder ?? ""}  ${this.runs ? plan.tab.argv.map(shQuote).join(" ") : "Asking which command starts it"}`))
+          .child(`${plan.open.args.folder ?? ""}  ${this.runs ? plan.open.args.argv.map(shQuote).join(" ") : "Asking which command starts it"}`))
         .when(Boolean(plan.note), (el) => el.child(micro(plan.note, plan.can ? C.muted : C.error, 9)));
     };
     return root(C, div().id("ar-root").size_full().flex().items_center().justify_center()

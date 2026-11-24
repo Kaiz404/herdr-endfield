@@ -1,12 +1,16 @@
-// archive: the chats the person archived from the session card, and how each comes back. No Herdr
-// in it (tests/archive.test.mjs runs it in node); actions.js reads and writes the file.
+// archive: the chats the person archived from the session card or with Archive squad, and how each
+// comes back. No Herdr in it (tests/archive.test.mjs runs it in node); actions.js reads and writes
+// the file, and squadactions.js archives a whole squad with the same steps.
 // data/endfield/archive.json = {chats: Chat[]}, newest first, at most CAP.
-// Chat = {sessionId | null, program, cwd, title, space, terminal, created, archivedAt, ended, resume: string[], pick}
+// Chat = {sessionId | null, program, cwd, title, space, squad, machine, terminal, created, archivedAt, ended, resume: string[], pick}
+//   squad, machine: its space's name and machine (null here), so Resume can make the space again once it is closed.
 //   ended: null while the program was told to end and hasn't been seen to (archiving), else when it was.
 //   resume: the arguments after the program's own command (programs.json `run`), so Codex keeps --no-daemon.
 //   pick: which chat the arguments reopen. "exact" (the session id is known), "guess" (the id was
 //   matched by folder, so it may be another chat there), "newest" (the newest chat, not this one).
 // Hide = {life, program}: an archived chat's terminal, left behind once its program ended, kept out of Squads.
+
+import { gate } from "./orders.js";
 
 const CAP = 100;
 
@@ -31,8 +35,8 @@ export const canArchive = (programKey) => programKey in RESUME;
 export const programBin = (programKey) => RESUME[programKey]?.bin ?? programKey;
 
 /** The record, taken from what the card knew before anything was typed. `approx`: the session id is a guess. */
-export function archiveRecord({ sessionId = null, approx = false, program, cwd = null, title = null, space = null, terminal, created = 0, now }) {
-  return { sessionId, program, cwd, title, space, terminal, created, archivedAt: now, ended: null, ...RESUME[program].args(sessionId, approx) };
+export function archiveRecord({ sessionId = null, approx = false, program, cwd = null, title = null, space = null, squad = null, machine = null, terminal, created = 0, now }) {
+  return { sessionId, program, cwd, title, space, squad, machine, terminal, created, archivedAt: now, ended: null, ...RESUME[program].args(sessionId, approx) };
 }
 
 export function parseArchive(text) {
@@ -87,10 +91,25 @@ export async function recordThenEnd({ chat, update, send }) {
 /** The command a Resume opens a tab with: the program as programs.json starts it, then the resume arguments. */
 export const resumeArgv = (chat, run) => [...(run?.length ? run : [programBin(chat.program)]), ...chat.resume];
 
-/** Resume's tab.new arguments, in the chat's space while it exists. The row draws these and the click runs them. */
-export const resumeTab = (chat, run, spaceIds) => ({
-  name: chat.title ?? undefined, space: spaceIds.includes(chat.space) ? chat.space : undefined, folder: chat.cwd ?? undefined, argv: resumeArgv(chat, run),
-});
+/**
+ * Where Resume reopens a chat and the Herdr command that does it; the row draws it and the click runs
+ * it. A tab in the chat's own space while it exists, else in a space of its squad's name on its
+ * machine (an earlier Resume from the same squad may have made it), else a new space of that name.
+ * Always in the chat's folder, since Claude Code finds a session id from there; `base` (the home
+ * base) only when the record has none. spaces: [{id, name, machine}] -> {herdr, args, where}.
+ */
+export function resumePlan(chat, run, spaces, base = null) {
+  const machine = chat.machine ?? null;
+  const folder = chat.cwd ?? (machine ? undefined : base ?? undefined);
+  const argv = resumeArgv(chat, run);
+  const there = spaces.find((s) => s.id === chat.space)
+    ?? (chat.squad ? spaces.find((s) => s.name === chat.squad && (s.machine ?? null) === machine) : null);
+  if (there) return { herdr: "tab.new", args: { name: chat.title ?? undefined, space: there.id, folder, argv }, where: `Into squad ${there.name || there.id}` };
+  return {
+    herdr: "space.new", args: { name: chat.squad ?? undefined, tab: chat.title ?? undefined, folder, argv, machine: machine ?? "" },
+    where: chat.squad ? `Into a new space, ${chat.squad}` : "Into a new space",
+  };
+}
 
 /** Whether Resume may run, and what the row warns. A chat still running would be opened twice. */
 export function resumeState(chat, running) {
@@ -130,4 +149,37 @@ export const withoutHide = (hides, chat) => hides.filter((h) => h?.life !== hide
 /** The hides still worth keeping: their terminal is there in the same life and runs no agent. */
 export function keptHides(hides, terms) {
   return hides.filter((h) => typeof h?.life === "string" && terms.some((t) => lifeKey(t.address, t.created_ms) === h.life && !t.program?.agent));
+}
+
+/**
+ * What Archive squad does to a squad, from every roster member in its space in tree order (pinned ones
+ * too: space.close ends them as well). chats: the agents it archives, each parent before its children.
+ * blockers: why it can't start, naming each agent; it starts only with none. others: terminals that
+ * are no chat (a server an agent started), which end with the space.
+ * Who: {terminal, name, title, program, depth, pinned}, plus why on a blocker.
+ */
+export function squadPlan(members) {
+  const chats = [], blockers = [], others = [];
+  for (const m of members) {
+    const who = { terminal: m.address, name: m.ident?.callsign || m.label || m.address, title: m.title ?? "", program: m.program?.key ?? null, depth: m.depth ?? 0, pinned: Boolean(m.pinned) };
+    if (!m.agent && !m.program?.agent) { others.push(who); continue; }
+    if (!canArchive(who.program)) { blockers.push({ ...who, why: `Nothing here resumes ${m.program?.name ?? "it"}. End it yourself, or use Close squad.` }); continue; }
+    const why = gate(m.herdrStatus);
+    if (why) blockers.push({ ...who, why });
+    chats.push(who);
+  }
+  return { chats, blockers, others };
+}
+
+// Archive squad's chat phases that may still end: about to be sent, being sent, or sent and watched.
+const PENDING = new Set(["queued", "sending", "watching"]);
+
+/**
+ * What Archive squad does as its chats move on: "close" the space once every chat was seen to end,
+ * "wait" while any is still being sent or watched, else "keep" it (a chat in it didn't end, so its
+ * terminal and its record stay as they are).
+ */
+export function squadEnd(phases) {
+  if (phases.length && phases.every((p) => p === "ended")) return "close";
+  return phases.some((p) => PENDING.has(p)) ? "wait" : "keep";
 }
