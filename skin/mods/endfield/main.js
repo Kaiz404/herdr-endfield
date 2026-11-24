@@ -7,6 +7,7 @@
 //   agents    agents by priority or space, sub-agents as a production chain
 //   sortmenu  the agents list's sort popup
 //   squadmenu the right-click menu on a squad header in Squads
+//   squad     Archive squad's and Close squad's confirm dialog (the exact commands, on the person's click)
 //   card      an agent's or a sub-agent's session card beside the agents list, an overlay the list opens
 //   tabs      the tab strip, + menu, Files/Changes, window buttons
 //   pane      a pane's header (the layout's pane frame)
@@ -39,9 +40,10 @@ import { Comms } from "./comms.js";
 import { Transcript } from "./transcript.js";
 import { ActionDialog, Archived, AccountDialog } from "./actions.js";
 import { SquadMenu } from "./squadmenu.js";
+import { SquadDialog } from "./squadactions.js";
 import { LinkDialog } from "./linkdialog.js";
 
-const ROLES = { boot: Boot, brand: Brand, footer: Footer, spaces: Spaces, agents: Agents, sortmenu: SortMenu, squadmenu: SquadMenu, card: Card, tabs: Tabs, pane: PaneHeader, status: Status, toast: Toast, cutin: CutIn, report: Report, dispatch: Dispatch, comms: Comms, transcript: Transcript, action: ActionDialog, archived: Archived, account: AccountDialog, link: LinkDialog };
+const ROLES = { boot: Boot, brand: Brand, footer: Footer, spaces: Spaces, agents: Agents, sortmenu: SortMenu, squadmenu: SquadMenu, squad: SquadDialog, card: Card, tabs: Tabs, pane: PaneHeader, status: Status, toast: Toast, cutin: CutIn, report: Report, dispatch: Dispatch, comms: Comms, transcript: Transcript, action: ActionDialog, archived: Archived, account: AccountDialog, link: LinkDialog };
 // Herdr opens the layout's toast mod with notification props and no role.
 const roleOf = (p) => p.role ?? (p.overlay && "title" in p ? "toast" : null);
 

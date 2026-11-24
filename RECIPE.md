@@ -131,9 +131,21 @@ rendered at 4x. It is a schematic, not a screenshot.
     a send it reads back the model or effort (session data) or the mode
     (Claude Code's own line under its prompt), else says Sent.
   - Archived list, 600px, from Report's Archived pill: archived chats newest
-    first, each with its folder, the exact argv Resume runs (programs.json
-    `run` plus the resume arguments), a warning when it may reopen another
-    chat, and **Resume** (dimmed while the chat still runs).
+    first, each with where Resume opens it (its squad while the space exists,
+    else a new space of the squad's name), its folder, the exact argv Resume
+    runs (programs.json `run` plus the resume arguments), a warning when it
+    may reopen another chat, and **Resume** (dimmed while the chat still runs).
+  - Squad dialog, 580px, from a squad header's Archive squad or Close squad:
+    every live terminal that ends with the space, in three groups (Agents,
+    Sub-agents, Shells and servers, each headed with its count; a scrolling
+    list), agents in tree order (pinned ones too, marked Pinned), each with
+    its status word (Idle, Blocked, Ends) and, once running, its progress
+    (Next, Typing, Ending, Archived, Refused, Still running, Not sent); a
+    Needs line (Archive: every agent that isn't idle or can't be resumed, by
+    name) or a red Kills line (Close: the count and names of each group that
+    ends); a Does line; a Kept line when a fresh read found something new; the
+    graphite strip with every command Confirm runs, the `space.close` line
+    last. Close squad's strip adds **Archive squad instead**.
   - Footer, 40px: settings (with an orange diamond when an update is ready),
     add machine, fold sidebar, and the palette key in mono.
 - **Tab strip, 36px**, drags the window: tabs run full height, separated by
@@ -273,7 +285,24 @@ rendered at 4x. It is a schematic, not a screenshot.
   session card opens while something is held. A double-click on a squad's
   name (which never folds) edits the name in place
   (`space.rename` on Enter). Right-click on a squad header opens a popup
-  menu: Rename squad, Move up, Move down. Right-click on an agent or
+  menu: Rename squad, Move up, Move down, Archive squad, Close squad (not on
+  Pinned). Both list what ends from Herdr's lists, not the roster
+  (`archive.js` `spaceTerminals`): a terminal whose pane is in one of the
+  space's tabs, or with no pane, whose `herdr.space` or `herdr.tab` label
+  names it, and every live descendant of those; so shells, servers and
+  archived chats' hidden shells are named too. Archive squad archives every
+  chat in the space one at a time as the card's Archive does, stops at the
+  first refusal, and runs `space.close {id, confirmed: true}` only once each
+  one was seen to end. Shells and servers don't block it: nothing resumes
+  them, so they are listed under Ends. Close squad runs that `space.close`
+  at once, which ends every terminal in the space, agents included. Just
+  before `space.close`, both read the space again, and anything in a terminal
+  life the person wasn't shown, or an agent where they were shown none (an
+  archived chat's shell counts as none), keeps the space open with Kept and
+  its names (`unconfirmed`). A chat is seen to end on a positive sign (its
+  terminal finished, now runs another program, or a new terminal took the
+  address) or when two reads in a row, a second apart, don't list its
+  terminal (`exitState`, `exitSeen`); one read without it is not enough. Right-click on an agent or
   sub-agent row holds its session card open. Nothing moves a chat to
   another squad: Herdr has no cross-space tab move, and relabelling a live
   terminal's `herdr.space`/`herdr.tab` (`hc label`) leaves its pane where it
@@ -327,8 +356,11 @@ rendered at 4x. It is a schematic, not a screenshot.
   Action. Archive types `/exit` (Claude Code) or `/quit` (Codex, Cursor),
   records the chat in `data/endfield/archive.json` and keeps the terminal out
   of Squads (`endfield.archived`). Resume runs `tab.new {name, space, folder,
-  argv}` with the program's `run` argv plus `--resume <id>` (Claude Code),
-  `resume --last` (Codex) or `resume` (Cursor), and drops the record.
+  argv}` while the chat's space exists (or a space of its squad's name on its
+  machine), else `space.new {name: squad, tab, folder, argv, machine}`, with
+  the program's `run` argv plus `--resume <id>` (Claude Code),
+  `resume --last` (Codex) or `resume` (Cursor), and drops the record. The
+  folder is the chat's own; the home base only when the record has none.
   The dimming and every send gate on Herdr's own status, so an agent that
   reads Waiting but Herdr calls idle takes typed actions.
 - **Link:** the dialog is titled `// Link <helper> under <lead>` (callsigns)
@@ -434,7 +466,7 @@ rendered at 4x. It is a schematic, not a screenshot.
 - `themes/endfield.json` and `themes/endfield-night.json`: terminal colours
   plus every panel colour by name.
 - `mods/endfield`: one mod in roles, routed by `ROLES` in `main.js` (`boot`,
-  `brand`, `footer`, `spaces`, `agents`, `sortmenu`, `squadmenu`, `card`, `tabs`, `pane`,
+  `brand`, `footer`, `spaces`, `agents`, `sortmenu`, `squadmenu`, `squad`, `card`, `tabs`, `pane`,
   `status`, `toast`, `cutin`, `report`, `dispatch`, `comms`, `transcript`,
   `action`, `archived`). `kit.js` holds the tables every role reads: `PALETTE` (`paper`
   and `night`), `STATUS` (word, glyph, colour, entrance, rank per agent
@@ -478,6 +510,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   (each agent row's task label, which a link's note quotes).
 - A card action's dialog is `{role: "action", terminal, action, snap}`, a
   dialog with `frame: "none"`; the archived list is `{role: "archived"}`;
+  a squad header's dialog is `{role: "squad", id, mode: "archive" | "close"}`.
   Link is `{role: "link", lead, helper, side}` (`side: "lead"` or `"helper"`:
   Send note, typing only that side's note).
   The actions are data: `ACTIONS[programKey]` in `orders.js`.

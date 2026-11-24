@@ -648,9 +648,11 @@ export class Agents {
       terminal: f.address, session: s ? { sessionId: s.sessionId ?? null, cwd: s.cwd ?? null, approx: Boolean(s.approx) } : null } : null;
     // The focused agent's login's limits when its sidecar names it, else the newest of any login.
     const limits = (s?.account != null ? this.sessions.accountLimits[s.account] : null) ?? this.sessions.limits;
+    // sessionId, cwd and approx: what Archive squad records, as the card's snap does, so each chat resumes by its id.
     const all = Object.fromEntries(R.flat.flatMap((m) => {
       const x = this.sessions.get(m.address);
-      return x ? [[m.address, { ctx: x.ctx ?? null, tokens: x.tokens?.total ?? null, turns: x.turns ?? null, model: x.model?.short ?? null, effort: x.effort, mode: x.mode, account: x.account }]] : [];
+      return x ? [[m.address, { ctx: x.ctx ?? null, tokens: x.tokens?.total ?? null, turns: x.turns ?? null, model: x.model?.short ?? null, effort: x.effort, mode: x.mode, account: x.account,
+        sessionId: x.sessionId ?? null, cwd: x.cwd ?? null, approx: Boolean(x.approx) }]] : [];
     }));
     // The open card's whole session: the card draws it and runs no poller of its own.
     const card = this.card.open ? this.sessions.get(this.card.open.address) : null;
