@@ -13,6 +13,7 @@ import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { props, closeOverlay, openOverlay, spaces, terminals, knownAgents, exec, hc, checking, window as appWindow } from "herdr";
 import { palette, root, micro, wide, chip, glyph, pill, barcode, dots, cue, growDisc, IDENTITY, MOTION, FONT, STRIP, strip, stripCode, stripCancel } from "./kit.js";
 import { roster } from "./roster.js";
+import { cast } from "./fleet.js";
 import { append } from "./comms.js";
 import { sendArgs, runArgs, taskProblem, commandLine, deliver, timeoutFor, deliverPlan } from "./orders.js";
 
@@ -117,9 +118,11 @@ export class Dispatch {
     const squad = R.squads.find((q) => q.id === this.space);
     const parentM = this.parent ? R.all.get(this.parent) : null;
     const lone = this.opt.new === "none" || !this.parent;
-    const ident = prog ? (prog.shell ? IDENTITY.as(null, { key: "shell", name: "Shell" }) : IDENTITY.resolve(prog, null, { parent: lone ? null : parentM?.program })) : null;
-    const repeats = ident?.operator ? [...R.all.values()].filter((m) => m.ident.operator === ident.operator).length : 0;
-    const callsign = ident ? `${ident.name.toUpperCase()}${repeats ? `·${repeats + 1}` : ""}` : "";
+    // The roster's own draw: a same-program child runs its parent's model; any other starts on its program's default until its model is known.
+    const up = lone ? null : parentM;
+    const model = up && up.program?.key === prog?.key ? up.model ?? null : null;
+    const ident = prog ? (prog.shell ? IDENTITY.as(null, { key: "shell", name: "Shell" }) : cast(IDENTITY, IDENTITY.resolve(prog, null, { parent: up?.program ?? null, model }), prog, new Set(R.taken))) : null;
+    const callsign = ident?.callsign ?? ident?.name.toUpperCase() ?? "";
     const tone = { blocked: "signal", working: "flow", error: "error" }[T?.status] ?? "lime";
     const warn = !send ? null : plan ? [tone, plan.preview ?? (deliverPlan(T.status, false).enabled ? `${plan.reason} Choose Now to send anyway.` : plan.reason)]
       : term ? ["hairStrong", "A terminal with no agent status: the text is typed and Enter pressed."] : ["hairStrong", "Pick a target."];
@@ -196,7 +199,7 @@ export class Dispatch {
           .child(section("01", "Program", "Installed on this machine"))
           .child(h_flex().gap(8).children(this.progs.slice(0, 6).map(progTile)))
           .child(h_flex().gap(8)
-            .child(box("Operator · auto", h_flex().gap(10).items_center()
+            .child(box(model ? "Operator · by model" : "Operator · program default", h_flex().gap(10).items_center()
               .child(ident ? chip(C, ident, "idle", { size: 30, ground: C.raised }) : div())
               .child(wide(callsign, C.text, 10).truncate())))
             .child(box("Squad · space", h_flex().id("dl-space").gap(6).items_center().cursor_pointer().on_click(cycleSpace).tooltip("Click for the next space")

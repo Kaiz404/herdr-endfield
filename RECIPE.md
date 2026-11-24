@@ -290,28 +290,35 @@ rendered at 4x. It is a schematic, not a screenshot.
   plus every panel colour by name.
 - `mods/endfield`: one mod in roles, routed by `ROLES` in `main.js` (`boot`,
   `brand`, `footer`, `spaces`, `agents`, `sortmenu`, `card`, `tabs`, `pane`,
-  `status`). `kit.js` holds the tables every role reads: `PALETTE` (`paper`
+  `status`, `toast`, `cutin`, `report`, `dispatch`, `comms`, `transcript`). `kit.js` holds the tables every role reads: `PALETTE` (`paper`
   and `night`), `STATUS` (word, glyph, colour, entrance, rank per agent
   status), `IDENTITY` (who an agent is drawn as) and `MOTION` (every timing).
+  An agent with a known model is drawn from its model's tier: `CASTING` in
+  `fleet.js` maps the model id to fable, opus, sonnet or haiku, and each tier
+  has a pool of operators, strongest first (docs/CASTING.md). Siblings draw
+  different operators; a callsign is numbered (`YVONNE·2`) only once its pool
+  is spent. An unknown model draws the Endministrator.
   Behaviour is adapted from Herdr's shipped `spaces`, `agents`, `tabs`, `pane`,
   `workspace-chrome`, `workspace-status` and `toast` mods.
 - Notifications: the layout's `toast` is the `endfield` mod; Herdr opens it with
   notification props and no role, and `main.js` routes those to `toast`.
-  `mods/endfield-transcript`:
-  the transcript pane, props `{path, title, id, parent, via}` (the sub-agent's
-  id, its parent's terminal and callsign). It runs `hc send` to the parent
+- The transcript pane is the `endfield` mod's `transcript` role, props
+  `{role: "transcript", path, title, id, parent, via}` (the sub-agent's id,
+  its parent's terminal and callsign). It runs `hc send` to the parent
   (`orders.js` `relayOrder`), reads `agents()` for the parent's status, and
-  appends to `data/endfield/comms.jsonl`. A mod can't import outside its
-  folder, so it holds copies of the endfield mod's `orders.js` and
-  `messages.js`, kept identical by `tests/relay.test.mjs`.
+  appends to `data/endfield/comms.jsonl`. `panes()` doesn't report a mod
+  pane's props, so the shared key `endfield.panes` records which endfield
+  pane is Comms and which a transcript (`fleet.js` `paneRole`).
 - The session card is the `endfield` mod as an overlay window (`kind:
   "window"`, `frame: "none"`, props `{role: "card", terminal, title, where,
   snap}`). Shared keys: `endfield.card.open` (the one card the agents list
   owns), `endfield.card.hot` (the pointer is on the card),
   `endfield.card.closed` (the overlay id of a card pressed beside, or closed
   by itself; a press on the card's own row is not a dismissal),
-  `endfield.identity` (the identity table changed), `endfield.archived`
-  (`address@created` of archived terminals, kept out of every roster).
+  `endfield.identity` (the identity table changed), `endfield.models` (each
+  Claude Code agent's model id, for casting), `endfield.archived` (Hides,
+  `{life: "address@created", program}`, of archived chats' leftover shells,
+  kept out of every roster while no agent runs there).
 - A card action's dialog is `{role: "action", terminal, action, snap}`, a
   dialog with `frame: "none"`; the archived list is `{role: "archived"}`.
   The actions are data: `ACTIONS[programKey]` in `orders.js`.
@@ -383,9 +390,8 @@ rendered at 4x. It is a schematic, not a screenshot.
 
 ## Done when
 
-- `herdr-app check` passes on `mods/endfield` and
-  `mods/endfield-transcript`, there is no `*.error` file, and `herdr-app
-  status` lists no errors (`node scripts/verify.mjs` runs all of these).
+- `herdr-app check` passes on `mods/endfield`, there is no `*.error` file,
+  and `herdr-app status` lists no errors (`node scripts/verify.mjs` runs all of these).
 - `herdr-app do layout.switch --name endfield` shows the boot, then every
   region, in light and in dark appearance.
 - With two spaces, two tabs, a split and an agent reporting `blocked`, the
@@ -393,8 +399,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   {id: "sidebar", px: 44}` shows the rail.
 - An agent reaching `done` in a tab you aren't looking at posts a toast with
   a lime edge.
-- `pane.split {direction: "right", pane, mod: "endfield-transcript", props:
-  {path}}` on a sub-agent transcript shows its entries and grows as the file
+- `pane.split {direction: "right", pane, mod: "endfield", props: {role:
+  "transcript", path}}` on a sub-agent transcript shows its entries and grows as the file
   does. Opened from Squads, its foot shows the `hc send` to the parent for
   the typed text, and Send is disabled with a reason while the parent works.
 - With `art/operators/` deleted, every surface still draws, with program

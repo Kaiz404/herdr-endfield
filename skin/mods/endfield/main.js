@@ -17,6 +17,7 @@
 //   comms     the Comms pane: who sent what to whom
 //   action    a session card action's confirm dialog (the exact hc command, on the person's click)
 //   archived  the archived chats, each with Resume
+//   transcript  a Claude Code sub-agent's transcript, a pane Squads opens right of its parent
 
 import { View, div } from "gpui-kit";
 import { props } from "herdr";
@@ -32,9 +33,10 @@ import { CutIn } from "./cutin.js";
 import { Report } from "./report.js";
 import { Dispatch } from "./dispatch.js";
 import { Comms } from "./comms.js";
+import { Transcript } from "./transcript.js";
 import { ActionDialog, Archived } from "./actions.js";
 
-const ROLES = { boot: Boot, brand: Brand, footer: Footer, spaces: Spaces, agents: Agents, sortmenu: SortMenu, card: Card, tabs: Tabs, pane: PaneHeader, status: Status, toast: Toast, cutin: CutIn, report: Report, dispatch: Dispatch, comms: Comms, action: ActionDialog, archived: Archived };
+const ROLES = { boot: Boot, brand: Brand, footer: Footer, spaces: Spaces, agents: Agents, sortmenu: SortMenu, card: Card, tabs: Tabs, pane: PaneHeader, status: Status, toast: Toast, cutin: CutIn, report: Report, dispatch: Dispatch, comms: Comms, transcript: Transcript, action: ActionDialog, archived: Archived };
 // Herdr opens the layout's toast mod with notification props and no role.
 const roleOf = (p) => p.role ?? (p.overlay && "title" in p ? "toast" : null);
 

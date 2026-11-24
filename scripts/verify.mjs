@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, existsSync, mkdtempSync, copyFileSync, rmSync } from "node:fs";
 import { join, basename } from "node:path";
 import { tmpdir } from "node:os";
-import { ROOT, SKIN, home, posix, owned, walk, entries, modDirs } from "./skin.mjs";
+import { ROOT, SKIN, home, posix, owned, walk, entries, modDirs, RETIRED } from "./skin.mjs";
 
 const STATIC = process.argv.includes("--static");
 const failures = [];
@@ -25,6 +25,8 @@ const text = (f) => readFileSync(f.p, "utf8");
 // ---- the skin's own rules (ported from the Endfield lever)
 
 const skin = entries();
+check("every retired path is an endfield folder the skin no longer ships",
+  ...RETIRED.filter((rel) => !/^(mods|data)\/endfield-[\w-]+$/.test(rel) || entries().some((e) => e.rel.startsWith(`${rel}/`))).map((rel) => `scripts/skin.mjs RETIRED has ${rel}: install, sync and uninstall delete it, so it must be an endfield-* folder the skin no longer ships`));
 check("every skin file lands on an endfield-owned path", ...skin.filter((e) => !owned(e.rel)).map((e) => `skin/${e.from}: lands on ${e.rel}, which is not an endfield path; install would touch the person's own files`));
 
 for (const m of modDirs()) {
@@ -37,10 +39,11 @@ for (const m of modDirs()) {
 const layout = JSON.parse(readFileSync(join(SKIN, "layouts", "endfield.json"), "utf8"));
 const ids = new Set();
 const docked = [];
+const PANE_ONLY = new Set(["comms", "transcript"]);
 (function visit(n) {
   if (!n || typeof n !== "object") return;
   if (n.id) ids.add(n.id);
-  if (n.content?.mod && /^endfield-(transcript|term)/.test(n.content.mod)) docked.push(n.content.mod);
+  if (n.content?.mod === "endfield" && PANE_ONLY.has(n.content.props?.role)) docked.push(`the ${n.content.props.role} role`);
   Object.values(n).forEach(visit);
 })(layout);
 const contract = ["sidebar", "panel", "panel-body", "files", "changes"];

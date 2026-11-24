@@ -64,7 +64,7 @@ The rest of this guide explains each step and adds the optional pieces.
 
 ## 1. Install the layout
 
-**What it changes.** `install.mjs` copies the `skin/` folder into your Herdr home. That is the `endfield` layout, its light and night themes, the `endfield` and `endfield-transcript` mods, and two settings files in `data/endfield/`. It writes only paths whose names start with `endfield`. If an Endfield file is already there and the installer did not write it, the installer first copies it to `.endfield-install/backup/`.
+**What it changes.** `install.mjs` copies the `skin/` folder into your Herdr home. That is the `endfield` layout, its light and night themes, the `endfield` mod, and two settings files in `data/endfield/`. It writes only paths whose names start with `endfield`. If an Endfield file is already there and the installer did not write it, the installer first copies it to `.endfield-install/backup/`.
 
 1. Clone the repo and run the installer:
 
@@ -91,7 +91,7 @@ node scripts/demo-fleet.mjs up --agents 16
 node scripts/demo-fleet.mjs down
 ```
 
-**Update.** Run `git pull`, then `node scripts/install.mjs` again. The installer never overwrites `data/endfield/operators.json` or `data/endfield/settings.json` once they exist.
+**Update.** Run `git pull`, then `node scripts/install.mjs` again. The installer never overwrites `data/endfield/operators.json` or `data/endfield/settings.json` once they exist. It deletes the Endfield folders that earlier versions installed and this one no longer has, such as `mods/endfield-transcript`. A transcript pane left open from before the update can show an error. Click a sub-agent in Squads to replace it, or close it.
 
 **Undo.** See [Uninstall everything](#uninstall-everything).
 
@@ -99,17 +99,17 @@ node scripts/demo-fleet.mjs down
 
 > **Fan content.** herdr-endfield is an unofficial fan project. It is not affiliated with, endorsed by or sponsored by Hypergryph, Gryphline or the Herdr project. The character art is © Hypergryph / Gryphline. The script below downloads it from the official site onto your computer, for your personal, local use only. Do not redistribute the files: no commits, forks, packs, mods, uploads or screenshot sets. Read the official [fan content guidelines](https://endfield.gryphline.com/en-us/news/4497).
 
-**What it changes.** `fetch-operators.mjs` downloads eight official operator renders, checks each one against a pinned sha256, and builds six image files per operator. It writes them, with `manifest.json` and `CREDITS.md`, into `art/operators/` in your Herdr home. It writes nothing else. With the pack in place, each agent's chip in the sidebar, the pane name plates, Dispatch, Comms and the Report show the operator's round portrait. The session panel shows the bust, and the needs-input cut-in shows a yellow-and-ink version of it.
+**What it changes.** `fetch-operators.mjs` downloads the official renders of 36 operators (37 files: the Endministrator has a second, male render), checks each one against a pinned sha256, and builds six image files per operator. It writes them, with `manifest.json` and `CREDITS.md`, into `art/operators/` in your Herdr home. It writes nothing else. With the pack in place, each agent's chip in the sidebar, the pane name plates, Dispatch, Comms and the Report show the operator's round portrait. The session panel shows the bust, and the needs-input cut-in shows a yellow-and-ink version of it.
 
-1. To see the operators and which program each one is assigned to, run:
+1. To see the operators, their class, element and rarity, and the program defaults, run:
 
    ```sh
    node scripts/fetch-operators.mjs --list
    ```
 
-   The default assignment is Claude Code to Perlica, Codex to Endministrator, Gemini to Last Rite, OpenCode to Chen Qianyu, Cursor to Snowshine, sub-agents to Ardelia, and any other program to Ember. Laevatain has no program.
+   Agents whose model the skin knows (Claude Code agents and their sub-agents) are cast by model: a stronger model draws a stronger operator, and siblings draw different ones. See [Casting](CASTING.md). An agent with no known model gets its program's default: Claude Code gets Perlica, Codex Laevatain, Gemini Last Rite, OpenCode Chen Qianyu, Cursor Snowshine, and any other program Ember.
 
-2. To see what a run would download, run `node scripts/fetch-operators.mjs --dry-run`. It writes nothing. A full run downloads about 7 MB.
+2. To see what a run would download, run `node scripts/fetch-operators.mjs --dry-run`. It writes nothing. A full run downloads about 30 MB. Kay and Mimino have only their small roster card on the official site so far, so their busts are softer than the others.
 
 3. Download and build the pack:
 
@@ -119,7 +119,7 @@ node scripts/demo-fleet.mjs down
 
    Without `--accept`, the script prints the notice and asks `Download for personal use on this machine? [y/N]`. To fetch only some operators, add `--only perlica,ember`.
 
-**Check it worked.** The script ends with `Done. 8 operator(s) built into <folder>.` A second run prints `Nothing to do: every operator is built and up to date.` `node scripts/verify.mjs` prints `art pack: 8 operators, all files present`. The sidebar shows portraits within 30 seconds, because the skin rereads the pack every 30 seconds.
+**Check it worked.** The script ends with `Done. 37 operator(s) built into <folder>.` A second run prints `Nothing to do: every operator is built and up to date.` `node scripts/verify.mjs` prints `art pack: 37 operators, all files present`. The sidebar shows portraits within 30 seconds, because the skin rereads the pack every 30 seconds.
 
 **Undo.** Delete the `art/operators` folder from your Herdr home. Every surface goes back to the program's own tile.
 
@@ -137,7 +137,7 @@ To build a pack from your own images instead, see [`art-pack/README.md`](../art-
 
 ## 3. Choose which operator each agent gets
 
-**What it changes.** `data/endfield/operators.json` in your Herdr home overrides the pack's default assignment. The installer created it from `skin/data/endfield/operators.example.json`, and nothing overwrites it afterwards.
+**What it changes.** `data/endfield/operators.json` in your Herdr home overrides casting by model and the pack's default assignment. The installer creates it from `skin/data/endfield/operators.example.json`, which is empty, so the model decides until you add entries. The installer never overwrites a file you edited. It replaces a copy that still matches the seed of earlier versions, which pinned every program, so that casting by model shows.
 
 1. Open the file:
 
@@ -149,15 +149,15 @@ To build a pack from your own images instead, see [`art-pack/README.md`](../art-
 
    ```json
    {
-     "programs": { "claude": "perlica", "codex": null, "sub-agent": "ardelia", "shell": "ember" },
+     "programs": { "codex": null, "shell": "ember" },
      "terminals": { "t3": "laevatain" },
      "spares": ["laevatain"]
    }
    ```
 
-   - `programs` maps a program key to an operator slug. The keys are `claude`, `codex`, `gemini`, `opencode` and `cursor`. `sub-agent` is for sub-agents, and `shell` is for any program with no entry of its own.
+   - `programs` maps a program key to an operator slug, and wins over the model. The keys are `claude`, `codex`, `gemini`, `opencode` and `cursor`. `sub-agent` is for sub-agents, and `shell` is for any program with no entry of its own. For example, `"claude": "perlica"` draws every Claude Code agent as Perlica whatever its model.
    - `terminals` gives one terminal its own operator, and wins over `programs`. A terminal's address is the `T3` on its pane's name plate, written in lower case. `herdr-app ls` also lists the addresses.
-   - `spares` lists operators that a second agent of the same program takes before callsigns get numbers. Without spares, a second Claude Code agent is `PERLICA·2`.
+   - `spares` lists operators that an agent takes once every operator in its pool is taken, before callsigns get numbers. Without spares, the next agent is numbered, for example `PERLICA·2`.
    - `null`, or a slug that is not in the pack, means no operator. That agent keeps its program tile.
 
 3. Save the file.
@@ -416,7 +416,7 @@ Read the file, fix the JSON it names, and save. Herdr applies the fix at once. `
 
 ### Art does not appear
 
-1. Run `node scripts/verify.mjs`. It must print `art pack: 8 operators, all files present`. If it prints `no art pack installed`, run `node scripts/fetch-operators.mjs --accept`.
+1. Run `node scripts/verify.mjs`. It must print `art pack: N operators, all files present`, where N is the number you fetched (37 for the whole catalogue). If it prints `no art pack installed`, run `node scripts/fetch-operators.mjs --accept`.
 2. If you fetched the pack before version 0.2.0, the session panel has no bust. Run `node scripts/fetch-operators.mjs --accept` again. It builds the missing `bust-480.png`. An operator with any of its six files missing shows as its program tile.
 3. Check that `data/endfield/operators.json` is valid JSON. If it is not, the skin ignores it without an error. To check it:
 
