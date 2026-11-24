@@ -7,7 +7,7 @@
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { spaces, shared, nextCommand, checking } from "herdr";
-import { palette, root, midTrunc, hatch, micro, pad2, odometer, glyph, gauge, GAUGE, QUOTA, Entrance, MOTION, newSpace } from "./kit.js";
+import { palette, root, midTrunc, hatch, micro, spaced, pad2, odometer, glyph, gauge, GAUGE, QUOTA, Entrance, MOTION, newSpace } from "./kit.js";
 import { roster } from "./roster.js";
 import { goTo } from "./report.js";
 import { fmtTokens } from "./fleet.js";
@@ -90,13 +90,13 @@ export default class Status {
           .children(limits ? limits.flatMap((w, i) => (i ? [rule(), quota(w, i)] : [quota(w, i)])) : []))
         .child(v_flex().w(170).flex_none().gap(5)
           .child(h_flex().justify_between().items_end()
-            .child(micro("Ctx · focused", C.barMuted))
+            .child(h_flex().gap(6).items_end().child(micro("Ctx", C.barMuted)).child(micro("Focused", C.barMuted, 8)))
             .child(h_flex().gap(3).items_end().text_size(11).text_color(C.barText)
               .child(div().font_semibold().child(focus?.ctx ? fmtTokens(focus.ctx.used) : "—"))
               .child(micro(focus?.ctx ? `/${fmtTokens(focus.ctx.total)}` : "", C.barMuted))))
           .child(div().relative().h(3).bg("#383838")
             .child(div().id("hud-ctx").absolute().left(0).top(0).h(3).w(1.7 * pct).bg(pct >= 75 ? C.red : C.barText).transition("width", MOTION.count.roll))))
-        .child(micro([focus?.model ?? "No agent", midTrunc(space?.branch), space?.machine ?? "Local"].filter(Boolean).join(" · "), C.barMuted).flex_shrink(1).min_w(0).truncate())
+        .child(spaced([focus?.model ?? "No agent", midTrunc(space?.branch), space?.machine ?? "Local"], C.barText, { rest: C.barMuted }).flex_shrink(1))
         // Opens to 176px while anyone needs input; the block inside is fixed, the opening clips it.
         .child(div().id("hud-needs").relative().h_full().flex_none().overflow_hidden().w(blocked.length ? NEEDS_W : 0).transition("width", MOTION.count.needs)
           .cursor_pointer().on_click(() => blocked[0] && goTo(blocked[0]))
