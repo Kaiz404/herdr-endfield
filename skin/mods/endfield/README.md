@@ -9,7 +9,7 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
 ## Files
 
 - `main.js` routes a role to its class: `boot`, `brand`, `footer`, `spaces`,
-  `agents`, `sortmenu`, `squadmenu`, `squad`, `card`, `tabs`, `pane`, `status`, `toast`,
+  `agents`, `sortmenu`, `squadmenu`, `squad`, `card`, `tabs`, `pane`, `panemenu`, `status`, `toast`,
   `cutin`, `report`, `dispatch`, `comms`, `transcript`, `action`, `archived`,
   `account`, `link`, `dock`.
 - Two roles open as panes, `comms` and `transcript` (`pane.split` with `mod:
@@ -150,6 +150,32 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   frame Herdr draws round a floating block looks at that size, and that a
   held tab's moves report `pressed_button` `"left"`, without which a tab
   never docks.
+- `plate.js` says what a pane's name plate offers, with no Herdr in it
+  (`tests/plate.test.mjs`): the kind of pane (`kindOf`: agent, shell, other
+  program, mod), the tray and the right-click menu (`plateActions`: Split right,
+  Split down in the menu only, Zoom, Pop out, then the ✕ from `endAction`),
+  each action's tooltip with its key (`tipOf`), and the Hidden records
+  (`hiddenOf`, `keptHidden`). Herdr's `pane.close` ends the terminal, so an
+  agent's ✕ is Hide: `terminal.park`, which takes the pane and the
+  `herdr.space`/`herdr.tab` labels and leaves the agent running. Herdr then
+  lists it nowhere (`agents()` leaves it out, and a top-level terminal has no
+  parent to show under), so the agents list writes a Hidden record before
+  the park (in its `localStorage`, published as shared `endfield.hidden`),
+  and `buildRoster` keeps the agent as a member with no pane and `hidden`,
+  in its squad or in a Hidden squad once that space is gone. A click on it
+  (`report.js` `goTo`) runs `dock.js` `showPlan`: `terminal.keep` right of
+  the pane focused in its own squad, else right of the focused pane, else
+  in a new tab. Pop out (`popOutPlan`) is a park, then a `terminal.keep`
+  with no place, which makes a new tab in the shown space. Hide, Pop out and
+  Show reach the list through the shared key `endfield.pane.ask`
+  (`docking.js` `askPane`), as the dock board's drop does, because the plate
+  goes with its pane and the list runs them through `moveChat`. `pane.js`
+  draws the plate and the `panemenu` popup, and `status.js` runs the same
+  actions from the keys `endfield.zoomPane`, `endfield.popOut` and
+  `endfield.hidePane`. Checked on a throwaway terminal: park drops the
+  `herdr.*` labels and turns keep off, `herdr-app ls` no longer lists it,
+  `terminal.keep` with no place gives it a new tab, and with `place: "right"`
+  a pane right of the focused one, labels and keep back.
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
   `card.js` (the session panel), `actions.js` (a card action's confirm dialog
   and the Archived list), `dispatch.js` (the Dispatch dialog), `tabs.js` (its marker's place is `tabmark.js`, no Herdr in it, `tests/tabmark.test.mjs`), `pane.js` (the name plate), `status.js` (the HUD footer),

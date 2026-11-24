@@ -461,6 +461,38 @@ Herdr has no command that moves a tab to another space, so a move or a dock take
 
 **Undo.** Drag the squad or chat back, or rename it again. Pin and unpin from the same menu. Unlink two agents on the dropped one's session panel.
 
+### Arrange panes from their name plates
+
+Each pane's name plate works like an editor group's title bar in VS Code. The buttons sit at its right end. They are muted until you point at the plate, and they stay shown on the focused pane. Each tooltip names its key when `keys.json` binds one.
+
+- **Split right.** Opens a shell right of the pane. Right-click the plate for **Split down**.
+- **Zoom.** The pane fills its tab, and the plate shows a **Zoomed** tag. Click it again (**Back to the split**) to see the other panes. Double-clicking an empty part of the plate does the same. Esc goes to the terminal, so it doesn't unzoom. A tab with one pane has no Zoom.
+- **Pop out.** Moves the pane's terminal into a new tab of its own, in the same space. The program keeps running and nothing is typed into it. Only a tab with more than one pane has Pop out. If Herdr doesn't show the new tab in time, the pane goes back to its tab, and a notice says where it is.
+- **Hide** (the ✕ on an agent's pane). The pane goes, and the agent keeps running. It stays in Squads with a **Hidden** tag, in its squad, or in a **Hidden** squad if its space closed because that was its last pane. Click the row to show it again, right of the focused pane in its own squad, or right of the focused pane where you are if its squad is gone. The ✕ never ends an agent. To end one, use **Archive** on its session panel. See [Archive a chat and resume it](#archive-a-chat-and-resume-it).
+- **Close** (the ✕ on any other pane). Herdr's own close. On a shell or another program, it ends what runs there, and the tooltip says so: **Close (ends this shell)**.
+- **Middle-click** the plate to run its ✕: Hide on an agent, Close on anything else.
+- **Right-click** the plate for a menu with all of them and their keys.
+
+To put a popped-out or hidden chat back into a split, drag its row from Squads into the work area, or drag its tab down out of the tab strip. See [Arrange squads and chats in Squads](#arrange-squads-and-chats-in-squads).
+
+A hidden agent has no pane, so Herdr turns its core keep off, as it does for a sub-agent. If herdr-core stops or the computer restarts while it is hidden, it ends instead of leaving a shell in its place. Its chat stays in Claude Code's history, and `claude --resume` in its folder finds it. Show it again before you restart. Endfield remembers which agents you hid when Herdr restarts.
+
+**Use Hide on a key.** Herdr's own `ctrl-shift-x` is `pane.close`, and `ctrl-shift-w` is `tab.close`. Both end every program in what they close, agents included. The installer doesn't change your keys. To make `ctrl-shift-x` hide an agent's pane and close any other pane, bind it in the Endfield section of `keys.json` in your Herdr home. That section wins over `global` while Endfield shows:
+
+```json
+"layout:endfield": { "ctrl-shift-x": "endfield.hidePane" }
+```
+
+Two more commands work on the focused pane. `endfield.zoomPane` toggles Zoom, the same as Herdr's `pane.zoom`, which `ctrl-shift-z` already runs. `endfield.popOut` pops it out. Herdr's keys have no two-key chords such as VS Code's `ctrl-k ctrl-m`, so use one combination. Choose keys that `keys.json` does not already use. This example adds `ctrl-shift-m` for Pop out:
+
+```json
+"layout:endfield": { "ctrl-shift-x": "endfield.hidePane", "ctrl-shift-m": "endfield.popOut" }
+```
+
+**Check it worked.** Point at an agent pane's ✕. The tooltip reads **Hide (keeps running) (Ctrl+Shift+X)**. Press the key on a shell pane, and the shell closes as before.
+
+**Undo.** Remove the lines from `keys.json`. To bring back every hidden agent, click each **Hidden** row in Squads.
+
 ## 11. Run agents on several Claude accounts
 
 You can save more than one Claude login and choose one for each Claude Code agent. You can also move a running chat to another account, and it keeps its history.
