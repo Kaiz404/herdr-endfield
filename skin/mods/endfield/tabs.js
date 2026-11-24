@@ -9,6 +9,7 @@ import { palette, root, find, stop, glyph, freshDot, micro, icon, pad2, telling,
 import { statusOf } from "./fleet.js";
 import { REPORT, toggleReport } from "./report.js";
 import { commsPane, openComms } from "./comms.js";
+import { markAt } from "./tabmark.js";
 
 // A tab Herdr named follows its agent's live title, as the agents list does; a name the person gave stays.
 function label(tab, lead) {
@@ -159,8 +160,7 @@ export default class Tabs {
     // Game pills: an open panel's pill is ink, a closed one an outline.
     const toggle = (id, label, on, action) => pill(C, id, label, { kind: on ? "ink" : "ghost", knob: null, action: () => { if (!on) cue("tick"); action(); } });
     // The active tab's yellow block slides between tabs over their measured widths.
-    const lefts = shown.reduce((xs, c) => [...xs, xs.at(-1) + (this.widths[c.id] ?? 0)], [0]);
-    const at = lefts[Math.max(0, active)], width = active >= 0 ? this.widths[shown[active].id] ?? 0 : 0;
+    const { left: at, width } = markAt({ ids: shown.map((c) => c.id), widths: this.widths, active });
     const block = div().absolute().top(0).bottom(0).bg(C.signal).left(at).w(width);
     const mark = div().id("tab-mark").absolute().bottom(0).h(3).bg(C.ink).left(at).w(width)
       .transition("left", MOTION.select.edge).transition("width", MOTION.select.edge);
