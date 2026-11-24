@@ -5,6 +5,8 @@
 //   new   hc run --bg --keep --json (--parent <t> [--outlive-parent] | --no-parent) --cwd <space folder>
 //         --label herdr.space=<id> --label herdr.tab=<new id> -- <program> "<task>"
 //         A tab id Herdr doesn't know becomes a new tab in that space; the agent shows up there.
+//         With saved logins, Claude Code runs as node <tools/account.mjs> run [<name>] -- <program> (orders.js
+//         accountArgv); "default" leaves the name out, so the tool's default account (or the normal login) runs it.
 // Every dispatch is logged to the Comms log (comms.js). The skin never starts anything on its own:
 // only this dialog, on the person's click or Enter, and once: after hc took it, the action is Close.
 
@@ -15,7 +17,9 @@ import { palette, root, micro, spaced, wide, chip, glyph, pill, barcode, dots, c
 import { roster } from "./roster.js";
 import { cast } from "./fleet.js";
 import { append } from "./comms.js";
-import { sendArgs, runArgs, taskProblem, commandLine, deliver, timeoutFor, deliverPlan } from "./orders.js";
+import { sendArgs, runArgs, taskProblem, commandLine, deliver, timeoutFor, deliverPlan, accountArgv } from "./orders.js";
+import { ACCOUNT_TOOL, listAccounts } from "./actions.js";
+import { isClaude } from "./sessions.js";
 
 export const openDispatch = (p) => openOverlay({ mod: "endfield", kind: "dialog", frame: "none", width: 700, height: 620, props: { role: "dispatch", ...p } });
 
@@ -39,6 +43,9 @@ export class Dispatch {
     this.opt = { send: "now", new: this.parent ? "keep" : "none" };
     this.progs = [SHELL()];
     this.prog = null;
+    // Saved logins (tools/account.mjs) and the one a new Claude Code agent starts on; null is the default login.
+    this.accounts = [];
+    this.account = null;
     // edit -> busy -> sent | refused (may Dispatch again) | uncertain: deliver() in orders.js.
     this.state = { phase: "edit", error: null };
     this.input = InputState.new({ placeholder: "What should it do?" });
@@ -53,6 +60,7 @@ export class Dispatch {
       // Installed programs first, then the shell, then the rest (dimmed): six tiles show.
       try { const known = await knownAgents(); this.progs = [...known.filter((g) => g.installed), SHELL(), ...known.filter((g) => !g.installed)]; } catch {}
       this.prog ??= this.progs.find((g) => g.installed && !g.shell)?.key ?? "shell";
+      ({ names: this.accounts, def: this.def } = await listAccounts());
       cx.notify();
     });
   }
@@ -72,7 +80,7 @@ export class Dispatch {
     const prog = this.progs.find((g) => g.key === this.prog) ?? SHELL();
     const space = spaces().find((s) => s.id === this.space);
     const parent = this.opt.new === "none" ? null : this.parent;
-    const args = runArgs({ parent, outlive: this.opt.new === "outlive", machine: space?.machine, folder: space?.folder, space: this.space, tab: this.tab ??= newTab(), argv: prog.run, task });
+    const args = runArgs({ parent, outlive: this.opt.new === "outlive", machine: space?.machine, folder: space?.folder, space: this.space, tab: this.tab ??= newTab(), argv: isClaude({ program: prog }) && this.accounts.length ? accountArgv({ tool: ACCOUNT_TOOL(), account: this.account, argv: prog.run }) : prog.run, task });
     return { args, text: commandLine(args, platform), prog, task };
   }
 
@@ -173,6 +181,12 @@ export class Dispatch {
       cx.notify();
     };
     const optRow = OPTS[this.mode];
+    const onAccount = isClaude({ program: prog }) && this.accounts.length > 0;
+    const cycleAccount = (_e, cx) => {
+      const list = [null, ...this.accounts];
+      this.account = list[(list.indexOf(this.account) + 1) % list.length];
+      cx.notify();
+    };
     return root(C, div().id("dl-root").size_full().flex().items_center().justify_center()
       .on_size_change((_s, cx) => { if (!this.entered) cx.timer.after(MOTION.settle.delay, (cx) => { this.entered = true; cx.notify(); }); })
       .child(v_flex().id("dispatch").relative().w(660).bg(C.raised).border_1().border_color(C.hairStrong).rounded(4)
@@ -207,7 +221,9 @@ export class Dispatch {
             .child(box(["Squad", "space"], h_flex().id("dl-space").gap(6).items_center().cursor_pointer().on_click(cycleSpace).tooltip("Click for the next space")
               .child(div().w(22).h(16).flex().items_center().justify_center().rounded(3).bg(C.selBg).font_family(FONT.mono).text_size(9).text_color(C.selText).child(squad?.num ?? String(spaces().findIndex((s) => s.id === this.space) + 1).padStart(2, "0")))
               .child(wide(space?.name ?? "none", C.text, 10).flex_1().min_w(0).truncate()).child(micro("▸", C.muted))))
-            .child(box(["Parent", "reports to"], lone ? pair("None", "top level", C.text, C.muted, 10) : pair(parentM?.ident.callsign ?? this.parent, this.parent, C.text, C.muted, 10))))))
+            .child(box(["Parent", "reports to"], lone ? pair("None", "top level", C.text, C.muted, 10) : pair(parentM?.ident.callsign ?? this.parent, this.parent, C.text, C.muted, 10)))
+            .when(onAccount, (el) => el.child(box(["Account", "login"], h_flex().id("dl-account").gap(6).items_center().cursor_pointer().on_click(cycleAccount).tooltip("Click for the next saved account")
+              .child(wide(this.account ?? (this.def ? `default ${this.def}` : "default"), C.text, 10).flex_1().min_w(0).truncate()).child(micro("▸", C.muted))))))))
         .child(v_flex().px(22).pb(14).gap(8)
           .child(section("02", prog?.shell && !send ? "Command" : "Task", `${task.length} chars`))
           .child(h_flex().min_h(58).px(12).py(10).gap(8).items_stretch().rounded(3).border_1().border_color(C.hairStrong).bg(C.ground)

@@ -10,7 +10,8 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
 
 - `main.js` routes a role to its class: `boot`, `brand`, `footer`, `spaces`,
   `agents`, `sortmenu`, `squadmenu`, `card`, `tabs`, `pane`, `status`, `toast`,
-  `cutin`, `report`, `dispatch`, `comms`, `transcript`, `action`, `archived`.
+  `cutin`, `report`, `dispatch`, `comms`, `transcript`, `action`, `archived`,
+  `account`.
 - Two roles open as panes, `comms` and `transcript` (`pane.split` with `mod:
   "endfield"` and the role in props). `panes()` reports a mod pane's mod but not
   its props, so `fleet.js` keeps a registry in the shared key `endfield.panes`:
@@ -117,6 +118,17 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   `data/endfield/sessions/<session_id>.json` (matched by its `terminal`), else the
   newest transcript in `~/.claude/projects/<cwd slug>/` (approximate: two sessions
   in one folder can't be told apart; the card marks it `≈`).
+- `tools/account.mjs` keeps Claude logins by name and runs a program on one: the
+  token goes in as `CLAUDE_CODE_OAUTH_TOKEN` (DPAPI on Windows, the Keychain on
+  macOS, a user-only file elsewhere), with `ENDFIELD_ACCOUNT` set so the statusline
+  records the account. `switch` runs in a tab of its own: it waits for an agent's
+  turn with `hc wait` (or presses Esc with `hc interrupt`), ends it with `hc kill`
+  (an `hc send` of `/exit` from a terminal arrives tagged, as a message), and
+  resumes the session there. The `account` role in `actions.js` is its dialog,
+  Dispatch's Account box uses `run`, and `orders.js` builds both argvs
+  (`accountArgv`, `switchArgv`, `switchPlan`). Tokens never pass through the mod:
+  it reads names only (`account.mjs list`), and Manage accounts opens the tool's
+  own menu in a tab.
 - `tools/probe.mjs` reads transcripts for `sessions.js` and for
   `transcript.js`. It runs under `node` because `readTextFile` stops at
   1 MiB and transcripts reach tens of MB. It folds each file once and keeps the

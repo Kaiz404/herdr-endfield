@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { sendArgs, runArgs, taskProblem, psQuote, shQuote, commandLine, deliver, timeoutFor } from "../skin/mods/endfield/orders.js";
+import { sendArgs, runArgs, taskProblem, psQuote, shQuote, commandLine, deliver, timeoutFor, accountArgv, switchArgv } from "../skin/mods/endfield/orders.js";
 
 test("a send whose log write fails is still sent, and hc runs once", async () => {
   let runs = 0;
@@ -56,4 +56,13 @@ test("PowerShell 5.1 quoting gives back each argument exactly", { skip: process.
   const line = `& '${process.execPath}' -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' ${TRICKY.map(psQuote).join(" ")}`;
   const out = execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", line], { encoding: "utf8" });
   assert.deepEqual(JSON.parse(out), TRICKY);
+});
+
+test("a launch command that programs.json already wraps in the account tool is wrapped once, not twice", () => {
+  const tool = "/h/mods/endfield/tools/account.mjs";
+  const fromPrograms = ["node", "/h/.config/herdr-app/mods/endfield/tools/account.mjs", "run", "--", "claude"];
+  assert.deepEqual(accountArgv({ tool, account: null, argv: fromPrograms }), ["node", tool, "run", "--", "claude"]);
+  assert.deepEqual(accountArgv({ tool, account: "work", argv: ["claude"] }), ["node", tool, "run", "work", "--", "claude"]);
+  assert.deepEqual(switchArgv({ tool, terminal: "t4", account: "work", sessionId: "s1", now: false, argv: fromPrograms }),
+    ["node", tool, "switch", "t4", "work", "--session", "s1", "--", "claude"]);
 });

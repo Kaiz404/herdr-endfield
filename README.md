@@ -40,7 +40,7 @@ node scripts/fetch-operators.mjs --accept
 
 The last command downloads the official operator art onto your machine. Leave it out to use the layout with program icons instead.
 
-The full guide is [docs/SETUP.md](docs/SETUP.md). It covers each piece with a check and an undo step: the layout, the portraits, which operator each agent gets, sounds, the Claude Code statusline and theme, the PowerShell prompt, Dispatch and Comms, chat actions, Archive and Resume, arranging squads, the home base, updating, uninstall, troubleshooting, and what data the skin keeps.
+The full guide is [docs/SETUP.md](docs/SETUP.md). It covers each piece with a check and an undo step: the layout, the portraits, which operator each agent gets, sounds, the Claude Code statusline and theme, the PowerShell prompt, Dispatch and Comms, chat actions, Archive and Resume, arranging squads, several Claude accounts, the home base, updating, uninstall, troubleshooting, and what data the skin keeps.
 
 ## More
 

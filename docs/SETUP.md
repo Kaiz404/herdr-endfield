@@ -16,6 +16,7 @@ Commands are for Windows (PowerShell) first. Where macOS or Linux differs, the g
 - [8. Send work with Dispatch and read Comms](#8-send-work-with-dispatch-and-read-comms)
 - [9. Choose where new spaces open](#9-choose-where-new-spaces-open)
 - [10. Manage chats and squads](#10-manage-chats-and-squads)
+- [11. Run agents on several Claude accounts](#11-run-agents-on-several-claude-accounts)
 - [Update to a new version](#update-to-a-new-version)
 - [Uninstall everything](#uninstall-everything)
 - [Troubleshooting](#troubleshooting)
@@ -410,6 +411,79 @@ Squads can't move a chat to another squad, because Herdr has no command that mov
 
 **Undo.** Drag the squad or chat back, or rename it again. Pin and unpin from the same menu.
 
+## 11. Run agents on several Claude accounts
+
+You can save more than one Claude login and choose one for each Claude Code agent. You can also move a running chat to another account, and it keeps its history.
+
+> **Read Anthropic's terms first.** Using several accounts to get around usage limits may break Anthropic's terms of service. That decision is yours.
+
+Each account is a long-lived token. Every account shares your one `~/.claude` folder, so a chat started on one account resumes on another. Tokens are stored in Herdr's data folder, `data/endfield/accounts.json`:
+
+- **Windows:** encrypted with DPAPI. Only your Windows user on this computer can read them.
+- **macOS:** in your login Keychain. The file keeps only the names. This path is not tested yet.
+- **Linux:** in the file itself, which only your user can read. Claude Code keeps its own login the same way.
+
+A token never goes into the skin, a tab's command, Comms or the repo.
+
+You need the Claude Code statusline (step 5). It gives the skin each chat's exact session id, so a switch resumes the right chat.
+
+### Add an account
+
+1. In a terminal signed in to that account, run `claude setup-token`. Copy the token it prints.
+2. Click the **5-HOUR / WEEKLY** usage limits in the footer, then click **Manage accounts**. With no Claude Code agent in focus, the click opens the menu at once. A tab named **Accounts** opens. You can also run `node "$HOME/.config/herdr-app/mods/endfield/tools/account.mjs"` in any terminal.
+3. Press `a`, type a name such as `work`, and paste the token. The token does not show as you paste it.
+4. Press `q` to close the menu.
+
+To remove an account, open the same menu and press `r`.
+
+### Use a default account
+
+Save your normal login as a token too, then press `d` in the same menu and pick it. New agents then start on a named account, so the footer always shows its name, and you can switch a chat back to it.
+
+Dispatch uses the default account by itself. To make Herdr's own menus (such as **New tab**) start Claude Code on it too, add a `claude` entry to `~/.config/herdr-app/programs.json`. Replace `<home>` with your home folder, with forward slashes also on Windows (for example `C:/Users/<you>`).
+
+- If the file does not exist, create it with this content.
+- If it exists, add only the `claude` line inside its `"programs"` object, and keep the other entries. If it already has a `claude` entry, add the `"run"` key to that entry.
+
+```json
+{ "programs": {
+    "claude": { "run": ["node", "<home>/.config/herdr-app/mods/endfield/tools/account.mjs", "run", "--", "claude"] } } }
+```
+
+Without a default account, this command runs plain `claude`, so it is safe to keep. A `claude` you type in a shell does not read this file and still uses your normal login. The footer then shows that login's email.
+
+**Check it worked:**
+
+1. Run `herdr-app status`. `errors` is empty, and Herdr wrote no `programs.error` file next to `programs.json`.
+2. Start Claude Code from Herdr's **New tab** menu. The footer shows your default account's name next to **Focused**.
+
+**Undo:** remove the `claude` entry from `programs.json`, or delete the file if that was its only entry. `scripts/uninstall.mjs` does this for you, because the entry points at a script inside the Endfield mod. It removes only a `run` that points at that script, and keeps your other entries.
+
+### Start a new agent on an account
+
+In **Dispatch > New agent**, pick Claude Code. An **Account** box shows when you have saved accounts. Click it to step through `default` (your normal login) and each saved account. The command at the foot of the dialog shows the wrapper, for example `node .../account.mjs run work -- claude`.
+
+### Move a running chat to another account
+
+1. Focus the agent, then click the **5-HOUR / WEEKLY** usage limits in the footer. The footer shows the agent's account beside **5-HOUR**, for example `work ▾`. **Switch** is dimmed only while the agent needs input.
+2. Pick the account to move to. The dialog shows the account the chat uses now.
+3. If the agent is working, choose **When**:
+   - **After this turn** (default): the switch waits until the turn ends. Nothing is lost.
+   - **Stop now**: the switch presses Esc. Finished tool calls and the history stay, but the reply in progress is lost. The resumed chat gets a note to continue.
+4. Click **Switch**.
+
+A new tab opens and does the switch where you can see it:
+
+1. It waits for the turn to end.
+2. It ends the old agent, which also closes its tab.
+3. It runs `claude --resume <session id>` on the new account.
+
+To cancel, close the new tab before the turn ends. Background tasks that the old agent started end with it, and the dialog warns you about this. Without a session id, the switch resumes the newest chat in the folder (`--continue`), and the dialog says so.
+
+**Check it worked.** The new tab shows the chat's history. The newest file in `data/endfield/sessions/` for that terminal has `"account": "<name>"`. The HUD footer shows the account's name beside its 5-hour limit. Each account has its own limits, so the footer shows the limits of the focused agent's account.
+
+**Undo.** Move the chat back with **Account**. Remove an account from the menu. Delete `data/endfield/accounts.json` to forget every account (on macOS, also remove the `herdr-endfield` items in Keychain Access).
+
 ## Update to a new version
 
 **What it changes.** `install.mjs` copies the new skin over the old one. It never overwrites `data/endfield/operators.json` or `data/endfield/settings.json` once they exist. The one exception is an `operators.json` that still matches the seed of version 0.2.0 or earlier, which pinned one operator per program. The installer replaces it with the new empty seed, so that casting by model shows. It also deletes the Endfield folders that earlier versions installed and this one no longer has.
@@ -457,7 +531,7 @@ node scripts/sync.mjs
    node scripts/uninstall.mjs
    ```
 
-   The script removes what the installer added and restores anything it backed up. It also deletes the files the skin wrote while it ran: the Comms log, the archived chats list and the session cache. It keeps `data/endfield/operators.json` and `data/endfield/settings.json` if you edited them, and the statusline's `sessions/` folder. If Herdr still shows Endfield, the script stops and says so. `--force` skips that check.
+   The script removes what the installer added and restores anything it backed up. It also deletes the files the skin wrote while it ran: the Comms log, the archived chats list and the session cache. It removes the default-account `run` from `programs.json`, if you added it (section 11). It keeps `data/endfield/operators.json` and `data/endfield/settings.json` if you edited them, and the statusline's `sessions/` folder. If Herdr still shows Endfield, the script stops and says so. `--force` skips that check.
 
 3. Delete what the script leaves on purpose, if you want it gone. In PowerShell:
 
@@ -476,6 +550,7 @@ node scripts/sync.mjs
    - For the statusline, remove the `statusLine` entry from `~/.claude/settings.json`, and delete `~/.claude/statusline-endfield.sh`.
    - For the Claude Code theme, select your previous theme with `/theme`.
    - For the PowerShell prompt, delete the line from `$PROFILE`, and delete `endfield-prompt.ps1`.
+   - For saved accounts on macOS, the tokens stay in the login Keychain. Delete each one with `security delete-generic-password -s herdr-endfield -a <name>`. On Windows and Linux, step 3 already deleted them with `data/endfield`.
 
 ## Troubleshooting
 
