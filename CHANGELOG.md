@@ -6,6 +6,8 @@
 
 - **Several Claude accounts.** Save Claude logins by name (a token from `claude setup-token`) and run each Claude Code agent on the one you choose. **Dispatch > New agent** has an **Account** box. The footer shows the focused agent's account: a saved name, or your email on the normal login. Click it or the limits to open **Account**, which moves a running chat to another account and keeps its history. It waits for the turn to end, or stops it with Esc if you choose **Stop now**. Then it ends the old agent and resumes the same session in a new tab. Tokens are encrypted with DPAPI on Windows and kept in the Keychain on macOS. They never pass through the skin. Pick a default account, and new agents from Dispatch and Herdr's menus start on it. See [Run agents on several Claude accounts](docs/SETUP.md#11-run-agents-on-several-claude-accounts).
 
+- **Fold Spaces.** The Spaces header has a chevron, like a squad's. Click it to fold Spaces to its header, and Squads takes the freed height. The header, its count and its `+` stay. Click it again to unfold Spaces to the size it had. Endfield remembers the fold when Herdr restarts. The key command `endfield.toggleSpaces` does the same. See [Fold Spaces](docs/SETUP.md#9-choose-where-new-spaces-open).
+
 ### Changed
 
 - **Dispatch's task field wraps.** Long tasks wrap instead of scrolling sideways, and the field grows from two to six lines. **Enter** adds a line, as in Herdr's own multi-line fields. **Ctrl+Enter** (**Cmd+Enter** on macOS) dispatches.

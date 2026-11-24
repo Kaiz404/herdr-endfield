@@ -18,6 +18,7 @@ import { fmtTokens } from "./fleet.js";
 import { usage, block, fit, usageWidth, TIERS, USAGE_TICK_MS } from "./usage.js";
 import { isClaude } from "./sessions.js";
 import { openAccount, manageAccounts } from "./actions.js";
+import { toggleSpaces } from "./spaces.js";
 
 const NEEDS_W = 176;
 const GAUGE_W = GAUGE.segments * GAUGE.w + (GAUGE.segments - 1) * GAUGE.gap;
@@ -30,11 +31,12 @@ export default class Status {
     this.entrance.start(cx);
     // The limits slot's width, as it last laid out: it picks how much of each window fits.
     this.slotW = Infinity;
-    // keys.json "<key>": "endfield.newSpace" lands here: the one copy every endfield window shows.
+    // keys.json "<key>": "endfield.<command>" lands here: the one copy every endfield window shows.
     if (checking()) return;
     // A data timer: the time to reset counts down in minutes while limits show.
     cx.timer.every(USAGE_TICK_MS, (cx) => { if (shared("endfield.limits")) cx.notify(); });
-    cx.spawn(async () => { for (;;) if ((await nextCommand()) === "newSpace") await newSpace(); });
+    const KEYS = { newSpace: () => newSpace(), toggleSpaces };
+    cx.spawn(async () => { for (;;) await KEYS[await nextCommand()]?.(); });
   }
 
   render() {
