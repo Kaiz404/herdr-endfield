@@ -110,8 +110,10 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   A squad menu's Rename squad reaches the list through the shared key
   `endfield.squad.rename` (`{id, at}`), since only the list holds the header's
   name field. Archive squad and Close squad open `squadactions.js` (role
-  `squad`). Who Archive squad takes, why it refuses and when the space closes
-  are `archive.js` `squadPlan` and `squadEnd`; each chat goes through the
+  `squad`). What ends with the space is `archive.js` `spaceTerminals` (Herdr's
+  lists, not the roster); who Archive squad takes, why it refuses, when the
+  space closes and what a fresh read may hold before it does are
+  `squadPlan`, `squadEnd` and `unconfirmed`; each chat goes through the
   card's own `actions.js` `archiveChat` and `markEnded`, so there is one
   Archive flow. GPUI's drag helpers here carry files or dock tabs only, so a
   squad or chat drags on mouse down, move and up, as Spaces does. Squads and

@@ -25,7 +25,7 @@ import { palette, root, micro, pill, barcode, growDisc, cue, MOTION, FONT, STRIP
 import { roster } from "./roster.js";
 import { append } from "./comms.js";
 import { ACTIONS, MODE_WORD, gate, valuesProblem, actionSteps, stepLine, modeOnScreen, deliver, timeoutFor, shQuote, switchArgv, switchPlan } from "./orders.js";
-import { archiveRecord, parseArchive, withoutChat, withEnded, updateFile, recordThenEnd, exitState, hideOf, keptHides, withoutHide, resumePlan, resumeState, programBin, PICK_NOTE } from "./archive.js";
+import { archiveRecord, parseArchive, withoutChat, withEnded, updateFile, recordThenEnd, exitState, exitSeen, hideOf, keptHides, withoutHide, resumePlan, resumeState, programBin, PICK_NOTE } from "./archive.js";
 import { ago } from "./sessions.js";
 
 const ARCHIVE = () => `${appHome()}/data/endfield/archive.json`;
@@ -213,9 +213,10 @@ export class ActionDialog {
   }
 
   // hc exiting 0 means /exit was typed, not that the program ended: Herdr's lists are the evidence.
-  watchExit(cx, chat, tries = 0) {
+  watchExit(cx, chat, tries = 0, prev = null) {
     cx.timer.after(READ_EVERY_MS, (cx) => cx.spawn(async (cx) => {
-      if (exitState(chat, agents(), terminals()) === "ended") {
+      const read = exitState(chat, agents(), terminals());
+      if (exitSeen(prev, read)) {
         const marked = await markEnded(chat);
         this.exit = "ended";
         if (!marked.ok) this.state = { phase: "sent", error: `It ended, but the archive could not mark it (${marked.error}). Report > Archived still resumes it.` };
@@ -224,7 +225,7 @@ export class ActionDialog {
         return;
       }
       if (tries + 1 >= EXIT_TRIES) { this.exit = "running"; cx.notify(); return; }
-      this.watchExit(cx, chat, tries + 1);
+      this.watchExit(cx, chat, tries + 1, read);
     }));
   }
 

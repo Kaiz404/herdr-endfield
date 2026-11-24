@@ -136,13 +136,16 @@ rendered at 4x. It is a schematic, not a screenshot.
     runs (programs.json `run` plus the resume arguments), a warning when it
     may reopen another chat, and **Resume** (dimmed while the chat still runs).
   - Squad dialog, 580px, from a squad header's Archive squad or Close squad:
-    the space's agents in tree order (pinned ones too, marked Pinned), each
-    with its status word and, once running, its progress (Next, Typing,
-    Ending, Archived, Refused, Still running, Not sent); a Needs line (Archive:
-    every agent that isn't idle, by name) or a red Kills line (Close: the
-    agents space.close ends, by name); a Does line; the graphite strip with
-    every command Confirm runs, the `space.close` line last. Close squad's
-    strip adds **Archive squad instead**.
+    every live terminal that ends with the space, in three groups (Agents,
+    Sub-agents, Shells and servers, each headed with its count; a scrolling
+    list), agents in tree order (pinned ones too, marked Pinned), each with
+    its status word (Idle, Blocked, Ends) and, once running, its progress
+    (Next, Typing, Ending, Archived, Refused, Still running, Not sent); a
+    Needs line (Archive: every agent that isn't idle or can't be resumed, by
+    name) or a red Kills line (Close: the count and names of each group that
+    ends); a Does line; a Kept line when a fresh read found something new; the
+    graphite strip with every command Confirm runs, the `space.close` line
+    last. Close squad's strip adds **Archive squad instead**.
   - Footer, 40px: settings (with an orange diamond when an update is ready),
     add machine, fold sidebar, and the palette key in mono.
 - **Tab strip, 36px**, drags the window: tabs run full height, separated by
@@ -283,11 +286,23 @@ rendered at 4x. It is a schematic, not a screenshot.
   name (which never folds) edits the name in place
   (`space.rename` on Enter). Right-click on a squad header opens a popup
   menu: Rename squad, Move up, Move down, Archive squad, Close squad (not on
-  Pinned). Archive squad archives every chat in the space one at a time as the
-  card's Archive does, stops at the first refusal, and runs
-  `space.close {id, confirmed: true}` only once Herdr has stopped listing
-  every one. Close squad runs that `space.close` at once, which ends every
-  terminal in the space, agents included. Right-click on an agent or
+  Pinned). Both list what ends from Herdr's lists, not the roster
+  (`archive.js` `spaceTerminals`): a terminal whose pane is in one of the
+  space's tabs, or with no pane, whose `herdr.space` or `herdr.tab` label
+  names it, and every live descendant of those; so shells, servers and
+  archived chats' hidden shells are named too. Archive squad archives every
+  chat in the space one at a time as the card's Archive does, stops at the
+  first refusal, and runs `space.close {id, confirmed: true}` only once each
+  one was seen to end. Shells and servers don't block it: nothing resumes
+  them, so they are listed under Ends. Close squad runs that `space.close`
+  at once, which ends every terminal in the space, agents included. Just
+  before `space.close`, both read the space again, and anything in a terminal
+  life the person wasn't shown, or an agent where they were shown none (an
+  archived chat's shell counts as none), keeps the space open with Kept and
+  its names (`unconfirmed`). A chat is seen to end on a positive sign (its
+  terminal finished, now runs another program, or a new terminal took the
+  address) or when two reads in a row, a second apart, don't list its
+  terminal (`exitState`, `exitSeen`); one read without it is not enough. Right-click on an agent or
   sub-agent row holds its session card open. Nothing moves a chat to
   another squad: Herdr has no cross-space tab move, and relabelling a live
   terminal's `herdr.space`/`herdr.tab` (`hc label`) leaves its pane where it
