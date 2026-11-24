@@ -88,13 +88,18 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   which every Endfield window shows once). On this computer it passes the home base as
   the folder; on another machine it passes none, so that machine's home applies.
 - `squads.js` holds the squad list's rules with no Herdr in them
-  (`tests/squads.test.mjs`): the `space.move` a dropped or stepped squad runs
-  (it takes the target's place, within one machine, past empty spaces) and a
-  squad header's right-click items. `squadmenu.js` is the popup that draws them.
+  (`tests/squads.test.mjs`): the `space.move` or `tab.move` a dropped or
+  stepped squad or chat runs (it takes the target's place, within one
+  machine, past empty spaces and tabs with no agent), where every block is
+  drawn while one is held (`holding`: the gap opens at the nearest slot it can
+  drop in), how a squad's rows group into the chats that drag
+  (`chatBlocks`), and a squad header's right-click items. `squadmenu.js` is the popup that draws them.
   A squad menu's Rename squad reaches the list through the shared key
   `endfield.squad.rename` (`{id, at}`), since only the list holds the header's
   name field. GPUI's drag helpers here carry files or dock tabs only, so a
-  squad drags on mouse down, move and up, as Spaces does.
+  squad or chat drags on mouse down, move and up, as Spaces does. Squads and
+  rows are drawn at computed tops (`agents.js` `arrange`), so a drag shifts
+  tops with `MOTION.drag` and no height changes.
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
   `card.js` (the session panel), `actions.js` (a card action's confirm dialog
   and the Archived list), `dispatch.js` (the Dispatch dialog), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),

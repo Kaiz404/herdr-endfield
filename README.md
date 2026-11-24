@@ -14,7 +14,7 @@ The image is a schematic of the layout, not a screenshot.
 - **Rows you can read at a glance.** Each row shows the callsign, such as `PERLICA`, the model and effort, how long the run has gone, how many background tasks it runs, a status word, and the task with a context gauge. The status is Generating, Waiting, Needs input, Finished, Idle or Error. Waiting means the turn ended but background work it started still runs. Idle agents fold to one line. Sub-agents hang under the agent that started them.
 - **A session panel** when you hover an agent or a Claude Code sub-agent: context, tool calls, its background tasks, its last action and any question it is waiting on. Right-click the row to keep the panel open. Its buttons rename the chat or change its model, effort or mode. Each one shows the exact command and runs it only when you confirm.
 - **Archive and Resume.** Archive ends a chat and keeps its transcript. Resume opens it again in a new tab.
-- **Squads you can arrange.** Drag a squad to reorder it, double-click its name to rename it, and right-click its header for a menu.
+- **Squads you can arrange.** Drag a squad to reorder it, and the others slide aside to show where it lands. In Tab order, drag a chat to reorder it within its squad. Double-click a squad's name to rename it, and right-click its header for a menu.
 - **One transcript pane** for a Claude Code sub-agent, with a box to send it a follow-up through its parent.
 - **A banner when an agent needs you.** It shows the agent's question, with **Answer** and **Later**. A finished agent gets a short **Finished** slip.
 - **Usage limits** in the footer: your Claude 5-hour and weekly use, and the time to reset. They come from the Claude Code statusline.

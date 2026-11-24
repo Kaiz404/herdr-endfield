@@ -453,6 +453,9 @@ export const MOTION = {
   cut: { portrait: ease(100, "linear", 83), late: ease(100, "linear", 166), grow: ease(330), retract: ease(350, "ease-in", 630), text: ease(100, "linear", 630) },
   count: { roll: ease(300), needs: ease(300) },
   squad: { fold: ease(300), stack: ease(120, "linear", 180) },
+  // A held squad or chat: it tracks the pointer (follow, so it never trails far), the others slide
+  // to open its gap, and on release (or Esc) it slides into the gap or home.
+  drag: { follow: ease(60, "linear"), slide: ease(200) },
   pin: { content: ease(100, "linear", 83) },
   dispatch: { enter: ease(200) },
   link: { draw: ease(240), land: ease(120, "linear", 240) },
@@ -534,9 +537,10 @@ export function plate(C, top, height) {
   return div().absolute().left(0).right(0).top(top).h(height).bg(C.selBg);
 }
 
-export function marker(id, C, top, height) {
+/** travel: how its top moves; a marker on a held row follows the pointer (MOTION.drag.follow). */
+export function marker(id, C, top, height, travel = MOTION.select.edge) {
   return div().id(id).absolute().left(0).top(top).w(2).h(height).bg(C.signal)
-    .transition("top", MOTION.select.edge).transition("height", MOTION.select.edge);
+    .transition("top", travel).transition("height", MOTION.select.edge);
 }
 
 /** A row's label column slides right by `px` while the row is hot. */

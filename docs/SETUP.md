@@ -397,7 +397,8 @@ To bring one back, open the **Report**, click **Archived**, and click **Resume**
 
 A squad is a Herdr space with agents in it. Its name and its place in the list are the space's, so the Spaces list changes with it.
 
-- **Reorder a squad.** Drag its header up or down. A line shows where it will land. Release over another squad's header or rows to move it there. You can't drag a squad onto a squad on another machine, or onto **Pinned**. A worktree space stays under its main checkout, because the Spaces list moves it back there.
+- **Reorder a squad.** Drag its header up or down. The squad lifts and follows the pointer, and the other squads slide aside to open a gap where it will land. Release to drop it in the gap. To cancel, press Esc or move the pointer out of the list, and the squads slide back. A squad stays among the squads on its machine and below **Pinned**. A worktree space stays under its main checkout, because the Spaces list moves it back there.
+- **Reorder a chat in its squad.** Click the sort pill and choose **Tab order**. Then drag an agent row up or down within its squad. It moves the chat's tab in its space, so the tab strip shows the new order too. The chat's sub-agents move with it. In **Priority** order, chats don't drag, because the sort decides their order. Sub-agent rows and **+N earlier** don't drag.
 - **Reorder without dragging.** Right-click the header, then click **Move up** or **Move down**. Empty spaces have no squad, so a squad moves past them.
 - **Rename a squad.** Double-click its name, or right-click it and click **Rename squad**. Type the name and press Enter. Press Esc, or click somewhere else, to keep the old name.
 - **Act on a chat.** Right-click an agent row. Its session panel opens and stays open. **Rename**, **Archive** and the other chat actions are in its **Chat** row, and **Pin** (or **Unpin**) is in its footer. See [Change a chat from its session panel](#change-a-chat-from-its-session-panel).
@@ -407,7 +408,7 @@ Squads can't move a chat to another squad, because Herdr has no command that mov
 
 **Check it worked.** The Spaces list shows the new order and name, because a squad is a space.
 
-**Undo.** Drag the squad back, or rename it again. Pin and unpin from the same menu.
+**Undo.** Drag the squad or chat back, or rename it again. Pin and unpin from the same menu.
 
 ## Update to a new version
 

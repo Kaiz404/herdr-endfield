@@ -234,10 +234,21 @@ rendered at 4x. It is a schematic, not a screenshot.
 - **Squads:** click focuses the pane (the plate snaps, the yellow marker
   travels, 300ms); a child without a pane opens as a peek; a Claude Code
   sub-agent opens its transcript beside its parent. A squad header folds it;
-  dragging it reorders the squads within a machine (`space.move`, the dragged
-  header at half opacity and a 2px ink line on the edge it lands at, drawn
-  over the rows so no height changes); a double-click on its name (which never folds) edits the name in place; a
-  drag starts only after 4px of travel
+  dragging it reorders the squads within a machine (`space.move`). A drag
+  starts only after 4px of travel. The held squad is lifted (raised plate,
+  large shadow) and its top follows the pointer (60ms linear); the other
+  squads slide (200ms) to open a gap where it would drop, which is the
+  nearest slot on its machine below Pinned. Squads are drawn at computed
+  tops, so the gap is a shift of tops, never a height change, and the
+  selection marker rides with its row. On release the squad slides into the
+  gap; Esc or the pointer leaving the list slides everything back. In Tab
+  order a chat drags the same way within its squad (`tab.move`): it is
+  grabbed by its first row, carries its children, sub-agents and "+N
+  earlier", and is held as one lifted plate. Sub-agent rows and "+N
+  earlier" don't drag. In Priority the sort decides the order, so a chat
+  doesn't drag and the sort pill's tooltip says to switch to Tab order. No
+  session card opens while something is held. A double-click on a squad's
+  name (which never folds) edits the name in place
   (`space.rename` on Enter). Right-click on a squad header opens a popup
   menu: Rename squad, Move up, Move down. Right-click on an agent or
   sub-agent row holds its session card open. Nothing moves a chat to
