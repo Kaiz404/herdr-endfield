@@ -8,7 +8,7 @@
 // the transcript, and a session card while hovered (card.js). An idle row folds to one line.
 
 import { div } from "gpui-kit";
-import { v_flex, h_flex } from "gpui-base";
+import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE } from "./kit.js";
 import { roster, holdCrew } from "./roster.js";
@@ -18,6 +18,8 @@ import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
 import { CARD, cardFit } from "./card.js";
 import { wantedCard, dismissed } from "./hovercard.js";
+import { squadMove, dropEdge } from "./squads.js";
+import { openSquadMenu } from "./squadmenu.js";
 
 // Fixed heights, so the selection marker knows where the selected row starts (the row's own ink plate snaps).
 // Compact (DENSE_AT agents and up): 34px rows that keep the chip, badge and callsign over the task.
@@ -29,6 +31,11 @@ const H = {
 const PIN = { max: 3, row: 34, more: 22 };
 // A wheel notch in lines, as pixels, for the "N below" estimate (the scroll area reports no offset).
 const LINE_PX = 20;
+// The squad name field takes the keyboard again once the menu that asked for it has closed.
+const NAME_FOCUS_MS = 300;
+
+// Where a dragged squad will land: a 2px ink line over the edge, drawn over the rows so no height changes.
+const dropLine = (C, edge) => div().absolute().left(0).right(0).h(2).bg(C.text).when(edge === "top", (l) => l.top(0)).when(edge === "bottom", (l) => l.bottom(0));
 
 const cwdOf = (a) => panes().find((p) => p.terminal === a.address)?.cwd ?? null;
 
@@ -105,6 +112,13 @@ export class Agents {
     // Polled whether the sidebar is wide, a rail or hidden: the HUD footer, the report and the card read it.
     this.sessions = new Sessions("agents");
     this.sessions.start(cx, () => agents().filter(isClaude).map((a) => ({ terminal: a.address, cwd: cwdOf(a), status: a.status })));
+    // A squad header pressed, and the squad the pointer is over now (null where it can't drop).
+    this.drag = null;
+    // The squad whose name its header is editing. A menu's Rename squad asks through shared.
+    this.naming = null;
+    this.nameInput = InputState.new({ placeholder: "Squad name" });
+    this.nameInput.on("submit", (_e, cx) => this.rename(cx));
+    setShared("endfield.squad.rename", null);
   }
 
   close() {
@@ -235,6 +249,48 @@ export class Agents {
     cx.notify();
   }
 
+  /** Edits squad `id`'s name in its header: Enter runs space.rename, Esc or a press elsewhere leaves it. */
+  startNaming(id, cx) {
+    const sp = spaces().find((s) => s.id === id);
+    if (!sp) return;
+    this.naming = id;
+    this.nameInput.set_value(sp.name);
+    this.nameInput.focus();
+    cx.timer.after(NAME_FOCUS_MS, () => { if (this.naming === id) this.nameInput.focus(); });
+    cx.notify();
+  }
+
+  rename(cx) {
+    const id = this.naming;
+    const name = this.nameInput.value().trim();
+    this.naming = null;
+    if (id && name && name !== spaces().find((s) => s.id === id)?.name) run("space.rename", { id, name });
+    cx.notify();
+  }
+
+  stopNaming(cx) {
+    this.naming = null;
+    cx.notify();
+  }
+
+  /** The pointer over squad q while a header is held: q is where it drops if Herdr can move it there. */
+  dragOver(q, order) {
+    return (_e, cx) => {
+      if (!this.drag) return;
+      const over = q.id === this.drag.from || squadMove(order, this.drag.from, q.id) ? q.id : null;
+      if (over !== this.drag.over) { this.drag.over = over; cx.notify(); }
+    };
+  }
+
+  /** The release: a held header let go over another squad moves its space there (space.move). */
+  drop(order, cx) {
+    const d = this.drag;
+    this.drag = null;
+    const move = d?.over ? squadMove(order, d.from, d.over) : null;
+    if (move) run("space.move", move);
+    if (d) cx.notify();
+  }
+
   /** A pinned agent's row shows the pin; hovering any agent's row offers pin or unpin. */
   pinButton(C, r, hot, on) {
     const pinned = Boolean(r.m.agent?.pinned);
@@ -268,6 +324,7 @@ export class Agents {
     const fx = this.fx.of(m.address);
     const pin = this.pinButton(C, r, hot, on);
     const keep = (_e, cx) => { this.card.kept = this.card.open?.id ?? null; cx.notify(); };
+    const carded = r.key === `ag-${this.card.open?.address}`;
     // The connector: a 1px right angle from the parent chip's foot to this chip's side, drawn top-down when the child arrives.
     let link = null;
     if (r.up) {
@@ -322,7 +379,11 @@ export class Agents {
       .on_mouse_move((e) => { this.bounds[r.key] = e.bounds; })
       .on_click(r.click)
       // Told to the list before its next render, where the card's report of the same press is read.
-      .when(r.key === `ag-${this.card.open?.address}`, (el) => el.on_mouse_down("left", keep).on_mouse_down("right", keep).on_mouse_down("middle", keep))
+      .when(carded, (el) => el.on_mouse_down("left", keep).on_mouse_down("middle", keep))
+      .on_mouse_down("right", (e, cx) => {
+        if (carded) keep(e, cx);
+        if (!r.native) openSquadMenu({ kind: "chat", terminal: m.address, snap: this.sessions.get(m.address) ?? null });
+      })
       .child(wipe(`${r.key}-wipe`, C.sunken, this.width, hot && !on))
       .when(st?.edge === "hazard", (el) => el.child(div().absolute().left(0).top(6).flex().child(hazard(C, 4, r.h - 12))))
       .when(Boolean(link), (el) => el.child(link))
@@ -342,19 +403,51 @@ export class Agents {
       .child(micro(r.open ? "▴ Show less" : `▾ +${r.earlier} earlier`, hot ? C.text : C.muted).relative());
   }
 
-  /** A squad's header: formation number, name, (folded) a stack of its operators, its ! and count, + and the chevron. */
-  head(C, D, s) {
+  /** Where a held squad would drop relative to squad q: "top" or "bottom" of it, or null. */
+  dropAt(q, order) {
+    const d = this.drag;
+    return d && d.over === q.id && d.from !== q.id ? dropEdge(order, d.from, q.id) : null;
+  }
+
+  /**
+   * A squad's header: formation number, name, (folded) a stack of its operators, its ! and count, + and the chevron.
+   * Click folds it. A space's squad also drags to reorder, renames on a double-click and has a right-click menu.
+   */
+  head(C, D, s, order) {
     const { q, folded, blocked } = s;
     const id = `sq-${q.id}`;
     const hot = this.hovered === id;
+    const naming = this.naming === q.id;
+    const edge = this.dropAt(q, order);
+    const lifted = this.drag?.from === q.id && this.drag.over !== q.id;
+    const name = naming
+      ? h_flex().id(`${id}-name`).relative().flex_1().min_w(0).h(D.head - 6).px(6).items_center().rounded(3).border_1().border_color(C.hairStrong).bg(C.raised)
+        .font_family(FONT.mono).text_size(11)
+        .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+        .on_click((_e, cx) => cx.stop_propagation())
+        .on_mouse_down_out((_e, cx) => this.stopNaming(cx))
+        .on_key_down((e, cx) => { if (e.key === "escape") this.stopNaming(cx); })
+        .child(Input.new(this.nameInput))
+      : wide(q.name, C.text, 10).relative().flex_shrink(1).min_w(0).truncate();
     return h_flex().id(id).relative().h(D.head).flex_none().pl(14).pr(10).gap(8).items_center().cursor_pointer()
       .on_hover((over, cx) => { if (over) this.hovered = id; else if (this.hovered === id) this.hovered = null; cx.notify(); })
-      .on_click((_e, cx) => this.fold(q.id, cx))
-      .tooltip(q.pinned ? "Pinned agents, from every space · click to fold" : `Squad ${q.num} · ${q.name} · click to fold`)
+      .on_click((e, cx) => {
+        if (naming) return;
+        this.fold(q.id, cx);
+        // The first click of a double-click folded it: the second unfolds it and edits the name.
+        if (e.click_count === 2 && !q.pinned) this.startNaming(q.id, cx);
+      })
+      .on_mouse_move(this.dragOver(q, order))
+      .when(!q.pinned, (el) => el
+        .on_mouse_down("left", (e) => { if (e.click_count === 1) this.drag = { from: q.id, over: q.id }; })
+        .on_mouse_down("right", () => openSquadMenu({ kind: "squad", id: q.id })))
+      .when(lifted, (el) => el.opacity(0.5))
+      .tooltip(q.pinned ? "Pinned agents, from every space. Click to fold." : `Squad ${q.num} ${q.name}. Click to fold, drag to reorder, double-click to rename, right-click for more.`)
       .child(wipe(`${id}-wipe`, C.sunken, this.width, hot))
+      .when(edge === "top" || (edge === "bottom" && folded), (el) => el.child(dropLine(C, edge)))
       .child(div().relative().w(22).h(16).flex_none().flex().items_center().justify_center().rounded(3).bg(C.selBg)
         .font_family(FONT.mono).text_size(9).text_color(C.selText).child(q.pinned ? icon("pin", 10).text_color(C.selText) : q.num))
-      .child(wide(q.name, C.text, 10).relative().flex_shrink(1).min_w(0).truncate())
+      .child(name)
       .when(folded, (el) => el.child(h_flex().id(`${id}-stack`).relative().flex_none().pl(4)
         .opacity(this.fresh.has(`${id}-stack`) ? 0 : 1).transition("opacity", MOTION.squad.stack)
         .children(q.members.slice(0, 6).map((m, i) => div().ml(i ? -5 : 0).child(chip(C, { ...m.ident, badge: null }, m.status, { size: 16 }))))))
@@ -529,6 +622,12 @@ export class Agents {
     const active = R.flat.filter((m) => !statusOf(m.status)?.quiet).length;
     // The geometric layer fills the list's empty foot, never behind a row.
     const room = this.viewH - y > 170;
+    const order = spaces().map((sp) => ({ id: sp.id, machine: sp.machine ?? null }));
+    const ask = shared("endfield.squad.rename");
+    if (ask && ask.at !== this.asked) {
+      this.asked = ask.at;
+      cx.timer.after(MOTION.settle.delay, (cx) => this.startNaming(ask.id, cx));
+    }
 
     return root(C, this.entrance.apply(v_flex().relative().size_full().min_h(0).bg(C.ground).border_t(1).border_color(C.hair).overflow_hidden()
       .when(room && R.flat.length > 0, (el) => el
@@ -558,11 +657,17 @@ export class Agents {
           const next = Math.max(0, Math.min(maxY, this.scrollY + dy));
           if (next !== this.scrollY) { this.scrollY = next; cx.notify(); }
         })
+        .on_mouse_up("left", (_e, cx) => this.drop(order, cx))
+        .on_hover((over, cx) => { if (!over && this.drag) { this.drag = null; cx.notify(); } })
         .children(sections.flatMap((s) => [
-          this.head(C, D, s),
+          this.head(C, D, s, order),
           v_flex().id(`sq-${s.q.id}-rows`).relative().flex_none().overflow_hidden().h(s.folded ? 0 : s.inner)
             .transition("height", MOTION.squad.fold)
-            .children(s.rows.map((r) => (r.more ? this.more(C, D, r) : this.row(C, D, r)))),
+            .on_mouse_move(this.dragOver(s.q, order))
+            // A press on a row is never a drag; it clears one whose release landed outside the list.
+            .on_mouse_down("left", () => { this.drag = null; })
+            .children(s.rows.map((r) => (r.more ? this.more(C, D, r) : this.row(C, D, r))))
+            .when(this.dropAt(s.q, order) === "bottom" && !s.folded, (el) => el.child(dropLine(C, "bottom"))),
         ]))
         .child(marker("ag-mark", C, sel?.top ?? 0, sel?.h ?? 0).when(!sel, (el) => el.opacity(0))))
       .when(below > 0, (el) => el.child(h_flex().h(28).flex_none().pl(16).pr(12).gap(8).items_center().border_t(1).border_color(C.hairStrong)
