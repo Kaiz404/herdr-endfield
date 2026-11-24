@@ -53,14 +53,18 @@ export function holding({ ids, heights, order, from, y }) {
 /**
  * A squad's rows as the chats that drag: a chat is a tab, so a block starts at every top-level row
  * of a tab other than the last block's, and takes the rows under it (its children, sub-agents and
- * "+N earlier"). rows: [{depth, h, tab?}] in shown order. -> [{id: tab, top, h, rows: [index]}]
+ * "+N earlier"). A linked group (fleet.js grouped) is one block, its lead's tab: it sits at the
+ * lead's tab, so moving that tab moves the group. rows: [{depth, h, tab?, group?}] in shown order.
+ * -> [{id: tab, top, h, rows: [index]}]
  */
 export function chatBlocks(rows) {
   const blocks = [];
-  let y = 0;
+  let y = 0, group = null;
   rows.forEach((r, i) => {
     const last = blocks.at(-1);
-    if (!last || (r.depth === 0 && r.tab != null && r.tab !== last.id)) blocks.push({ id: r.tab ?? null, top: y, h: 0, rows: [] });
+    const joined = r.depth === 0 && Boolean(r.group) && r.group === group;
+    if (r.depth === 0) group = r.group ?? null;
+    if (!last || (r.depth === 0 && r.tab != null && r.tab !== last.id && !joined)) blocks.push({ id: r.tab ?? null, top: y, h: 0, rows: [] });
     const b = blocks.at(-1);
     b.h += r.h;
     b.rows.push(i);
