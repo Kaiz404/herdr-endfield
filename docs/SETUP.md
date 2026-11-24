@@ -302,11 +302,32 @@ Dispatch and Comms use herdr-core's `hc` command, which Herdr installs. The skin
    - **Now** sends at once. hc waits for a draft you are typing in that terminal, for up to 60 seconds.
    - **Now, wait for reply** sends at once, then waits for the turn to end and logs the agent's last screen line.
 4. For **New agent**, pick the program, the squad (click it for the next space) and the parent. Then pick the lifetime: **Ends with parent**, **Outlives parent** or **No parent**.
-5. Type the task.
-6. Read the command at the foot of the dialog. It is the exact `hc` command that Dispatch runs, quoted for your shell.
+5. Type the task. The field wraps and grows to six lines. **Enter** adds a line, as in Herdr's own multi-line fields. **Ctrl+Enter** (**Cmd+Enter** on macOS) dispatches.
+6. Optional: click **Show command** at the foot of the dialog. It shows the exact `hc` command that Dispatch runs, quoted for your shell and wrapped. Dispatch runs that command whether it is shown or not.
 7. Click **Dispatch**.
 
 Dispatch never sends a blocked agent a task. If hc refuses the order before it types anything, fix the cause and click **Dispatch** again. After hc accepts an order, the button becomes **Close**, so one order never goes twice.
+
+### Answer the trust question once per project
+
+The first time Claude Code starts in a folder it does not trust yet, it asks "Do you trust the files in this folder?". An agent that Dispatch starts there waits at that question in its new tab until you answer. When the folder is on this machine and Claude Code has not trusted it, **New agent** shows a **Trust** line saying it will ask.
+
+Claude Code decides trust this way ([Project allow rules and workspace trust](https://code.claude.com/docs/en/permissions)):
+
+- Inside a git repository, trust belongs to the repository root and covers the whole repository. A linked worktree uses its main checkout's trust.
+- Outside a repository, trust belongs to the folder you trusted and covers every folder below it, except a git repository inside it.
+- Trust in your home folder lasts for that session only. It is never saved.
+
+Your home base folder (step 9) is usually not a repository, so trusting it covers plain folders inside it. Each project you clone or create with `git init` is its own repository, so Claude Code asks once for each one. That is by design.
+
+To answer once, ahead of time:
+
+1. Open a terminal in the project's folder (the repository root, or your home base).
+2. Run `claude`, choose **Yes, I trust this folder**, then type `/exit`.
+
+Claude Code has no setting, environment variable or command-line option that trusts a folder in advance, and `--add-dir` does not help: it asks about the added folder, and that answer lasts for the session only. Claude Code saves trust in `~/.claude.json`, which running sessions rewrite all the time, so the skin only reads that file and never writes it.
+
+**Undo.** Nothing to undo. The skin changes nothing here.
 
 ### Read Comms
 
@@ -363,7 +384,7 @@ The section applies only while Endfield shows. Choose a key that `keys.json` doe
 
 ## 10. Manage chats and squads
 
-The session panel and a squad header's right-click menu change a chat or a squad. Each change that types into an agent opens a dialog first. The dialog shows the exact command and runs it once, when you click **Confirm**.
+The session panel and a squad header's right-click menu change a chat or a squad. Each change that types into an agent opens a dialog first. **Show command** in the dialog shows the exact command, and the dialog runs it once, when you click **Confirm**.
 
 ### Change a chat from its session panel
 

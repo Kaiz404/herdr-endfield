@@ -126,7 +126,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   - Action dialog, 560px, from a Chat pill: the field it needs (a name, a
     choice of models or levels), a Needs line (idle, or why not), a Does line
     (the side effect: `/model` and `/effort` also become your defaults for new
-    sessions), and the graphite strip with the exact lines Confirm runs. After
+    sessions), and the graphite strip: a `Show command ▸` toggle (closed by
+    default) that opens the exact lines Confirm runs, wrapped. After
     a send it reads back the model or effort (session data) or the mode
     (Claude Code's own line under its prompt), else says Sent.
   - Archived list, 600px, from Report's Archived pill: archived chats newest
@@ -177,11 +178,17 @@ rendered at 4x. It is a schematic, not a screenshot.
   one) and a line that says what hc will do for its status. New agent: program
   tiles on ink with a lime "installed" bar (not installed: dimmed), the
   operator it will be drawn as (automatic, by callsign), the squad (click for the next
-  space) and the parent. Then the task (or, for Shell, the command) in
-  brackets, the delivery (Only if idle, Now, Now and wait for reply) or
+  space) and the parent. For Claude Code in a folder on this machine it has
+  not trusted yet (read from `~/.claude.json` by `tools/trust.mjs`, never
+  written), a hairline `Trust` line: `First run in this repo: Claude Code
+  will ask you to trust it once`. Then the task (or, for Shell, the command) in
+  brackets: it wraps and grows from 2 to 6 lines; Enter adds a line and
+  Ctrl+Enter (Cmd+Enter on macOS) dispatches, as the section's right label
+  says. Then the delivery (Only if idle, Now, Now and wait for reply) or
   lifetime (Ends with parent, Outlives parent, No parent), and a graphite
   footer: `Current formula YOU ▶▶ CLAUDE T3` (the address
-  dimmer, 6px on), the exact hc command, Cancel
+  dimmer, 6px on), under it a `Show command ▸` toggle (closed by default)
+  that opens the exact hc command, wrapped, then Cancel
   and the yellow Dispatch pill. Opened from a squad header's `+`, the session
   panel's Dispatch, or the empty sidebar. Errors from hc show in the dialog.
 - **Comms**: the Comms pill opens a pane beside the focused one: `// Comms`,
@@ -334,11 +341,12 @@ rendered at 4x. It is a schematic, not a screenshot.
   The shown sub-agent's row wears the selected plate, and the yellow marker
   while its pane has focus. The pane's foot is a follow-up box on a raised
   ground: `// FOLLOW-UP` and `SENT VIA CLAUDE, WHO PASSES IT ON WITH
-  SENDMESSAGE`, a one-line input and a round Send button, then the exact `hc
-  send` command in mono, wrapped. The sub-agent has no terminal, so the text
+  SENDMESSAGE`, a one-line input and a round Send button, then a `Show
+  command ▸` toggle (closed by default) that opens the exact `hc send` command
+  in mono, wrapped. The sub-agent has no terminal, so the text
   goes to its parent, asking it to forward the text with SendMessage. Send is
   yellow only while it would go and the input has focus; otherwise outlined,
-  and dimmed with the reason in place of the command when the parent is
+  and dimmed with the reason in place of the toggle when the parent is
   working, needs input or is gone. Enter sends too. Nothing sends otherwise.
 - **Tabs:** click selects (the yellow block slides over left and width,
   300ms), double-click renames, drag reorders, right-click opens the tab menu,

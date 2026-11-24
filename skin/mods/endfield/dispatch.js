@@ -1,5 +1,5 @@
-// dispatch: one dialog, two modes, and nothing it does is the skin's own rule: it shows the exact hc
-// command and, on Dispatch, runs it. props: {role: "dispatch", mode: "send" | "new", target?, space?,
+// dispatch: one dialog, two modes, and nothing it does is the skin's own rule: it keeps the exact hc
+// command one click away (Show command) and, on Dispatch, runs it. props: {role: "dispatch", mode: "send" | "new", target?, space?,
 // parent?, overlay}. The argv, and what became of a run, are orders.js:
 //   send  hc send <t> [--if idle] [--wait] -- "<task>"  to a running agent (or any terminal it was opened on)
 //   new   hc run --bg --keep --json (--parent <t> [--outlive-parent] | --no-parent) --cwd <space folder>
@@ -8,12 +8,12 @@
 //         With saved logins, Claude Code runs as node <tools/account.mjs> run [<name>] -- <program> (orders.js
 //         accountArgv); "default" leaves the name out, so the tool's default account (or the normal login) runs it.
 // Every dispatch is logged to the Comms log (comms.js). The skin never starts anything on its own:
-// only this dialog, on the person's click or Enter, and once: after hc took it, the action is Close.
+// only this dialog, on the person's click or Ctrl+Enter, and once: after hc took it, the action is Close.
 
 import { div } from "gpui-kit";
-import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { props, closeOverlay, openOverlay, spaces, terminals, knownAgents, exec, hc, checking, window as appWindow } from "herdr";
-import { palette, root, micro, spaced, wide, chip, glyph, pill, barcode, dots, cue, growDisc, IDENTITY, MOTION, FONT, STRIP, strip, stripCode, stripCancel } from "./kit.js";
+import { v_flex, h_flex, TextareaState, Textarea } from "gpui-base";
+import { props, closeOverlay, openOverlay, spaces, terminals, knownAgents, exec, hc, appHome, checking, window as appWindow } from "herdr";
+import { palette, root, micro, spaced, wide, chip, glyph, pill, barcode, dots, cue, growDisc, IDENTITY, MOTION, FONT, STRIP, strip, commandToggle, stripCancel } from "./kit.js";
 import { roster } from "./roster.js";
 import { cast } from "./fleet.js";
 import { append } from "./comms.js";
@@ -21,7 +21,7 @@ import { sendArgs, runArgs, taskProblem, commandLine, deliver, timeoutFor, deliv
 import { ACCOUNT_TOOL, listAccounts } from "./actions.js";
 import { isClaude } from "./sessions.js";
 
-export const openDispatch = (p) => openOverlay({ mod: "endfield", kind: "dialog", frame: "none", width: 700, height: 620, props: { role: "dispatch", ...p } });
+export const openDispatch = (p) => openOverlay({ mod: "endfield", kind: "dialog", frame: "none", width: 700, height: 760, props: { role: "dispatch", ...p } });
 
 const OPTS = {
   send: { title: "Delivery", list: [{ k: "idle", label: "Only if idle" }, { k: "now", label: "Now" }, { k: "wait", label: "Now, wait for reply" }] },
@@ -31,6 +31,11 @@ const OPTS = {
 const SHELL = () => (appWindow()?.platform === "windows"
   ? { key: "shell", name: "Shell", run: ["powershell", "-NoProfile", "-Command"], installed: true, shell: true }
   : { key: "shell", name: "Shell", run: ["sh", "-c"], installed: true, shell: true });
+// Read-only: whether Claude Code already trusts a folder (tools/trust.mjs).
+const TRUST_TOOL = () => `${appHome()}/mods/endfield/tools/trust.mjs`;
+// Herdr's own multi-line field (its feedback dialog) takes Enter as a new line, so Enter adds a line
+// here too and Ctrl+Enter (Cmd+Enter on macOS) dispatches, like the Dispatch button.
+const SEND_KEY = () => (appWindow()?.platform === "macos" ? "Cmd+Enter" : "Ctrl+Enter");
 const newTab = () => `tb${Array.from({ length: 32 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("")}`;
 
 export class Dispatch {
@@ -48,9 +53,13 @@ export class Dispatch {
     this.account = null;
     // edit -> busy -> sent | refused (may Dispatch again) | uncertain: deliver() in orders.js.
     this.state = { phase: "edit", error: null };
-    this.input = InputState.new({ placeholder: "What should it do?" });
+    this.input = TextareaState.new({ placeholder: "What should it do?" });
+    this.input.set_auto_grow(2, 6);
     this.input.on("change", (_e, cx) => cx.notify());
-    this.input.on("submit", (_e, cx) => { if (this.ready) cx.spawn(async (cx) => this.confirm(cx)); });
+    this.input.on("submit", (e, cx) => { if (e?.secondary && this.ready) cx.spawn(async (cx) => this.confirm(cx)); });
+    this.showCommand = false;
+    // {folder, trusted: true | false | null, repo}: whether Claude Code will ask to trust the new agent's folder.
+    this.trust = null;
     this.entered = false;
     if (checking()) return;
     // The first focus can land before the dialog is shown (the shipped prompt's finding): try again.
@@ -62,7 +71,18 @@ export class Dispatch {
       this.prog ??= this.progs.find((g) => g.installed && !g.shell)?.key ?? "shell";
       ({ names: this.accounts, def: this.def } = await listAccounts());
       cx.notify();
+      await this.checkTrust(cx);
     });
+  }
+
+  // Once per folder, and only for a space on this machine: ~/.claude.json lives where Claude Code runs.
+  async checkTrust(cx) {
+    const space = spaces().find((s) => s.id === this.space);
+    const folder = space && !space.machine ? space.folder ?? null : null;
+    if (!folder || this.trust?.folder === folder) return;
+    this.trust = { folder, trusted: null, repo: false };
+    try { this.trust = { folder, ...JSON.parse((await exec("node", [TRUST_TOOL(), folder], { timeout: 10000 })).stdout) }; } catch {}
+    cx.notify();
   }
 
   // The exact command: the argv hc gets, and that argv as one line for this machine's shell. A send
@@ -179,9 +199,11 @@ export class Dispatch {
       this.space = ids[(ids.indexOf(this.space) + 1) % ids.length] ?? null;
       this.tab = null;
       cx.notify();
+      cx.spawn(async (cx) => this.checkTrust(cx));
     };
     const optRow = OPTS[this.mode];
     const onAccount = isClaude({ program: prog }) && this.accounts.length > 0;
+    const untrusted = isClaude({ program: prog }) && this.trust?.folder === space?.folder && this.trust?.trusted === false;
     const cycleAccount = (_e, cx) => {
       const list = [null, ...this.accounts];
       this.account = list[(list.indexOf(this.account) + 1) % list.length];
@@ -223,12 +245,16 @@ export class Dispatch {
               .child(wide(space?.name ?? "none", C.text, 10).flex_1().min_w(0).truncate()).child(micro("▸", C.muted))))
             .child(box(["Parent", "reports to"], lone ? pair("None", "top level", C.text, C.muted, 10) : pair(parentM?.label ?? this.parent, this.parent, C.text, C.muted, 10)))
             .when(onAccount, (el) => el.child(box(["Account", "login"], h_flex().id("dl-account").gap(6).items_center().cursor_pointer().on_click(cycleAccount).tooltip("Click for the next saved account")
-              .child(wide(this.account ?? (this.def ? `default ${this.def}` : "default"), C.text, 10).flex_1().min_w(0).truncate()).child(micro("▸", C.muted))))))))
+              .child(wide(this.account ?? (this.def ? `default ${this.def}` : "default"), C.text, 10).flex_1().min_w(0).truncate()).child(micro("▸", C.muted))))))
+          .when(untrusted, (el) => el.child(h_flex().gap(10).items_center().px(10).py(8).bg(C.ground).border_l(2).border_color(C.hairStrong).rounded_r(3)
+            .child(micro("Trust", C.muted).flex_none())
+            .child(div().flex_1().min_w(0).text_size(12).text_color(C.muted)
+              .child(`First run in this ${this.trust.repo ? "repo" : "folder"}: Claude Code will ask you to trust it once, in the new tab. SETUP step 8 says why.`))))))
         .child(v_flex().px(22).pb(14).gap(8)
-          .child(section("02", prog?.shell && !send ? "Command" : "Task", `${task.length} chars`))
+          .child(section("02", prog?.shell && !send ? "Command" : "Task", `Enter adds a line  ${SEND_KEY()} dispatches  ${task.length} chars`))
           .child(h_flex().min_h(58).px(12).py(10).gap(8).items_stretch().rounded(3).border_1().border_color(C.hairStrong).bg(C.ground)
             .child(div().w(4).flex_none().border_t(1.5).border_b(1.5).border_l(1.5).border_color(C.text))
-            .child(div().flex_1().min_w(0).font_family("JetBrains Mono").text_size(12).child(Input.new(this.input)))
+            .child(div().flex_1().min_w(0).font_family("JetBrains Mono").text_size(12).child(Textarea.new(this.input)))
             .child(div().w(4).flex_none().border_t(1.5).border_b(1.5).border_r(1.5).border_color(C.text))))
         .child(h_flex().px(22).pb(16).gap(8).items_center()
           .child(spaced(["03", optRow.title], C.dim, { rest: C.muted, gap: 6 }).w(92).flex_none())
@@ -242,7 +268,7 @@ export class Dispatch {
           })))
         .when(Boolean(banner), (el) => el.child(h_flex().mx(22).mb(12).px(10).py(7).gap(8).items_center().border_l(2).border_color(this.state.phase === "sent" ? C.lime : C.red).bg(C.ground)
           .child(micro(banner[0], banner[1]).flex_none()).child(div().flex_1().min_w(0).font_family(FONT.mono).text_size(11).child(this.state.error ?? problem))))
-        // The graphite strip: who ▶▶ whom, the exact command, Cancel and the one yellow action.
+        // The graphite strip: who ▶▶ whom, the exact command behind Show command, Cancel and the one yellow action.
         .child(strip()
           .child(v_flex().flex_1().min_w(0).gap(6)
             .child(h_flex().gap(8).items_center().min_w(0)
@@ -251,8 +277,7 @@ export class Dispatch {
               .child(div().text_size(9).text_color("#31ACF0").child("▶▶"))
               .child(send ? (T ? pair(T.label, T.address, STRIP.text, STRIP.dim, 10) : wide(this.target ?? "—", STRIP.text, 10).min_w(0).truncate())
                 : pair(`New ${prog?.name ?? ""}`, lone ? space?.name ?? "" : `child of ${this.parent}`, STRIP.text, STRIP.dim, 10)))
-            // Every argument, wrapped rather than cut: this line runs exactly what Dispatch runs.
-            .child(stripCode(div().id("dl-cmd").min_w(0).max_h(58).overflow_y_scrollbar()).child(text)))
+            .child(commandToggle("dl-cmd", { open: this.showCommand, flip: (_e, cx) => { this.showCommand = !this.showCommand; cx.notify(); }, lines: [text] })))
           .when(!done, (el) => el.child(stripCancel("dl-cancel", () => closeOverlay(p.overlay))))
           .when(done, (el) => el.child(pill(C, "dl-close-done", "Close", { kind: "dark", knob: "×", h: 30, hot: this.hot === "dl-close-done", on_hover: this.hover("dl-close-done"), action: () => closeOverlay(p.overlay) })))
           .when(!done, (el) => el.child(div().when(!ready, (el) => el.opacity(0.45)).child(pill(C, "dl-go", this.state.phase === "busy" ? "Dispatching" : "Dispatch", { kind: "primary", h: 30, hot: this.hot === "dl-go", on_hover: this.hover("dl-go"),

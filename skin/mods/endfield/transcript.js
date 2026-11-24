@@ -18,6 +18,7 @@ import { props, exec, appHome, watchFolder, settings, checking, agents, shared, 
 import * as fs from "fs/promises";
 import { relayOrder, relayRefusal, commandLine, deliver, timeoutFor } from "./orders.js";
 import { append } from "./comms.js";
+import { commandToggle } from "./kit.js";
 
 // Panes are ink cards in both appearances, so one set of terminal-side colours.
 const C = { text: "#E6E6E1", muted: "#A9A9A3", dim: "#6F6F6A", rule: "#2C2C2C", flow: "#4CB8F5", signal: "#FFFA00", red: "#FF5A5E", raised: "#222222" };
@@ -42,6 +43,7 @@ export class Transcript {
     this.send = { phase: "edit", error: null };
     // The order prompt() last drew; Send runs its args and nothing else.
     this.shown = null;
+    this.showCommand = false;
     this.input = InputState.new({ placeholder: "Follow-up for this sub-agent" });
     this.input.on("change", (_e, cx) => { if (this.send.phase !== "busy" && this.input.value()) this.send = { phase: "edit", error: null }; this.notice = null; cx.notify(); });
     this.input.on("submit", (_e, cx) => this.trySend(cx));
@@ -148,9 +150,11 @@ export class Transcript {
           .on_click((_e, cx) => this.trySend(cx))
           .child(div().text_size(12).font_semibold().child(phase === "busy" ? "Sending" : "Send"))))
       .when(Boolean(note), (el) => el.child(div().min_w(0).font_family(MONO).text_size(10.5).line_height(1.4).text_color(tone).child(note)))
-      // Every argument, wrapped rather than cut, and drawn under any note: this is exactly what Send runs.
-      .child(div().id("transcript-cmd").min_w(0).max_h(48).overflow_y_scrollbar().font_family(MONO).text_size(10.5).line_height(1.4)
-        .text_color(args ? C.dim : C.muted).child(args ? commandLine(args, appWindow()?.platform) : problem));
+      // Send runs exactly this, shown or not; why it can't go is always in view.
+      .child(args
+        ? commandToggle("transcript-cmd", { open: this.showCommand, flip: (_e, cx) => { this.showCommand = !this.showCommand; cx.notify(); }, lines: [commandLine(args, appWindow()?.platform)],
+          fg: C.dim, face: (el) => el.font_family(MONO).text_size(10.5).line_height(1.4).text_color(C.dim) })
+        : div().min_w(0).font_family(MONO).text_size(10.5).line_height(1.4).text_color(C.muted).child(problem));
   }
 
   entry(e, i) {

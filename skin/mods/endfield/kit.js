@@ -605,6 +605,16 @@ export const strip = () => h_flex().pl(22).pr(14).py(12).gap(12).items_center().
 /** The face of a command line in the strip; `el` keeps its own size and scrolling. */
 export const stripCode = (el) => el.font_family(STRIP.code).text_size(10.5).line_height(1.4).text_color(STRIP.dim);
 
+/**
+ * The exact command, one click away: "Show command" and, while `open`, every line wrapped rather than cut.
+ * The caller keeps `open` and runs the lines it passes here, whether they are shown or not.
+ */
+export const commandToggle = (id, { open, flip, lines, fg = STRIP.dim, face = stripCode }) => v_flex().min_w(0).gap(6)
+  .child(h_flex().id(`${id}-toggle`).gap(6).items_center().cursor_pointer().on_click(flip)
+    .child(micro(`${open ? "Hide" : "Show"} ${lines.length > 1 ? `${lines.length} commands` : "command"}`, fg, 9))
+    .child(micro(open ? "▾" : "▸", fg, 9)))
+  .when(open, (el) => el.child(face(v_flex().id(id).min_w(0).max_h(96).overflow_y_scrollbar().gap(4)).children(lines.map((l) => div().child(l)))));
+
 /** The strip's Cancel. */
 export const stripCancel = (id, action) => h_flex().id(id).h(30).px(14).items_center().rounded_full().border_1().border_color(STRIP.edge).cursor_pointer()
   .on_click(action).child(div().text_size(12).font_medium().text_color(STRIP.text).child("Cancel"));
