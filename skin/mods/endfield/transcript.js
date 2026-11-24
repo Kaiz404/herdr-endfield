@@ -14,7 +14,7 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle, TextView, InputState, Input } from "gpui-base";
-import { props, exec, appHome, watchFolder, settings, checking, agents, shared, window as appWindow } from "herdr";
+import { props, exec, appHome, watchFolder, settings, checking, agents, shared, setShared, window as appWindow } from "herdr";
 import * as fs from "fs/promises";
 import { relayOrder, relayRefusal, commandLine, deliver, timeoutFor } from "./orders.js";
 import { append } from "./comms.js";
@@ -179,7 +179,8 @@ export class Transcript {
     const compose = shared("endfield.followup");
     if (compose?.path === p.path && compose.at !== this.composed) {
       this.composed = compose.at;
-      cx.timer.after(COMPOSE_FOCUS_MS, () => this.input.focus());
+      // Consumed once: the key persists in shared.json, so a restart must not refocus the box.
+      cx.timer.after(COMPOSE_FOCUS_MS, () => { setShared("endfield.followup", null); this.input.focus(); });
     }
     const body = this.entries.map((e, i) => this.entry(e, i));
     if (this.newest) {

@@ -111,6 +111,7 @@ export class Agents {
     // The shown sub-agent rows, by row key: {parent: Member, k: Sub}. Rebuilt at every render.
     this.subs = new Map();
     setShared("endfield.card.ask", null);
+    setShared("endfield.followup", null);
     // The one card this list owns; a card that isn't it (left from a reload) closes itself.
     setShared("endfield.card.open", null);
     // Shared values outlive a restart and overlay ids may not: an old report must not close a new card.
