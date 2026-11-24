@@ -39,7 +39,7 @@ The script writes to `~/.config/herdr-app`. If you use `HERDR_APP_HOME`, change 
 
 ## Update
 
-The skin's installer does not touch `~/.claude/`. When this script changes, copy it again (step 1 of Install). The HUD footer's usage limits need a copy from after the Unreleased change in [CHANGELOG.md](../../CHANGELOG.md); an older copy writes no `rate_limits`, and the footer leaves the section out. Each running session picks up the new script on its next statusline update.
+The skin's installer does not touch `~/.claude/`. When this script changes, copy it again (step 1 of Install). The HUD footer's usage limits need a copy from version 0.3.0 or later (see [CHANGELOG.md](../../CHANGELOG.md)). An older copy writes no `rate_limits`, and the footer leaves the section out. Each running session picks up the new script on its next statusline update.
 
 ## Undo
 
