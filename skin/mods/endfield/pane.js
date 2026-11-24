@@ -62,8 +62,10 @@ export default class PaneHeader {
     const on = p.focused;
     const open = this.hovered;
     // Needs input while you are looking at it: the plate washes yellow and a hazard rule runs under it.
-    const pulse = on && p.status === "blocked";
-    this.fx.track(pane, p.status, cx);
+    // The roster's status, so an agent waiting on background work reads Waiting here as in Squads.
+    const status = m?.status ?? p.status;
+    const pulse = on && status === "blocked";
+    this.fx.track(pane, status, cx);
     const fx = this.fx.of(pane);
     return root(C, this.entrance.apply(h_flex()
       .id(`pane-head-${pane}`)
@@ -88,13 +90,13 @@ export default class PaneHeader {
       .child(div().relative().ml(6).size(height).flex_none().flex().items_center().justify_center().bg(on ? C.ink : C.sunken)
         .child(comms ? micro("//", on ? "#F2F2F2" : C.text, 12)
           : badge({ ...C, selBg: on ? C.ink : C.sunken, selText: on ? "#F2F2F2" : C.text }, on ? p.program : { ...p.program, tile: null, color: null }, 18)))
-      .when(Boolean(m), (el) => el.child(div().relative().tooltip(m.ident.callsign).child(chip(C, m.ident, p.status, { size: 22, id: `ph-chip-${pane}`, flash: fx.flash ? fx : null, ground: C.raised }))))
+      .when(Boolean(m), (el) => el.child(div().relative().tooltip(m.ident.callsign).child(chip(C, m.ident, status, { size: 22, id: `ph-chip-${pane}`, flash: fx.flash ? fx : null, ground: C.raised }))))
       .child(wide(name, C.text, 12).relative().flex_shrink(1).min_w(0).truncate())
       .child(micro(where, C.muted).relative().flex_shrink(2).min_w(0).truncate())
       .child(div().flex_1())
       .child(div().relative().flex_none().child(pulse
         ? div().h(18).px(9).flex().items_center().rounded_full().bg(C.ink).text_color(C.signal).text_size(10).font_semibold().child("Needs input")
-        : statusMark(C, p.status, { size: 11, id: `ph-disc-${pane}`, pop: fx.pop }) ?? div()))
+        : statusMark(C, status, { size: 11, id: `ph-disc-${pane}`, pop: fx.pop }) ?? div()))
       // The tray opens on hover; each button fades and slides in pane.actions after the one before.
       .child(h_flex().id(`ph-tray-${pane}`).relative().flex_none().h(BUTTON).overflow_hidden().w(open ? TRAY : 0)
         .transition("width", MOTION.pane.brackets)

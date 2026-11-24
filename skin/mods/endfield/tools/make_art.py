@@ -36,6 +36,11 @@ ICONS = {
     "win-restore": stroke('<rect x=".5" y="2.5" width="7" height="7"/><path d="M2.5 2.5V.5h7v7h-2"/>', size=10, width=1),
     "win-close": stroke('<path d="M0 0l10 10M10 0L0 10"/>', size=10, width=1),
     "search": stroke('<circle cx="7" cy="7" r="4.5"/><path d="M10.4 10.4L14 14"/>'),
+    # Background tasks: the Squads count (a short stack of runs), and one glyph per kind (Task.kind, sessions.js).
+    "tasks": stroke('<path d="M2 4h12M2 8h8M2 12h10"/>', width=1.5),
+    "task-shell": stroke('<path d="M2.5 4l4 4l-4 4M8.5 12.5h5"/>', width=1.5),
+    "task-agent": stroke('<circle cx="8" cy="5.5" r="2.5"/><path d="M3 14c0-3 2.2-4.5 5-4.5s5 1.5 5 4.5"/>', width=1.4),
+    "task-monitor": stroke('<path d="M1.5 8.5h3l2-4.5l3 8l2-3.5h3"/>', width=1.4),
 }
 
 # The geometric layer, all tinted with the text colour and drawn large, then clipped by their
