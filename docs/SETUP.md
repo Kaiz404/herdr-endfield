@@ -405,11 +405,15 @@ A squad is a Herdr space with agents in it. Its name and its place in the list a
 - **Act on a chat.** Right-click an agent row. Its session panel opens and stays open. **Rename**, **Archive** and the other chat actions are in its **Chat** row, and **Pin** (or **Unpin**) is in its footer. See [Change a chat from its session panel](#change-a-chat-from-its-session-panel).
 - **Look at a sub-agent.** A Claude Code sub-agent's row is named by its type, such as `EXPLORE` or `POTETO-AGENT`. The running ones come first, then **+N earlier**, which lists the finished ones under it; **Show less** stays right under the running ones. Hover or right-click the row. Its panel names its operator, such as `TYPHOEUS`, then shows its status, model, effort, run time, context, last action and background tasks. **Open transcript** opens its transcript pane. **Follow-up** opens the pane with the follow-up box ready, and the text goes through its parent. A sub-agent has no Rename, Pin or Archive, because it is not a terminal.
 
-Squads can't move a chat to another squad, because Herdr has no command that moves a tab to another space.
+- **Link an agent as a helper of another.** In **Priority** order, drag a Claude Code agent's row onto another Claude Code agent's row. The row under the pointer gets a border, and the plate you carry says whether a drop links there or why it can't. Release, and **Link as helper** shows both agents and the two commands it runs. Both agents must be idle. Click **Confirm**. The skin saves the link in `data/endfield/links.json`, then types a note into the lead and then the helper with `hc send --if idle`. Each note names the other agent by its folder and task and asks the two to coordinate through Claude Code's [cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging.md) (`ListAgents` and `SendMessage`, with `notify_when_idle` to hear when the other finishes), and to agree who owns which files or work in separate git worktrees. Squads then shows the helper under its lead, marked `linked`. To undo, right-click the helper's row and click **Unlink** in its session panel. Nothing is typed. A link also ends when either agent's terminal ends.
+
+Messaging needs Claude Code 2.1.234 or later on Windows (2.1.224 on macOS and Linux), and `notify_when_idle` needs 2.1.236 in both sessions. A session started with `--bare` can't receive messages. A session whose `crossSessionInbound` setting is `refuse` drops them, and `hold` keeps them for your approval. The link doesn't make the helper an hc sub-agent: that is set when an agent starts, so the Report and hc's own notes to a parent still treat the two as separate.
+
+Squads can't move a chat to another squad. Herdr has no command that moves a tab to another space, and changing a live terminal's `herdr.space` label with `hc label` leaves its pane where it is.
 
 **Check it worked.** The Spaces list shows the new order and name, because a squad is a space.
 
-**Undo.** Drag the squad or chat back, or rename it again. Pin and unpin from the same menu.
+**Undo.** Drag the squad or chat back, or rename it again. Pin and unpin from the same menu. Unlink a helper on its session panel.
 
 ## 11. Run agents on several Claude accounts
 
@@ -531,7 +535,7 @@ node scripts/sync.mjs
    node scripts/uninstall.mjs
    ```
 
-   The script removes what the installer added and restores anything it backed up. It also deletes the files the skin wrote while it ran: the Comms log, the archived chats list and the session cache. It removes the default-account `run` from `programs.json`, if you added it (section 11). It keeps `data/endfield/operators.json` and `data/endfield/settings.json` if you edited them, and the statusline's `sessions/` folder. If Herdr still shows Endfield, the script stops and says so. `--force` skips that check.
+   The script removes what the installer added and restores anything it backed up. It also deletes the files the skin wrote while it ran: the Comms log, the archived chats list, the links and the session cache. It removes the default-account `run` from `programs.json`, if you added it (section 11). It keeps `data/endfield/operators.json` and `data/endfield/settings.json` if you edited them, and the statusline's `sessions/` folder. If Herdr still shows Endfield, the script stops and says so. `--force` skips that check.
 
 3. Delete what the script leaves on purpose, if you want it gone. In PowerShell:
 
@@ -650,6 +654,7 @@ Everything stays in your Herdr home. Nothing is sent anywhere.
 
 - `data/endfield/comms.jsonl` is the Comms log, one line per Dispatch or session panel action. Each line holds the time, the target terminal, the hc command and the text you typed. A secret you type into a task is stored here in plain text. With **Now, wait for reply**, the line also holds the last line on the agent's screen after its turn. The skin drops the oldest lines to keep the file under 512 KB. Uninstall deletes it.
 - `data/endfield/archive.json` lists the chats you archived: the session id, program, folder, title and the command that resumes it. Resume removes a chat from it. Uninstall deletes it; the transcripts stay in `~/.claude/projects/`.
+- `data/endfield/links.json` lists the helpers you linked: the two terminals' addresses with their start times, and when. A link leaves it when you unlink it or at the next link written after either terminal ends. Uninstall deletes it.
 - `data/endfield/probe-cache.json` and `data/endfield/probe-agents.json` hold a summary of each Claude Code transcript the skin read: the model, token counts, the last tool with its file or command, and the first line of the prompt. The cache lets each poll read only new lines. Entries for files that are gone, or unchanged for a week, are dropped. Uninstall deletes them.
 - `data/endfield/operators.json` and `data/endfield/settings.json` are your settings.
 - `data/endfield/sessions/` holds the statusline's files, if you added the statusline.
