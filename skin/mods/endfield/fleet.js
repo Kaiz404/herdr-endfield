@@ -9,6 +9,8 @@ export const STATUS = {
   blocked: { word: "Needs input", kind: "pill", bar: "signal", edge: "hazard", rank: 4 },
   error: { word: "Error", kind: "text", glyph: "×", hue: "error", bar: "red", rank: 4 },
   done: { word: "Finished", kind: "disc", glyph: "✓", bar: "lime", fresh: true, enter: ["flash", "pop"], rank: 3 },
+  // Waiting on background work it started. Its glyph is still: motion is kept for where work happens.
+  waiting: { word: "Waiting", kind: "pause", hue: "flow", bar: "flowInv", rank: 2.5 },
   working: { word: "Generating", kind: "march", hue: "flow", bar: "flowInv", rank: 2 },
   idle: { word: "Idle", kind: "mono", glyph: "zZ", bar: "hairStrong", quiet: true, oneLine: true, rank: 1 },
 };
@@ -115,15 +117,54 @@ export function buildRoster({ listed, terms, spaces, identity, models = {}, prev
   return { all, squads, flat: squads.flatMap((q) => q.members), cast: crew, taken };
 }
 
-// A Claude Code session's own sub-agents under its row: the working ones, or all of them while
-// `open`, newest started first (by start, not last write, so a busy one doesn't hop past a newer
-// one). `earlier` counts the ones not working, which a toggle row offers.
+// Without a registry to say whether its process lives, a run counts as alive while its transcript
+// was written this recently.
+const FRESH_MS = 20000;
+
+/**
+ * What a Claude Code run (a session, or one of its sub-agents) is doing, from what its transcript
+ * says and whether its process lives (tools/probe.mjs), not from how long ago it wrote: a run that
+ * waits on a background task writes nothing for as long as the task takes.
+ * run: {live: boolean | null, final, pending: {wait} | null, tasks: [{state}], mtime, now}
+ * parent: the owning agent's status; a run that is over reads idle under an idle parent, else done.
+ * -> working | waiting | done | idle
+ */
+const PENDING_GRACE_MS = 60000;
+
+export function runStatus(run, parent) {
+  const over = parent === "idle" ? "idle" : "done";
+  if (!(run.live ?? run.now - run.mtime < FRESH_MS)) return over;
+  // A call quiet past its own time limit died with its process (the session lives on): it's over.
+  if (run.pending?.limit && run.now - run.mtime > run.pending.limit + PENDING_GRACE_MS) return over;
+  if (run.pending) return run.pending.wait ? "waiting" : "working";
+  if (!run.final) return "working";
+  return (run.tasks ?? []).some((t) => t.state === "running") ? "waiting" : over;
+}
+
+// Still in flight: a sub-agent in one of these shows under its parent without being asked for.
+export const inFlight = (status) => status === "working" || status === "waiting";
+
+/**
+ * How often to ask again when no file was written: a status can change by time alone. A working
+ * sub-agent may go quiet: "fast". A wait may end with no write to see, by a monitor's timeout or
+ * its session's crash: "slow". Else null.
+ * sessions: Session[] (sessions.js)
+ */
+export function pollPace(sessions) {
+  const subs = sessions.flatMap((s) => s.subagents);
+  if (subs.some((k) => k.status === "working")) return "fast";
+  return sessions.some((s) => s.waiting) || subs.some((k) => k.status === "waiting") ? "slow" : null;
+}
+
+// A Claude Code session's own sub-agents under its row: the ones in flight (working or waiting),
+// or all of them while `open`, newest started first (by start, not last write, so a busy one
+// doesn't hop past a newer one). `earlier` counts the ones that are over, which a toggle row offers.
 // subs: [{status, startedAt | null, lastAt}] -> {shown: subs, earlier: number}
 export function subagentView(subs, open) {
   const at = (k) => k.startedAt ?? k.lastAt ?? 0;
   const newest = [...subs].sort((a, b) => at(b) - at(a));
-  const working = newest.filter((k) => k.status === "working");
-  return { shown: open ? newest : working, earlier: newest.length - working.length };
+  const active = newest.filter((k) => inFlight(k.status));
+  return { shown: open ? newest : active, earlier: newest.length - active.length };
 }
 
 // ---- casting: which operator an agent is drawn as. IDENTITY in kit.js reads the art pack and the
