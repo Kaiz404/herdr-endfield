@@ -26,7 +26,7 @@ export class CutIn {
       try {
         const r = await hc(["read", p.terminal, "--lines", "12"]);
         const lines = (r.stdout ?? "").split(/\r?\n/).map((l) => l.trim()).filter((l) => /[\p{L}\p{N}]/u.test(l));
-        this.question = lines.at(-1)?.replace(/^[?>›❯•●\s]+/, "") ?? null;
+        this.question = lines.at(-1)?.replace(/^[?>›❯\u2022●\s]+/, "") ?? null;
       } catch {}
       cx.notify();
     });
