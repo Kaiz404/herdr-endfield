@@ -493,6 +493,19 @@ Two more commands work on the focused pane. `endfield.zoomPane` toggles Zoom, th
 
 **Undo.** Remove the lines from `keys.json`. To bring back every hidden agent, click each **Hidden** row in Squads.
 
+### Work with tabs as in VS Code
+
+The tabs in the tab strip work like editor tabs in VS Code. Each action works on the tab's focused pane, and uses the same actions as its name plate.
+
+- **Double-click** a tab to zoom its focused pane, and again to go back to the split. A tab with one pane doesn't zoom.
+- **Middle-click** a tab, or click its ✕, to close it. The ✕ shows on the selected tab and on the tab you point at. A tab of shells closes with Herdr's `tab.close`. A tab with an agent never ends it: each agent is hidden, the same as the plate's **Hide**, and the tab's other panes close. A notice says what was hidden. Click a **Hidden** row in Squads to show that agent again.
+- **Right-click** a tab for a menu: **Rename**, **Split right**, **Split down**, **Zoom**, **Pop out** (only in a tab with more than one pane), **Move to squad** and **Close**. Each row names its key. **Move to squad** lists every other squad. The tab's focused pane joins the one you click, right of the pane focused there, as a drag onto a squad header does. A squad it can't join is greyed, and pointing at it says why.
+- **Rename** a tab with **F2**, Herdr's `tab.rename` key, or from the menu. Double-click no longer renames.
+
+Drag a tab sideways to reorder it, or down out of the strip to dock its agent, as before.
+
+**Check it worked.** Right-click a tab that runs Claude Code next to a shell and click **Close**. The tab goes, the shell ends, and the agent's row in Squads shows **Hidden**. Click that row to show it again.
+
 ## 11. Run agents on several Claude accounts
 
 You can save more than one Claude login and choose one for each Claude Code agent. You can also move a running chat to another account, and it keeps its history.

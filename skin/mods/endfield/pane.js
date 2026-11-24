@@ -12,7 +12,7 @@ import { h_flex, v_flex } from "gpui-base";
 import { panes, props, run, layout, shared, focused, openOverlay, closeOverlay, agents } from "herdr";
 
 // A pane as the plate rules read it, with whether Herdr lists its terminal as an agent (plate.js kindOf).
-const listed = (x) => (x ? { ...x, listed: agents().some((a) => a.address === x.terminal) } : x);
+export const listed = (x) => (x ? { ...x, listed: agents().some((a) => a.address === x.terminal) } : x);
 import { palette, root, stop, midTrunc, statusMark, badge, chip, hazard, micro, spaced, wide, icon, basename, telling, growDisc, binding, Entrance, StatusFx, MOTION } from "./kit.js";
 import { roster } from "./roster.js";
 import { PANE_ROLES, paneRole } from "./fleet.js";
@@ -36,13 +36,13 @@ function paneFrame(node) {
 }
 
 const BUTTON = 22, GAP = 2, RULE = 9;
-const MENU = { w: 250, row: 30, pad: 6, title: 26 };
+export const MENU = { w: 250, row: 30, pad: 6, title: 26 };
 
 const tabCount = (p) => panes().filter((x) => x.tab === p.tab).length;
 
 /** Runs a plate.js action on pane p. */
 export function perform(a, p) {
-  if (a.ask) askPane(a.ask, p.terminal);
+  if (a.ask) askPane(a.ask, p.terminal, a.more);
   else run(a.run.cmd, a.run.args);
 }
 
@@ -52,6 +52,17 @@ export function actOnFocused(id) {
   if (!p) return;
   const a = id === "end" ? endAction(p) : plateActions(p, tabCount(p), "menu").find((x) => x.id === id && !x.why);
   if (a) perform(a, p);
+}
+
+/** One row of a right-click menu (a plate.js action): icon, label, its key at the right; greyed with why. */
+export function menuRow(C, id, a, pick) {
+  const key = (a.keys ?? []).map(binding).find(Boolean);
+  return h_flex().id(id).h(MENU.row).px(8).gap(10).rounded(3).items_center().text_size(12.5).font_medium()
+    .when(Boolean(a.why), (el) => el.opacity(0.45).tooltip(a.why))
+    .when(!a.why, (el) => el.cursor_pointer().hover((h) => h.bg(C.sunken)).on_click(pick))
+    .child(div().w(12).flex_none().text_color(C.muted).child(a.icon ? icon(a.icon, 12) : div()))
+    .child(div().flex_1().min_w(0).truncate().child(a.tip))
+    .when(Boolean(key), (el) => el.child(micro(key, C.muted).flex_none()));
 }
 
 const openPaneMenu = (pane, n) => openOverlay({ mod: "endfield", kind: "popup", width: MENU.w, height: MENU.title + n * MENU.row + 2 * MENU.pad, props: { role: "panemenu", pane } });
@@ -163,14 +174,6 @@ export class PaneMenu {
     if (!pane) return root(C, v_flex().w_full().p(MENU.pad).bg(C.raised).child(micro("Gone", C.muted)));
     return root(C, v_flex().w_full().p(MENU.pad).bg(C.raised)
       .child(div().h(MENU.title).px(8).flex().items_center().child(micro(pane.title || pane.program?.name || "Pane", C.muted).truncate()))
-      .children(plateActions(pane, tabCount(pane), "menu").map((a) => {
-        const key = (a.keys ?? []).map(binding).find(Boolean);
-        return h_flex().id(`pm-${a.id}`).h(MENU.row).px(8).gap(10).rounded(3).items_center().text_size(12.5).font_medium()
-          .when(Boolean(a.why), (el) => el.opacity(0.45).tooltip(a.why))
-          .when(!a.why, (el) => el.cursor_pointer().hover((h) => h.bg(C.sunken)).on_click(() => this.pick(p, pane, a)))
-          .child(div().flex_none().text_color(C.muted).child(icon(a.icon, 12)))
-          .child(div().flex_1().child(a.tip))
-          .when(Boolean(key), (el) => el.child(micro(key, C.muted).flex_none()));
-      })));
+      .children(plateActions(pane, tabCount(pane), "menu").map((a) => menuRow(C, `pm-${a.id}`, a, () => this.pick(p, pane, a)))));
   }
 }

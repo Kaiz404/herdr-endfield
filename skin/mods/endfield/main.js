@@ -10,6 +10,7 @@
 //   squad     Archive squad's and Close squad's confirm dialog (the exact commands, on the person's click)
 //   card      an agent's or a sub-agent's session card beside the agents list, an overlay the list opens
 //   tabs      the tab strip, + menu, Files/Changes, window buttons
+//   tabmenu   the right-click menu on a tab
 //   pane      a pane's header (the layout's pane frame)
 //   panemenu  the right-click menu on a pane's header
 //   status    the ink status bar
@@ -31,7 +32,7 @@ import { Brand, Footer, Boot } from "./brand.js";
 import Spaces from "./spaces.js";
 import { Agents, SortMenu } from "./agents.js";
 import { Card } from "./card.js";
-import Tabs from "./tabs.js";
+import Tabs, { TabMenu } from "./tabs.js";
 import PaneHeader, { PaneMenu } from "./pane.js";
 import Status from "./status.js";
 import { Toast } from "./toast.js";
@@ -46,7 +47,7 @@ import { SquadDialog } from "./squadactions.js";
 import { LinkDialog } from "./linkdialog.js";
 import { Dock } from "./docking.js";
 
-const ROLES = { boot: Boot, brand: Brand, footer: Footer, spaces: Spaces, agents: Agents, sortmenu: SortMenu, squadmenu: SquadMenu, squad: SquadDialog, card: Card, tabs: Tabs, pane: PaneHeader, panemenu: PaneMenu, status: Status, toast: Toast, cutin: CutIn, report: Report, dispatch: Dispatch, comms: Comms, transcript: Transcript, action: ActionDialog, archived: Archived, account: AccountDialog, link: LinkDialog, dock: Dock };
+const ROLES = { boot: Boot, brand: Brand, footer: Footer, spaces: Spaces, agents: Agents, sortmenu: SortMenu, squadmenu: SquadMenu, squad: SquadDialog, card: Card, tabs: Tabs, tabmenu: TabMenu, pane: PaneHeader, panemenu: PaneMenu, status: Status, toast: Toast, cutin: CutIn, report: Report, dispatch: Dispatch, comms: Comms, transcript: Transcript, action: ActionDialog, archived: Archived, account: AccountDialog, link: LinkDialog, dock: Dock };
 // Herdr opens the layout's toast mod with notification props and no role.
 const roleOf = (p) => p.role ?? (p.overlay && "title" in p ? "toast" : null);
 

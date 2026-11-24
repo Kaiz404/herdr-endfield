@@ -468,24 +468,29 @@ export class Agents {
     });
   }
 
-  // A plate's Hide or Pop out, or a click on a hidden agent (docking.js askPane), run here.
+  // A plate's Hide or Pop out, a click on a hidden agent, or a tab's Close or Move to squad (docking.js askPane), run here.
   paneAsked(ask, cx) {
     if (!ask || ask.at === this.paneAt) return;
     this.paneAt = ask.at;
     const { kind, terminal } = ask;
     const tab = panes().find((p) => p.terminal === terminal)?.tab;
     if (kind === "hide") {
-      const t = terminals().find((x) => x.address === terminal);
-      const chat = paneChat(terminal);
-      if (!t || !chat) return;
-      // The record first, so the agent never leaves Squads: the park strips the labels Herdr lists it by.
-      this.setHidden([...(shared(HIDDEN_KEY) ?? []).filter((r) => r.terminal !== terminal), hiddenOf(t, chat, Date.now())]);
-      run("terminal.park", { terminal });
-    } else if (kind === "popout") {
+      const now = Date.now();
+      const hidden = (ask.terminals ?? [terminal]).flatMap((a) => {
+        const t = terminals().find((x) => x.address === a);
+        const chat = paneChat(a);
+        return t && chat ? [hiddenOf(t, chat, now)] : [];
+      });
+      // The records first, so an agent never leaves Squads: the park strips the labels Herdr lists it by.
+      const gone = new Set(hidden.map((r) => r.terminal));
+      this.setHidden([...(shared(HIDDEN_KEY) ?? []).filter((r) => !gone.has(r.terminal)), ...hidden]);
+      for (const pane of ask.close ?? []) run("pane.close", { pane });
+      for (const r of hidden) run("terminal.park", { terminal: r.terminal });
+    } else if (kind === "popout" || kind === "move") {
       const chat = chatOf(terminal) ?? paneChat(terminal);
-      const plan = chat ? popOutPlan(chat, panes().filter((p) => p.tab === tab).length) : null;
+      const plan = !chat ? null : kind === "move" ? movePlan(chat, spaces(), panes(), ask.space) : popOutPlan(chat, panes().filter((p) => p.tab === tab).length);
       if (plan?.steps) cx.spawn(async (cx) => this.moveNow(cx, chat, plan.steps));
-      else notify({ title: "Can't pop it out", body: plan?.problem ?? "Herdr no longer lists that chat.", level: "info" });
+      else notify({ title: kind === "move" ? "Can't move it" : "Can't pop it out", body: plan?.problem ?? "Herdr no longer lists that chat.", level: "info" });
     } else if (kind === "show") {
       const chat = chatOf(terminal);
       if (!chat) { notify({ title: "Can't show it", body: `Herdr no longer lists ${terminal}. If it ended, resume it with claude --resume.`, level: "info" }); return; }
