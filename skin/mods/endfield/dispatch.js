@@ -12,7 +12,8 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, TextareaState, Textarea } from "gpui-base";
-import { props, closeOverlay, openOverlay, spaces, terminals, knownAgents, exec, hc, appHome, checking, window as appWindow } from "herdr";
+import { props, closeOverlay, openOverlay, spaces, terminals, knownAgents, exec, hc, appHome, checking, settings, window as appWindow } from "herdr";
+import { windowHeight } from "./hovercard.js";
 import { palette, root, micro, spaced, wide, chip, glyph, pill, barcode, dots, cue, growDisc, IDENTITY, MOTION, FONT, STRIP, strip, commandToggle, stripCancel } from "./kit.js";
 import { roster } from "./roster.js";
 import { cast } from "./fleet.js";
@@ -21,7 +22,14 @@ import { sendArgs, runArgs, taskProblem, commandLine, deliver, timeoutFor, deliv
 import { ACCOUNT_TOOL, listAccounts } from "./actions.js";
 import { isClaude } from "./sessions.js";
 
-export const openDispatch = (p) => openOverlay({ mod: "endfield", kind: "dialog", frame: "none", width: 700, height: 760, props: { role: "dispatch", ...p } });
+// The dialog never outgrows the window: capped 24px short of it (in mod px), and its content scrolls.
+const DISPATCH_H = 760;
+const dispatchHeight = () => {
+  let h = null;
+  try { h = windowHeight(window.viewport_size().height, settings().zoom ?? 1); } catch {}
+  return h ? Math.min(DISPATCH_H, Math.max(320, h - 24)) : DISPATCH_H;
+};
+export const openDispatch = (p) => openOverlay({ mod: "endfield", kind: "dialog", frame: "none", width: 700, height: dispatchHeight(), props: { role: "dispatch", ...p } });
 
 const OPTS = {
   send: { title: "Delivery", list: [{ k: "idle", label: "Only if idle" }, { k: "now", label: "Now" }, { k: "wait", label: "Now, wait for reply" }] },
@@ -81,7 +89,11 @@ export class Dispatch {
     const folder = space && !space.machine ? space.folder ?? null : null;
     if (!folder || this.trust?.folder === folder) return;
     this.trust = { folder, trusted: null, repo: false };
-    try { this.trust = { folder, ...JSON.parse((await exec("node", [TRUST_TOOL(), folder], { timeout: 10000 })).stdout) }; } catch {}
+    // A later space may have been chosen while this ran: keep the answer only for the folder still asked about.
+    try {
+      const got = { folder, ...JSON.parse((await exec("node", [TRUST_TOOL(), folder], { timeout: 10000 })).stdout) };
+      if (this.trust?.folder === folder) this.trust = got;
+    } catch {}
     cx.notify();
   }
 
@@ -209,7 +221,7 @@ export class Dispatch {
       this.account = list[(list.indexOf(this.account) + 1) % list.length];
       cx.notify();
     };
-    return root(C, div().id("dl-root").size_full().flex().items_center().justify_center()
+    return root(C, div().id("dl-root").size_full().overflow_y_scrollbar().flex().items_center().justify_center()
       .on_size_change((_s, cx) => { if (!this.entered) cx.timer.after(MOTION.settle.delay, (cx) => { this.entered = true; cx.notify(); }); })
       .child(v_flex().id("dispatch").relative().w(660).bg(C.raised).border_1().border_color(C.hairStrong).rounded(4)
         .opacity(this.entered ? 1 : 0).top(this.entered ? 0 : 8).transition("opacity", MOTION.dispatch.enter).transition("top", MOTION.dispatch.enter)
