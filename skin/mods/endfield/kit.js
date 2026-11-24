@@ -461,9 +461,10 @@ export const MOTION = {
   // fades on a cancel (home, gone), and shrinks into a squad header dropped on (shrink). The drop
   // zones fade in (zones); the slab grows from its edge and slides between zones (slab). Herdr
   // re-lays the panes at once, so the slab stays a beat after the chat lands (beat), then fades
-  // (out). wait: how long a landing may take before the overlay gives up and closes.
+  // (out). wait: how long a landing may take before the overlay gives up and closes. idle: how
+  // long a drag may go with no pointer move before it is cancelled.
   dock: { ghost: { response: 260, damping: 0.75 }, fly: { response: 300, damping: 0.9 }, home: { response: 280, damping: 1 },
-    pop: ease(120), gone: ease(200, "ease-in", 80), shrink: ease(200, "ease-in"), zones: ease(160), slab: ease(220), beat: { delay: 160 }, out: ease(180), wait: { delay: 20000 } },
+    pop: ease(120), gone: ease(200, "ease-in", 80), shrink: ease(200, "ease-in"), zones: ease(160), slab: ease(220), beat: { delay: 160 }, out: ease(180), wait: { delay: 20000 }, idle: { delay: 10000 } },
   pin: { content: ease(100, "linear", 83) },
   dispatch: { enter: ease(200) },
   link: { draw: ease(240), land: ease(120, "linear", 240) },

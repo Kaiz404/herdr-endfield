@@ -8,8 +8,9 @@
 // Place: where a chat is shown, or the pane it would land beside.
 //   {pane: string | null, tab: string | null, space: string | null, machine: string | null}
 // A chat also carries {terminal, linked (the agent it is linked with in its squad, or null)}.
-// Step: {cmd, args, wait, own?}: wait names what panes() and focused() show once Herdr has applied
-// it ("gone", "focused", "shown", or null); own: args.pane is the chat's pane once it has one.
+// Step: {cmd, args, wait, own?, beside?}: wait names what panes() and focused() show once Herdr has
+// applied it ("gone", "focused", "shown", or null); own: args.pane is the chat's pane once it has
+// one; beside: the pane that must hold the focus when a keep runs, since keep splits whatever does.
 
 /**
  * Where each zone lands, as a terminal.keep place and whether a pane.swap with the focused pane
@@ -98,10 +99,12 @@ export function collapsed(zone, r) {
 export const machineOf = (id) => (typeof id === "string" && id.includes("/") ? id.split("/")[0] : null);
 
 /**
- * How chat lands at `zone` beside the pane `anchor` (a Place). -> {steps} or {problem}: a problem
- * is shown in the zone and a drop there does nothing.
- * A chat already in the anchor's tab uses Herdr's own swap (the centre just focuses it): no park.
- * A chat with no pane (an hc child) skips the park.
+ * How chat lands at `zone` beside the pane `anchor` (a Place). -> {steps, label, whole?} or
+ * {problem}: a problem is shown in the zone and a drop there does nothing; label is what the slab
+ * says. A chat with no pane (an hc child) skips the park.
+ * A chat already in the anchor's tab trades places with it (Herdr's own swap, no park) from every
+ * zone: panes() gives no rectangles, so which side of the focused pane it is on now can't be read,
+ * and a zone can't promise a side. whole: the slab covers the work area, not one half of it.
  */
 export function dockPlan(chat, anchor, zone) {
   const z = ZONES[zone];
@@ -111,16 +114,55 @@ export function dockPlan(chat, anchor, zone) {
   if (chat.pane === anchor.pane) return { problem: "It is the focused pane" };
   if (chat.linked && chat.space !== anchor.space) return { problem: `Linked to ${chat.linked} in its squad. Unlink it first` };
   if (chat.pane && chat.tab === anchor.tab) {
-    return { steps: [zone === "centre"
-      ? { cmd: "pane.focus", args: { pane: chat.pane }, wait: "focused" }
-      : { cmd: "pane.swap", args: { pane: chat.pane, target: anchor.pane }, wait: null }] };
+    return { steps: [{ cmd: "pane.swap", args: { pane: chat.pane, target: anchor.pane }, wait: null }], label: "Trade places with the focused pane", whole: true };
   }
   const steps = [];
   if (chat.pane) steps.push({ cmd: "terminal.park", args: { terminal: chat.terminal }, wait: "gone" });
   steps.push({ cmd: "pane.focus", args: { pane: anchor.pane }, wait: "focused" });
-  steps.push({ cmd: "terminal.keep", args: { terminal: chat.terminal, place: z.place }, wait: "shown" });
+  steps.push({ cmd: "terminal.keep", args: { terminal: chat.terminal, place: z.place }, wait: "shown", beside: anchor.pane });
   if (z.swap) steps.push({ cmd: "pane.swap", args: { target: anchor.pane }, wait: null, own: true });
-  return { steps };
+  return { steps, label: z.label };
+}
+
+// A squad header becomes a move target only after this much travel from the press and this long
+// under the pointer, so a wobble at a row's edge never moves an agent.
+export const ARM = { px: 16, ms: 250 };
+
+/** Whether a held row over a squad header may drop there. p0, pt: the press and the pointer now; since, now: when it came over the header, and now (ms). */
+export function headerArmed(p0, pt, since, now) {
+  if (!p0 || !pt || since == null) return false;
+  return Math.hypot(pt.x - p0.x, pt.y - p0.y) >= ARM.px && now - since >= ARM.ms;
+}
+
+/**
+ * The pane a chat goes back beside when its move fails after the park: another pane of the tab it
+ * came from (the focused one, else a terminal's, else the first). Null when it was alone there.
+ */
+export function homeOf(panes, chat) {
+  const here = panes.filter((p) => p.tab === chat.tab && p.pane !== chat.pane);
+  return (here.find((p) => p.focused) ?? here.find((p) => p.terminal) ?? here[0])?.pane ?? null;
+}
+
+/** Where a terminal is shown: {pane, tab, name (its space's), index (its tab's)}, or null with no pane. */
+export function whereIs(terminal, panes, spaces) {
+  const p = panes.find((x) => x.terminal === terminal);
+  if (!p) return null;
+  const s = spaces.find((x) => x.tabs.some((t) => t.id === p.tab));
+  return { pane: p.pane, tab: p.tab, name: s?.name ?? null, index: s?.tabs.find((t) => t.id === p.tab)?.index ?? null };
+}
+
+/**
+ * What to tell the person once a move has stopped: null when the chat is in the tab it was sent
+ * to (`tab`), else where it is now (`at`, from whereIs) and how to show it again.
+ */
+export function moveToast(chat, tab, at) {
+  if (at && at.tab === tab) return null;
+  const who = `${chat.label ?? "chat"} ${chat.terminal}`;
+  const show = `herdr-app do terminal.keep --terminal ${chat.terminal}, or hc attach ${chat.terminal} in a terminal`;
+  if (!at) return { title: `${who} has no pane`, level: "error", body: `The move didn't finish. It keeps running. Show it again with ${show}.` };
+  const place = `${at.name ?? "its squad"}${at.index == null ? "" : `, tab ${at.index}`}`;
+  return { title: `Couldn't move ${who}`, level: "warning",
+    body: `It keeps running in ${place}${at.tab === chat.tab ? ", where it came from" : ""}. If it loses its pane, show it with ${show}.` };
 }
 
 /**

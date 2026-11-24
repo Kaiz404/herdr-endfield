@@ -23,8 +23,8 @@ import { holding, slotTops, chatBlocks } from "./squads.js";
 import { openSquadMenu } from "./squadmenu.js";
 import { openLink, loadLinks } from "./linkdialog.js";
 import { linkProblem } from "./links.js";
-import { exitSide, movePlan, dockPlan } from "./dock.js";
-import { openDock, moveChat, chatOf, anchorOf } from "./docking.js";
+import { exitSide, movePlan, dockPlan, headerArmed } from "./dock.js";
+import { openDock, moveChat, told, chatOf, anchorOf } from "./docking.js";
 
 // Fixed heights, so the selection marker knows where the selected row starts (the row's own ink plate snaps).
 // Compact (DENSE_AT agents and up): 34px rows that keep the chip, badge and label over the task.
@@ -139,7 +139,8 @@ export class Agents {
     // it as a helper: {kind: "squad" | "chat" | "link", scope (the chat's squad),
     // from (the space or tab id, or the agent's address), terminal (chat and link: the held row's agent),
     // target (link: the row under it, {address, problem}), squad (chat and link: the other squad
-    // header under the pointer, {id, problem}), grip (the press's offset into its row, {x, y}), y0
+    // header under the pointer once it is armed, {id, problem}), over (the header under the pointer
+    // and since when, {id, since}), p0 (the press, in the window), grip (the press's offset into its row, {x, y}), y0
     // and y (the pointer, pressed and now), pt and list (the pointer and the list's bounds, in the
     // window, so leaving by the right edge docks), live (moved past
     // DRAG_START_PX), to and move (the gap and command the last frame showed), ids (the list's block
@@ -357,7 +358,7 @@ export class Agents {
     // grip: how far into its row the press landed, so a drop reads the row under the pointer itself
     // and the docking ghost hangs from the pointer where the row was taken.
     const b = e.bounds ?? this.bounds[`ag-${terminal ?? from}`];
-    this.drag = { kind, scope, from, terminal, target: null, squad: null, grip: b ? { x: (e.position?.x ?? 0) - b.x, y: y - b.y } : null, y0: y, y, pt: e.position ?? null, list: null,
+    this.drag = { kind, scope, from, terminal, target: null, squad: null, over: null, p0: e.position ?? null, grip: b ? { x: (e.position?.x ?? 0) - b.x, y: y - b.y } : null, y0: y, y, pt: e.position ?? null, list: null,
       live: false, to: null, move: null, ids: null, back: null, done: false, moved: false };
   }
 
@@ -421,11 +422,15 @@ export class Agents {
     this.release(cx, false);
   }
 
-  /** One move at a time: a second drop while one runs is refused. -> whether it landed. */
+  /** One move at a time: a second drop while one runs is refused. -> whether it landed. A throw out of the recovery itself still says where the chat is. */
   async moveNow(cx, chat, steps) {
     if (this.moving) return false;
     this.moving = true;
-    try { return await moveChat(cx, chat, steps); } finally { this.moving = false; }
+    try { return await moveChat(cx, chat, steps); }
+    catch {
+      told(chat, null);
+      return false;
+    } finally { this.moving = false; }
   }
 
   // The dock overlay's drop: planned again here on Herdr's lists now, run, and answered.
@@ -859,7 +864,10 @@ export class Agents {
       const held = shownRows.find((x) => x.r.m.address === d.terminal);
       // The pointer, in list coordinates: where it pressed in the held row, moved as far as it has.
       const y = held ? held.top + (d.grip?.y ?? held.r.h / 2) + d.y - d.y0 : 0;
-      const head = held ? sections.find((s) => !s.q.pinned && s.q.id !== held.r.m.space && y >= s.y && y < s.y + D.head) : null;
+      const under = held ? sections.find((s) => !s.q.pinned && s.q.id !== held.r.m.space && y >= s.y && y < s.y + D.head) : null;
+      // A header is a move target, and lifts, only once armed (dock.js headerArmed): times compared as the pointer moves, no timer.
+      d.over = under ? (d.over?.id === under.q.id ? d.over : { id: under.q.id, since: Date.now() }) : null;
+      const head = under && headerArmed(d.p0, d.pt, d.over.since, Date.now()) ? under : null;
       const chat = head ? chatOf(d.terminal, R.all.get(d.terminal)) : null;
       d.squad = head ? { id: head.q.id, problem: chat ? movePlan(chat, spaces(), panes(), head.q.id).problem ?? null : "It has ended" } : null;
       const over = held && !head && d.kind === "link" ? shownRows.find((x) => x !== held && y >= x.top && y < x.top + x.r.h) : null;

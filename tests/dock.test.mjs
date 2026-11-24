@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { zoneAt, landing, collapsed, exitSide, workRect, dockPlan, anchorIn, movePlan, applied, machineOf } from "../skin/mods/endfield/dock.js";
+import { zoneAt, landing, collapsed, exitSide, workRect, dockPlan, anchorIn, movePlan, applied, machineOf, ARM, headerArmed, homeOf, whereIs, moveToast } from "../skin/mods/endfield/dock.js";
 
 const R = { x: 100, y: 50, w: 400, h: 200 };
 const at = (u, v) => ({ x: R.x + u * R.w, y: R.y + v * R.h });
@@ -61,10 +61,60 @@ test("each step waits for what Herdr shows: the pane gone, the anchor focused, t
   assert.deepEqual(dockPlan(chat(), anchor, "left").steps.map((s) => s.wait), ["gone", "focused", "shown", null]);
 });
 
-test("a chat already in the anchor's tab trades places with it, or is focused from the centre: nothing is parked", () => {
+test("a chat already in the anchor's tab trades places with it from every zone, and no zone promises a side", () => {
   const same = chat({ tab: "tabB", space: "s2" });
-  assert.deepEqual(dockPlan(same, anchor, "left").steps, [{ cmd: "pane.swap", args: { pane: "p7", target: "p1" }, wait: null }]);
-  assert.deepEqual(cmds(dockPlan(same, anchor, "centre")), [["pane.focus", "p7"]]);
+  for (const zone of ["left", "right", "top", "bottom", "centre"]) {
+    const plan = dockPlan(same, anchor, zone);
+    assert.deepEqual(plan.steps, [{ cmd: "pane.swap", args: { pane: "p7", target: "p1" }, wait: null }], zone);
+    assert.equal(plan.label, "Trade places with the focused pane", zone);
+    assert.equal(plan.whole, true, "the slab covers the work area, not a half the chat may not land in");
+  }
+});
+
+test("a chat from another tab says the side it lands on, and its keep names the pane it must split", () => {
+  const plan = dockPlan(chat(), anchor, "left");
+  assert.equal(plan.label, "Left of the focused pane");
+  assert.ok(!plan.whole);
+  assert.equal(plan.steps.find((s) => s.cmd === "terminal.keep").beside, "p1");
+  assert.equal(movePlan(chat(), SPACES, PANES, "s2").steps.find((s) => s.cmd === "terminal.keep").beside, "p3");
+});
+
+test("a squad header arms only after enough travel and a dwell over it", () => {
+  const p0 = { x: 100, y: 300 };
+  assert.equal(headerArmed(p0, { x: 100, y: 304 }, 0, 5000), false, "a 4px wobble never arms, however long it rests");
+  assert.equal(headerArmed(p0, { x: 100, y: 300 + ARM.px }, 1000, 1000 + ARM.ms - 1), false, "far enough, but just arrived");
+  assert.equal(headerArmed(p0, { x: 100, y: 300 + ARM.px }, 1000, 1000 + ARM.ms), true);
+  assert.equal(headerArmed(p0, { x: 100 - ARM.px, y: 300 }, 1000, 2000), true, "travel counts in any direction");
+  assert.equal(headerArmed(p0, { x: 100, y: 400 }, null, 2000), false, "not over a header");
+  assert.equal(headerArmed(null, { x: 100, y: 400 }, 0, 2000), false);
+});
+
+test("a failed move goes back beside another pane of the tab the chat came from", () => {
+  const panes = [...PANES, { pane: "p8", terminal: null, tab: "tabA", focused: false }, { pane: "p9", terminal: "t9", tab: "tabA", focused: false }];
+  assert.equal(homeOf(panes, chat()), "p9", "a terminal's pane before a mod's");
+  assert.equal(homeOf(panes.map((p) => ({ ...p, focused: p.pane === "p8" })), chat()), "p8", "the focused one first");
+  assert.equal(homeOf(PANES, chat()), null, "alone in its tab: nowhere to go back to");
+  assert.equal(homeOf(PANES, chat({ pane: null, tab: null })), null);
+});
+
+test("a move that ends where it was sent says nothing; anywhere else says where the chat is", () => {
+  const c = { ...chat(), label: "CLAUDE" };
+  assert.deepEqual(whereIs("t3", PANES, SPACES), { pane: "p3", tab: "tabC", name: "two", index: 2 });
+  assert.equal(whereIs("t99", PANES, SPACES), null);
+  assert.equal(moveToast(c, "tabC", whereIs("t3", PANES, SPACES)), null);
+  const home = moveToast(c, "tabC", whereIs("t7", PANES, SPACES));
+  assert.equal(home.level, "warning");
+  assert.match(home.title, /Couldn't move CLAUDE t7/);
+  assert.match(home.body, /keeps running in one, tab 1, where it came from/);
+  const elsewhere = moveToast(c, "tabC", { pane: "p1", tab: "tabB", name: "two", index: 1 });
+  assert.match(elsewhere.body, /keeps running in two, tab 1\./);
+  assert.doesNotMatch(elsewhere.body, /where it came from/);
+  const parked = moveToast(c, "tabC", null);
+  assert.equal(parked.level, "error");
+  assert.match(parked.title, /CLAUDE t7 has no pane/);
+  assert.match(parked.body, /herdr-app do terminal\.keep --terminal t7/);
+  assert.match(parked.body, /hc attach t7/);
+  assert.match(moveToast(c, null, whereIs("t7", PANES, SPACES)).body, /where it came from/, "a recovery always says where it is");
 });
 
 test("a chat with no pane (an hc child) is kept without a park", () => {

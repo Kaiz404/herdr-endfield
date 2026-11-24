@@ -13,7 +13,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { props, closeOverlay, openOverlay, run, panes, spaces, focused, shared, setShared, notify, layout } from "herdr";
 import { palette, root, micro, wide, chip, MOTION } from "./kit.js";
 import { roster } from "./roster.js";
-import { ZONES, zoneAt, landing, collapsed, workRect, dockPlan, applied, machineOf } from "./dock.js";
+import { zoneAt, landing, collapsed, workRect, dockPlan, applied, machineOf, homeOf, whereIs, moveToast } from "./dock.js";
 
 // How long each step may take to show in panes(): park took about 1.5s on a local machine.
 const WAIT = { ms: 4000, poll: 100 };
@@ -33,6 +33,7 @@ export function anchorOf(pane) {
   return { pane, tab: p.tab, space: s?.id ?? null, machine: s?.machine ?? null };
 }
 
+// A data wait inside a spawned task: it reads Herdr's lists and never repaints, so cx.sleep is not a motion timer.
 async function until(cx, ok) {
   for (let t = 0; t <= WAIT.ms; t += WAIT.poll) {
     if (ok()) return true;
@@ -41,26 +42,56 @@ async function until(cx, ok) {
   return false;
 }
 
+/** Says where the chat is when that isn't the tab it was sent to (dock.js moveToast). */
+export const told = (chat, tab) => {
+  const t = moveToast(chat, tab, whereIs(chat.terminal, panes(), spaces()));
+  if (t) notify({ ...t, timeout: null });
+};
+
+/**
+ * A move that stopped: the chat goes back to the tab it came from, right of `home` (dock.js
+ * homeOf), when the park took its pane; never into a pane the person didn't choose. A toast says
+ * where it is now, or how to show it again if it is left with no pane.
+ */
+async function recover(cx, chat, home) {
+  const shown = () => panes().some((p) => p.terminal === chat.terminal);
+  if (!shown() && home && panes().some((p) => p.pane === home)) {
+    run("pane.focus", { pane: home });
+    if (await until(cx, () => focused()?.pane === home) && focused()?.pane === home) {
+      run("terminal.keep", { terminal: chat.terminal, place: "right" });
+      await until(cx, shown);
+    }
+  }
+  told(chat, null);
+  return false;
+}
+
 /**
  * Runs a dock.js plan, each step once Herdr shows the last one applied. Between the park and the
- * keep the chat has no pane, no labels and no keep, so the keep is tried twice and a failure says
- * how to show it again. A focus not seen still lets the keep land beside whatever is focused, which
- * beats leaving it unshown. -> whether every step showed.
+ * keep the chat has no pane, no labels and no keep, and keep splits whatever pane has the focus:
+ * so a keep runs only while the pane it was planned beside has it, and is tried twice. A step not
+ * seen, or a throw, ends in recover. -> whether every step showed and it is in the tab planned.
  */
 export async function moveChat(cx, chat, steps) {
-  for (const s of steps) {
-    let ok = false;
-    for (let i = 0; i < (s.cmd === "terminal.keep" ? 2 : 1) && !ok; i++) {
-      const pane = panes().find((p) => p.terminal === chat.terminal)?.pane;
-      run(s.cmd, s.own ? { ...s.args, pane } : s.args);
-      ok = await until(cx, () => applied(s, chat.terminal, panes(), focused()?.pane ?? null));
+  const home = homeOf(panes(), chat);
+  const keep = steps.find((s) => s.cmd === "terminal.keep");
+  try {
+    for (const s of steps) {
+      let ok = false;
+      for (let i = 0; i < (s === keep ? 2 : 1) && !ok; i++) {
+        if (s.beside && focused()?.pane !== s.beside) break;
+        const pane = panes().find((p) => p.terminal === chat.terminal)?.pane;
+        run(s.cmd, s.own ? { ...s.args, pane } : s.args);
+        ok = await until(cx, () => applied(s, chat.terminal, panes(), focused()?.pane ?? null));
+      }
+      if (!ok) return await recover(cx, chat, home);
     }
-    if (ok || s.wait === "focused" || s.wait === null) continue;
-    notify({ title: `Couldn't move ${chat.label} ${chat.terminal}`, level: "error", timeout: null,
-      body: `It keeps running. If it has no pane, show it with herdr-app do terminal.keep --terminal ${chat.terminal}, or hc attach ${chat.terminal} in a terminal.` });
-    return false;
+  } catch {
+    return await recover(cx, chat, home);
   }
-  return true;
+  const tab = keep ? panes().find((p) => p.pane === keep.beside)?.tab ?? null : chat.tab;
+  told(chat, tab);
+  return whereIs(chat.terminal, panes(), spaces())?.tab === tab;
 }
 
 export const openDock = (p) => openOverlay({ mod: "endfield", kind: "popup", frame: "none", width: 1, height: 1, at: { x: 0, y: 0 }, props: { role: "dock", ...p } });
@@ -78,8 +109,20 @@ export class Dock {
     // The zone the slab belongs to, and whether it has grown out of its edge.
     this.slab = { zone: null, open: false };
     this.popped = false;
+    // When the pointer last moved here: a drag nobody steers is cancelled (idle).
+    this.movedAt = Date.now();
+    this.idle(cx, MOTION.dock.idle.delay);
     this.keys = cx.focus_handle();
     cx.timer.after(MOTION.settle.delay, (cx) => { this.popped = true; this.keys.focus(); cx.notify(); });
+  }
+
+  // A drag nobody steers is cancelled: the release was missed, so the next click must not drop it.
+  idle(cx, ms) {
+    cx.timer.after(ms, (cx) => {
+      if (this.phase !== "drag") return;
+      const left = MOTION.dock.idle.delay - (Date.now() - this.movedAt);
+      if (left <= 0) this.back(cx); else this.idle(cx, left);
+    });
   }
 
   rect() { return workRect(this.size, this.p.left, layout()); }
@@ -91,6 +134,7 @@ export class Dock {
 
   move(e, cx) {
     if (this.phase !== "drag") return;
+    this.movedAt = Date.now();
     this.pt = e.position;
     const zone = zoneAt(this.pt, this.rect());
     if (zone === this.zone) { cx.notify(); return; }
@@ -106,6 +150,7 @@ export class Dock {
 
   drop(cx) {
     if (this.phase !== "drag") return;
+    // Only a pointer move here sets a zone, so a release with no move since the overlay opened drops nothing.
     const plan = this.zone ? this.plan(this.zone) : null;
     if (!plan?.steps) return this.back(cx);
     this.phase = "landing";
@@ -145,7 +190,7 @@ export class Dock {
     const zone = this.slab.zone;
     const plan = zone ? this.plan(zone) : null;
     const fits = Boolean(plan?.steps);
-    const slabAt = r && zone ? (this.slab.open ? landing(zone, r) : collapsed(zone, r)) : null;
+    const slabAt = r && zone ? (!this.slab.open ? collapsed(zone, r) : plan.whole ? r : landing(zone, r)) : null;
     const m = roster().all.get(p.terminal);
     const from = p.from;
     // The ghost: the row's rect when it appears, then at the pointer (where it was pressed in the row),
@@ -165,11 +210,14 @@ export class Dock {
       .opacity(this.phase === "out" || this.phase === "back" ? 0 : 1)
       .transition("left", MOTION.dock.slab).transition("top", MOTION.dock.slab).transition("width", MOTION.dock.slab).transition("height", MOTION.dock.slab)
       .transition("opacity", MOTION.dock.out)
-      .child(div().absolute().left(12).top(10).child(micro(fits ? ZONES[zone].label : plan?.problem ?? "", C.text)));
+      .child(div().absolute().left(12).top(10).child(micro(fits ? plan.label : plan?.problem ?? "", C.text)));
     return root(C, div().id("dock-root").size_full().relative()
       .on_size_change((size, cx) => { this.size = size; cx.notify(); })
       .on_mouse_move((e, cx) => this.move(e, cx))
       .on_mouse_up("left", (_e, cx) => this.drop(cx))
+      // The drag arrives with the button already down, so a press here means its release was missed: cancel.
+      .on_mouse_down("left", (_e, cx) => { if (this.phase === "drag") this.back(cx); })
+      .on_mouse_down("right", (_e, cx) => { if (this.phase === "drag") this.back(cx); })
       .track_focus(this.keys)
       .on_key_down((e, cx) => { if (e.key === "escape") this.back(cx); })
       .when(Boolean(zones), (el) => el.child(zones))

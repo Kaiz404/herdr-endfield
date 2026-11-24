@@ -133,10 +133,15 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   is over it) and `moveChat`, which runs the steps. The Squads list runs every
   move, the overlay's through the shared key `endfield.dock.ask`, because a
   closing overlay cancels its tasks and a move must not stop between the park
-  and the keep. Not checked in a live window: that the overlay, opened while
-  the button is held, hears the moves and the release (a release it misses
-  leaves it open, and the next click drops), and Esc, which Herdr handles for
-  a popup, closes it at once without the ghost's spring home.
+  and the keep. A move that stops goes back to the tab it came from
+  (`homeOf`, `recover`) and says where the chat is (`moveToast`); a squad
+  header takes a drop only once armed (`headerArmed`). `moveChat` polls
+  `panes()` with `cx.sleep` inside its task: a data wait that never
+  repaints, not a motion timer. Not checked in a live window: that the
+  overlay, opened while the button is held, hears the moves and the release
+  (a release it misses can't drop: a press in the overlay cancels, and so do
+  10s with no move), and Esc, which Herdr handles for a popup, closes it at
+  once without the ghost's spring home.
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
   `card.js` (the session panel), `actions.js` (a card action's confirm dialog
   and the Archived list), `dispatch.js` (the Dispatch dialog), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),

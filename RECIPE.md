@@ -308,7 +308,12 @@ rendered at 4x. It is a schematic, not a screenshot.
   another agent row links (Priority only), on another squad's header moves
   the chat into that squad, and carried out of the list by its right edge
   docks it in the work area (below). A squad header only reorders squads.
-  Over another squad's header the header lifts (raised plate, large
+  A header becomes a target only once armed (`dock.js` `headerArmed`):
+  the pointer has travelled 16px from the press and has been over that
+  header for 250ms, read off timestamps as the pointer moves, with no
+  timer. Until then nothing lifts and a release there moves nothing, so a
+  wobble at a row's edge can't move an agent.
+  Over another squad's armed header the header lifts (raised plate, large
   shadow, a 2px yellow edge: where it lands), a ghost plate springs after
   the pointer (`MOTION.dock.ghost`) saying `Move to <squad>` or why not
   (`dock.js` `movePlan`: its own squad, no pane there, another machine, a
@@ -316,7 +321,15 @@ rendered at 4x. It is a schematic, not a screenshot.
   (`MOTION.dock.shrink`, 200ms) and the chat moves: `terminal.park`,
   `pane.focus` on the pane focused in the tab that squad shows, then
   `terminal.keep` with `place: "right"` (`docking.js` `moveChat`, each step
-  once `panes()` shows the last). The program keeps running; nothing is
+  once `panes()` shows the last). `terminal.keep` splits whatever pane has
+  the focus, so the keep runs only while the pane it was planned beside has
+  it. If the focus isn't seen there within 4s, a step isn't seen, or
+  anything throws, the chat is never kept in a pane the person didn't
+  choose: it goes back to the tab it came from, right of another pane there
+  (`homeOf`), and if it was alone there it stays parked. Whenever it ends
+  anywhere but the tab planned, a toast that stays says where it is now
+  (`moveToast`), with `herdr-app do terminal.keep --terminal <t>` and
+  `hc attach <t>` to show it again. The program keeps running; nothing is
   typed, so a working agent or one waiting on a question moves too. A tab's
   other panes stay where they are. Relabelling a live terminal's
   `herdr.space`/`herdr.tab` (`hc label`) would not do it: its pane stays
@@ -343,16 +356,21 @@ rendered at 4x. It is a schematic, not a screenshot.
   began); left and top keep it there and then `pane.swap` it with that
   pane; the centre splits right too, so nothing is ever replaced or
   closed. A chat already in that tab trades places with the focused pane
-  (`pane.swap`; the centre just focuses it), with no park. On a drop the
+  (`pane.swap`, no park) from every zone. `panes()` can't say which side
+  of the focused pane it is on now, so no zone promises a side there: the
+  slab covers the whole work area and says `Trade places with the focused
+  pane`. On a drop the
   ghost springs into the slab, the list runs the steps (asked through
   `endfield.dock.ask`, answered in `endfield.dock.done`), and once they
   show the slab holds a beat (160ms) over Herdr's instant re-layout, then
   slab and ghost fade (180ms). Herdr has no layout transition, so the
   panes themselves jump; the slab covers the jump. Esc, a drop outside the
   work area or on a grey zone, or a failed move springs the ghost home to
-  its row and fades it. If the keep fails twice, a toast names the
-  terminal and how to show it again (`herdr-app do terminal.keep
-  --terminal <t>` or `hc attach <t>`).
+  its row and fades it. The overlay opens with the button held, so it never
+  expects a press: a mouse-down in it cancels, 10s with no pointer move
+  cancels (`MOTION.dock.idle`), and a release drops only on a zone a
+  pointer move in the overlay set. A release it missed therefore can't arm
+  the next click. A failed move recovers and toasts as for a squad drop.
   In Priority, an agent row drags onto another to link it as a helper
   (`links.js`): it stays in place at 45% opacity, a ghost plate (raised,
   large shadow) follows the pointer and names the row under it, and that row
