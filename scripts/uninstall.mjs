@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Removes what install.mjs wrote and puts back what it backed up. Touches only endfield paths.
+// Removes what install.mjs wrote and puts back what it backed up. Touches only endfield paths, plus
+// programs.json's claude "run" when it points at the account wrapper (docs/SETUP.md, default account).
 // Deletes the runtime files the skin itself writes (RUNTIME); keeps the person's settings in data/endfield/,
 // the statusline extra's sessions/, and art/operators/.
-import { existsSync, readFileSync, rmSync, copyFileSync, readdirSync, rmdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, rmSync, copyFileSync, readdirSync, rmdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { execFileSync } from "node:child_process";
 import { entries, home, owned, same, unedited, herdrWritten, modDirs, RETIRED } from "./skin.mjs";
@@ -55,6 +56,23 @@ for (const rel of RETIRED) if (existsSync(join(HOME, rel))) { rmSync(join(HOME, 
 rmSync(STATE, { recursive: true, force: true });
 const DATA = join(HOME, "data", "endfield");
 if (existsSync(DATA)) for (const n of readdirSync(DATA)) if (RUNTIME.test(n)) { rmSync(join(DATA, n), { force: true }); done.removed.push(`data/endfield/${n}`); }
+
+// Herdr's menus would run a wrapper that is gone, so its "run" goes; the person's other entries stay.
+const PROGRAMS = join(HOME, "programs.json");
+if (existsSync(PROGRAMS)) {
+  let p = null;
+  try { p = JSON.parse(readFileSync(PROGRAMS, "utf8")); } catch {}
+  const claude = p?.programs?.claude;
+  if (!p) console.log("programs.json is not valid JSON, so it was left alone. If its claude entry runs mods/endfield/tools/account.mjs, remove that entry.");
+  else if (Array.isArray(claude?.run) && claude.run.some((a) => /mods[\\/]endfield[\\/]tools[\\/]account\.mjs$/.test(String(a)))) {
+    delete claude.run;
+    if (!Object.keys(claude).length) delete p.programs.claude;
+    if (!Object.keys(p.programs).length) delete p.programs;
+    if (Object.keys(p).length) writeFileSync(PROGRAMS, `${JSON.stringify(p, null, 2)}\n`);
+    else rmSync(PROGRAMS);
+    done.removed.push(Object.keys(p).length ? "programs.json: claude run (the account wrapper)" : "programs.json");
+  }
+}
 
 const list = (label, xs) => xs.length && console.log(`${label} (${xs.length}):\n${xs.map((x) => `  ${x}`).join("\n")}`);
 console.log(`Herdr home: ${HOME}`);

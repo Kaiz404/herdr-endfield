@@ -4,11 +4,14 @@
 //   {cmd: "sessions", cache, sidecars, registry?, targets: [{terminal, cwd}]}
 //     -> {sessions: {terminal: Parsed & {sidecar, live, subagents: Parsed[]}}, watch: [the folders whose writes
 //         change this answer], missing: [project folders that don't exist yet, so can't be watched],
-//         limits: the newest rate_limits any sidecar carries, {five_hour, seven_day, updated_at} | null}
+//         limits: the newest rate_limits any sidecar carries, {five_hour, seven_day, updated_at} | null,
+//         accountLimits: the same per account name, "" for the default login,
+//         email: the normal login's email (~/.claude.json oauthAccount) | null}
 //     Parsed carries `final` (the turn has ended: a last message, a handback or an interrupt), `pending`
 //     (a tool call with no result yet; `wait` when it only waits) and `tasks`, the background work the
 //     transcript started: [{id, kind: shell | agent | monitor, description, startedAt, expiresAt, endedAt,
-//     state: running | completed | failed | killed | stopped | timed-out | ended-with-session}].
+//     state: running | completed | failed | killed | stopped | timed-out | ended-with-session}],
+//     `counts` ({tool name: calls}) and `recent`, its last 5 tool calls oldest first: [{at, tool, arg}].
 //     live: whether a Claude Code process still runs the session, from `registry` (default
 //     ~/.claude/sessions/<pid>.json); null when there is no registry to ask.
 //   {cmd: "render", path, from}  -> {to, size, entries: [{kind, text, tool?, arg?}]}
@@ -35,8 +38,9 @@ const SKIP = /"type":"(api-request|api-request-blob|data-flow-records|file-histo
 const QUEUED = /"type":"(queue-operation|attachment)"/;
 const NOTICE = "<task-notification>";
 // A fold made by an older probe lacks fields this one reads, so it is folded again.
-const FOLD = 3;
+const FOLD = 4;
 const TASKS_KEPT = 200;
+const RECENT_KEPT = 5;
 // The cache's one key that is not a transcript: pid -> {procStart, same, at}, whether the process
 // was the one its registry file names when last asked (null: it couldn't be asked).
 const PROCS = "<procs>";
@@ -92,7 +96,7 @@ function argOf(name, input = {}) {
 
 function fresh() {
   return { msg: null, model: null, used: 0, tokens: 0, delta: 0, tools: 0, turns: 0, prompt: null, effort: null, mode: null,
-    last: null, final: false, pending: null, firstAt: null, lastAt: null, uses: {}, tasks: {}, ends: {} };
+    counts: {}, recent: [], final: false, pending: null, firstAt: null, lastAt: null, uses: {}, tasks: {}, ends: {} };
 }
 
 // A tool call that only waits: a shell whose every command pauses or looks (a sleep, a loop's test,
@@ -187,12 +191,15 @@ function fold(f, j) {
     for (const c of m.content ?? []) {
       if (c.type === "tool_use") {
         f.tools++;
-        f.last = { tool: c.name, arg: argOf(c.name, c.input) };
+        const arg = argOf(c.name, c.input);
+        f.counts[c.name] = (f.counts[c.name] ?? 0) + 1;
+        f.recent.push({ at, tool: c.name, arg });
+        if (f.recent.length > RECENT_KEPT) f.recent.shift();
         const q = c.name === "AskUserQuestion" ? c.input?.questions?.[0]?.question ?? null : null;
         f.uses[c.id] = { at, description: c.input?.description ?? (String(c.input?.command ?? "").split("\n")[0].trim().slice(0, 120) || null) };
         // A sub-agent ends its turn by handing its report back, not with a last message.
         const handback = c.name === "SubagentHandback";
-        f.pending = handback ? null : { id: c.id, tool: c.name, arg: f.last.arg, question: q, wait: waits(c.name, c.input), limit: limitOf(c.name, c.input) };
+        f.pending = handback ? null : { id: c.id, tool: c.name, arg, question: q, wait: waits(c.name, c.input), limit: limitOf(c.name, c.input) };
         f.final = handback;
       } else if (c.type === "text" && c.text?.trim()) {
         f.final = true;
@@ -321,24 +328,28 @@ function subagents(cache, transcript) {
 function sidecars(dir) {
   const byTerminal = new Map();
   let limits = null;
+  // The same per account (tools/account.mjs; "" for the default login): each login has its own limits.
+  const byAccount = {};
   let names = [];
-  try { names = fs.readdirSync(dir).filter((n) => n.endsWith(".json")); } catch { return { byTerminal, limits }; }
+  try { names = fs.readdirSync(dir).filter((n) => n.endsWith(".json")); } catch { return { byTerminal, limits, byAccount }; }
   const now = Date.now();
+  const newer = (s, than) => String(s.updated_at ?? "") > String(than?.updated_at ?? "");
   for (const n of names) {
     const p = path.join(dir, n);
     if (now - (stat(p)?.mtime ?? 0) > DAY) continue;
     const s = readJson(p);
-    if (s?.rate_limits && String(s.updated_at ?? "") > String(limits?.updated_at ?? "")) limits = { ...s.rate_limits, updated_at: s.updated_at };
+    if (s?.rate_limits && newer(s, limits)) limits = { ...s.rate_limits, updated_at: s.updated_at };
+    if (s?.rate_limits && newer(s, byAccount[s.account ?? ""])) byAccount[s.account ?? ""] = { ...s.rate_limits, updated_at: s.updated_at };
     if (!s?.terminal) continue;
     const had = byTerminal.get(s.terminal);
     if (!had || String(s.updated_at ?? "") > String(had.updated_at ?? "")) byTerminal.set(s.terminal, s);
   }
-  return { byTerminal, limits };
+  return { byTerminal, limits, byAccount };
 }
 
 function sessions(req) {
   const cache = readJson(req.cache) ?? {};
-  const { byTerminal: side, limits } = req.sidecars ? sidecars(req.sidecars) : { byTerminal: new Map(), limits: null };
+  const { byTerminal: side, limits, byAccount } = req.sidecars ? sidecars(req.sidecars) : { byTerminal: new Map(), limits: null, byAccount: {} };
   const out = {};
   const watch = new Set(req.sidecars ? [req.sidecars] : []);
   const missing = new Set();
@@ -379,7 +390,9 @@ function sessions(req) {
   // Atomic replace: several mod copies may probe at once; the loser's work is only redone later.
   const tmp = `${req.cache}.${process.pid}.tmp`;
   try { fs.writeFileSync(tmp, JSON.stringify(cache)); fs.renameSync(tmp, req.cache); } catch { try { fs.unlinkSync(tmp); } catch {} }
-  return { sessions: out, watch: [...watch], missing: [...missing], limits };
+  // The normal login's email, from Claude Code's own config: what an agent on no saved token runs as.
+  const email = readJson(path.join(os.homedir(), ".claude.json"))?.oauthAccount?.emailAddress ?? null;
+  return { sessions: out, watch: [...watch], missing: [...missing], limits, accountLimits: byAccount, email };
 }
 
 // ---- render: a transcript as a tidy list for the transcript pane

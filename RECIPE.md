@@ -78,15 +78,23 @@ rendered at 4x. It is a schematic, not a screenshot.
     list scrolls and says "▾ N more agents below". Without the art pack every
     chip shows its program's tile instead.
   - Session panel, 368px, beside the sidebar while a squad row is hovered,
-    laid out like an AIC machine panel: the operator's bust in a dotted frame
-    with a range ring and an accent foot, an ink chip naming the work
-    (`// FIX LOGIN`: the tab's name, else the space's; never the terminal
-    address) and a barcode, the task, then the callsign, the program and where it
-    runs, set apart by gaps (the program and place muted); three
-    cells (Input on a dot field: the folder and model as item tiles; the
-    state with its march, a tick ruler and `elapsed  turn`; Tools: tool calls
-    in the wide face); Context (the input tokens of the last request, which
-    is what the session carries now, `of 1M  6%`, and 20 blocks); Tasks,
+    laid out as a dossier. A header strip: the operator's bust in a dotted
+    frame with a range ring and an accent foot, beside three lines. Line 1
+    is the callsign, the kind (the program, or `Sub-agent`) and where it runs
+    (`via <parent>` first for a sub-agent, then the space and tab; `≈` when
+    the transcript was matched by folder only), set apart by gaps, all but
+    the callsign muted. Line 2 is the task in 15px semibold. Line 3 is the
+    status glyph and word, then the model, effort (`med`) and elapsed time
+    (`10m 16s`, to now while the run is in flight, else to its last write),
+    muted. Then the body: Context (`Context`, the input tokens of the last
+    request over the window in the wide face, `211K / 1M`, then `21%`, and
+    20 full-width blocks, 10px tall, red past 75%); Tools (`Tools  64 calls
+    Turns 12` and a hairline, then the four most called tools, each its name,
+    an ink bar as long as its share of the first, and its count; an MCP tool
+    by its own name, `save_issue`; "No tool calls yet." when none); Recent
+    (the last five tool calls, newest first: age `18s` / `1m`, tool, and
+    what it was asked, muted and truncated: a file's name, a command's first
+    line, a pattern; "None yet." when none); Tasks,
     only once the session started background work (`Tasks 02`, a hairline,
     `+N finished` / `Show less` at the right; one 14px row per running task,
     newest started first: its kind glyph, a prompt for a shell, a figure for
@@ -94,13 +102,13 @@ rendered at 4x. It is a schematic, not a screenshot.
     `42s` / `27m` / `1h07`, or "None running."; unfolded, the finished ones
     follow newest ended first, muted, with their end word `done`, `failed`
     (red), `killed`, `stopped`, `timed out` or `ended` and how long they
-    ran; its own and its sub-agents' tasks together); Chat (model,
-    effort and mode, then one pill per action: Claude Code Rename, Plan, Next
+    ran; its own and its sub-agents' tasks together); Chat (its mode,
+    then one pill per action: Claude Code Rename, Plan, Next
     mode, Model, Effort, Archive; Codex Rename, Model, Archive; Cursor Rename,
     Plan, Archive; typed ones dim with the reason when the agent isn't idle);
     Comms (the last two messages in and out, `Log ▶`); the question in
-    brackets when blocked; an ink footer with the Current formula (`folder
-    ▶▶ last action`), Peek, Pin, Dispatch + and Answer/Focus ▶. Unknown
+    brackets when blocked; an ink footer with Peek, Pin, Dispatch + and
+    Answer/Focus ▶. Unknown
     fields (any non-Claude agent) read `—`. The panel draws at its own
     height up to the window's room; past it (a short window, a task list
     that grew or unfolded while open) the middle scrolls and the head and
@@ -271,10 +279,9 @@ rendered at 4x. It is a schematic, not a screenshot.
   placed again 160ms later with no reveal.
   Answer/Focus runs
   `agent.focus`, Peek `terminal.peek`, Pin `terminal.pin`.
-- **Sub-agent card:** the same panel for a Claude Code sub-agent, headed by
-  its own operator and `Sub-agent  via <parent callsign>`. It shows the
-  status word and glyph, elapsed time, model and effort (in place of the tool
-  count), the context gauge, its background tasks and its last action. It has
+- **Sub-agent card:** the same dossier for a Claude Code sub-agent, headed
+  by its own operator and `Sub-agent  via <parent callsign>`: the same header
+  strip, Context, Tools, Recent and Tasks, read from its own transcript. It has
   no Chat row, no Comms and no Peek, Pin or Dispatch. Open transcript opens
   the transcript pane as a click on the row does; Follow-up opens it with the
   follow-up box focused 300ms later. Nothing is sent from the card.

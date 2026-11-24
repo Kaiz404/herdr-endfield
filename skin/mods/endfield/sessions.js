@@ -1,7 +1,7 @@
 // sessions: what a Claude Code session behind an agent terminal is doing, one parsed shape
 // per terminal. Sources, first wins:
 //   1. a sidecar a Claude Code statusline writes: data/endfield/sessions/<session_id>.json
-//      {session_id, terminal, cwd, transcript_path, model:{id, display_name}, effort, context:{used, total, pct}, rate_limits, updated_at}
+//      {session_id, terminal, cwd, transcript_path, model:{id, display_name}, effort, context:{used, total, pct}, rate_limits, account, updated_at}
 //      The statusline runs again right after /model or /effort; the transcript shows them only at the next turn.
 //   2. the transcript itself, ~/.claude/projects/<cwd slug>/<session>.jsonl. Without a sidecar the
 //      terminal is matched to its folder's most recently written transcript: approximate, since
@@ -13,10 +13,11 @@
 //
 // Session = {sessionId, terminal, cwd, transcriptPath, approx, model:{id, display, short} | null,
 //   ctx:{used, total, pct} | null, tokens:{total, delta} | null, tools, turns, effort, mode,
-//   lastAction:{tool, arg} | null, lastAt, startedAt, question, live: boolean | null, tasks: Task[],
+//   toolCounts: {tool name: calls}, recent: [{at, tool, arg}] (its last 5 tool calls, oldest first),
+//   lastAt, startedAt, question, live: boolean | null, tasks: Task[],
 //   waiting (its turn ended with background work or a sub-agent still in flight), subagents: Sub[]}
 // Sub = {id, path, title, model, effort, ctx, status: working | waiting | done | idle (fleet.js runStatus),
-//   lastAt, startedAt, lastAction, tasks: Task[]}, in no order (fleet.js subagentView orders them)
+//   tools, turns, toolCounts, recent, lastAt, startedAt, tasks: Task[]}, in no order (fleet.js subagentView orders them)
 // Task = background work a transcript started: {id, kind: shell | agent | monitor, description, startedAt,
 //   expiresAt (a monitor's timeout, else null), endedAt,
 //   state: running | completed | failed | killed | stopped | timed-out | ended-with-session}
@@ -62,9 +63,12 @@ function shape(t, raw, parentStatus) {
     effort: s.effort ?? null,
     ctx: s.used ? contextOf(s.model, s.used) : null,
     status: runStatus({ ...s, live: raw.live, now }, parentStatus),
+    tools: s.tools ?? null,
+    turns: s.turns ?? null,
+    toolCounts: s.counts ?? {},
+    recent: s.recent ?? [],
     lastAt: s.mtime,
     startedAt: s.firstAt ?? null,
-    lastAction: s.last,
     tasks: s.tasks ?? [],
   }));
   // A sub-agent in flight holds its session up as a running task does, whatever the session was last told of it.
@@ -75,6 +79,8 @@ function shape(t, raw, parentStatus) {
     cwd: sidecar?.cwd ?? t.cwd,
     transcriptPath: sidecar?.transcript_path ?? raw?.transcript ?? null,
     approx: !sidecar && Boolean(raw?.approx),
+    // The login it runs on (tools/account.mjs): a name, "" for the default login, null with no sidecar to say.
+    account: sidecar ? sidecar.account ?? "" : null,
     model,
     ctx,
     tokens: raw ? { total: raw.tokens, delta: raw.delta } : null,
@@ -82,7 +88,8 @@ function shape(t, raw, parentStatus) {
     turns: raw?.turns ?? null,
     effort: sidecar?.effort ?? raw?.effort ?? null,
     mode: raw?.mode ?? null,
-    lastAction: raw?.last ?? null,
+    toolCounts: raw?.counts ?? {},
+    recent: raw?.recent ?? [],
     lastAt: raw?.lastAt ?? null,
     startedAt: raw?.firstAt ?? null,
     question: raw?.pending ? raw.pending.question ?? `Allow ${raw.pending.tool}${raw.pending.arg ? ` (${raw.pending.arg})` : ""}?` : null,
@@ -101,8 +108,9 @@ export class Sessions {
   constructor(name) {
     this.name = name;
     this.map = new Map();
-    // The account's Claude usage limits, the newest any sidecar carries (probe.mjs).
+    // Claude usage limits, the newest any sidecar carries, and the newest per account (probe.mjs).
     this.limits = null;
+    this.accountLimits = {};
     this.dirty = true;
     this.busy = false;
     this.key = "";
@@ -166,7 +174,7 @@ export class Sessions {
   }
 
   poll(cx, targets, key) {
-    if (this.busy || !targets.length) { if (!targets.length) { this.map.clear(); this.limits = null; this.follow(cx, []); } return; }
+    if (this.busy || !targets.length) { if (!targets.length) { this.map.clear(); this.limits = null; this.accountLimits = {}; this.follow(cx, []); } return; }
     this.busy = true;
     this.dirty = false;
     this.key = key;
@@ -187,6 +195,8 @@ export class Sessions {
         for (const t of targets) next.set(t.terminal, shape(t, out.sessions?.[t.terminal], t.status));
         this.map = next;
         this.limits = out.limits ?? null;
+        this.accountLimits = out.accountLimits ?? {};
+        this.email = out.email ?? null;
         this.missing = (out.missing ?? []).length > 0;
         if (!this.stopped && out.watch) this.follow(cx, out.watch);
       } catch {
@@ -207,14 +217,6 @@ async function sweepCardRequests() {
 }
 
 // ---- formatting for the card
-
-/** 252000 ms -> "04m 12s"; hours as "2h 06m". */
-export function longDuration(ms) {
-  if (ms == null || ms < 0) return DASH;
-  const s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60);
-  const p = (n) => String(n).padStart(2, "0");
-  return h ? `${h}h ${p(m % 60)}m` : `${p(m)}m ${p(s % 60)}s`;
-}
 
 export function ago(at) {
   if (!at) return DASH;

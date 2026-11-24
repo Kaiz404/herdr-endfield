@@ -11,6 +11,10 @@
 //             "endfield.archived", roster.js); otherwise the dialog says it is still running.
 //   archived  props {role: "archived", overlay}: the archived chats, newest first, each with
 //             Resume: a new tab running the program's resume command (archive.js), on the click only.
+//   account   props {role: "account", terminal, snap, overlay}: moves a Claude Code chat to another
+//             saved login. Switch opens one tab running tools/account.mjs switch (orders.js
+//             switchArgv), which waits for the turn, ends the old terminal and resumes there. Tokens
+//             are typed only into that tool's own menu (Manage accounts), never into the skin.
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
@@ -18,8 +22,8 @@ import { props, closeOverlay, openOverlay, readTextFile, writeTextFile, appHome,
 import { palette, root, micro, pill, barcode, growDisc, cue, MOTION, FONT, STRIP, strip, stripCode, stripCancel } from "./kit.js";
 import { roster } from "./roster.js";
 import { append } from "./comms.js";
-import { ACTIONS, MODE_WORD, gate, valuesProblem, actionSteps, stepLine, modeOnScreen, deliver, timeoutFor, shQuote } from "./orders.js";
-import { archiveRecord, parseArchive, withoutChat, withEnded, updateFile, recordThenEnd, exitState, hideOf, keptHides, withoutHide, resumeTab, resumeState } from "./archive.js";
+import { ACTIONS, MODE_WORD, gate, valuesProblem, actionSteps, stepLine, modeOnScreen, deliver, timeoutFor, shQuote, switchArgv, switchPlan } from "./orders.js";
+import { archiveRecord, parseArchive, withoutChat, withEnded, updateFile, recordThenEnd, exitState, hideOf, keptHides, withoutHide, resumeTab, resumeState, programBin, PICK_NOTE } from "./archive.js";
 import { ago } from "./sessions.js";
 
 const ARCHIVE = () => `${appHome()}/data/endfield/archive.json`;
@@ -32,6 +36,21 @@ const EXIT_TRIES = 20;
 
 export const openAction = (p) => openOverlay({ mod: "endfield", kind: "dialog", frame: "none", width: 600, height: 520, props: { role: "action", ...p } });
 export const openArchived = () => openOverlay({ mod: "endfield", kind: "dialog", frame: "none", width: 640, height: 540, props: { role: "archived" } });
+export const openAccount = (p) => openOverlay({ mod: "endfield", kind: "dialog", frame: "none", width: 600, height: 560, props: { role: "account", ...p } });
+
+export const ACCOUNT_TOOL = () => `${appHome()}/mods/endfield/tools/account.mjs`;
+
+/** The saved login names and the default one (account.mjs list: never a token); no names with none or without node. */
+export async function listAccounts() {
+  try {
+    const r = await exec("node", [ACCOUNT_TOOL(), "list"], { timeout: 15000 });
+    const list = r.code === 0 ? JSON.parse(r.stdout) : [];
+    return { names: list.map((a) => a.name), def: list.find((a) => a.default)?.name ?? null };
+  } catch { return { names: [], def: null }; }
+}
+
+/** The account tool's menu in a new tab: a token is typed there, hidden, and never passes through the skin. */
+export const manageAccounts = () => run("tab.new", { name: "Accounts", argv: ["node", ACCOUNT_TOOL()] });
 
 async function readArchive() {
   try { return (await readTextFile(ARCHIVE())) ?? null; } catch { return null; }
@@ -244,9 +263,9 @@ export class ActionDialog {
             .children((a.fields ?? []).map(field))
             .when(Boolean(check), (el) => el.child(check))
             .child(h_flex().gap(10).items_center().px(10).py(8).bg(C.ground).border_l(2).border_color(C[pre[0]]).rounded_r(3)
-              .child(micro("Needs", C.muted).flex_none()).child(div().text_size(12).text_color(C.muted).child(pre[1])))
+              .child(micro("Needs", C.muted).flex_none()).child(div().flex_1().min_w(0).text_size(12).text_color(C.muted).child(pre[1])))
             .child(h_flex().gap(10).items_center().px(10).py(8).bg(C.ground).border_l(2).border_color(C.hairStrong).rounded_r(3)
-              .child(micro("Does", C.muted).flex_none()).child(div().text_size(12).text_color(C.muted).child(a.note)))
+              .child(micro("Does", C.muted).flex_none()).child(div().flex_1().min_w(0).text_size(12).text_color(C.muted).child(a.note)))
             .when(Boolean(outcome), (el) => el.child(h_flex().px(10).py(7).gap(8).items_center().border_l(2).border_color(outcome[1] === C.error ? C.red : C.lime).bg(C.ground)
               .child(micro(outcome[0], outcome[1]).flex_none()).child(div().flex_1().min_w(0).font_family(FONT.mono).text_size(11).child(outcome[2])))),
           // The exact commands, one per line, wrapped rather than cut: Confirm runs these and nothing else.
@@ -339,6 +358,89 @@ export class Archived {
               .children(this.chats.map(row))),
           strip: strip().py(10)
             .child(micro("Resume opens a new tab and runs the command shown, only when you click it", STRIP.dim)),
+        }))));
+  }
+}
+
+export class AccountDialog {
+  init(p, cx) {
+    this.p = p;
+    this.accounts = null;
+    this.choice = null;
+    this.now = false;
+    // programs.json's run argv for this program; null until asked, then the program's own command if unknown.
+    this.run = null;
+    this.entered = false;
+    if (checking()) return;
+    cx.spawn(async (cx) => {
+      this.accounts = (await listAccounts()).names;
+      const key = roster().all.get(p.terminal)?.program?.key;
+      try { this.run = (await knownAgents()).find((g) => g.key === key)?.run ?? null; } catch {}
+      this.run ??= [programBin(key)];
+      cx.notify();
+    });
+  }
+
+  hover(id) { return (over, cx) => { if (over) this.hot = id; else if (this.hot === id) this.hot = null; cx.notify(); }; }
+
+  // The tab Switch opens, in the agent's space and folder, under its tab's name: one call for the drawing and the click.
+  tab(m) {
+    const s = this.p.snap;
+    const name = m?.agent?.tab_name && !/^\d+$/.test(m.agent.tab_name) ? m.agent.tab_name : undefined;
+    const argv = switchArgv({ tool: ACCOUNT_TOOL(), terminal: this.p.terminal, account: this.choice, sessionId: s?.sessionId ?? null, now: this.now && m?.herdrStatus === "working", argv: this.run ?? [] });
+    return { name, space: m?.space ?? undefined, folder: s?.cwd ?? undefined, argv };
+  }
+
+  render(cx) {
+    const C = palette();
+    const p = props() ?? this.p;
+    const m = roster().all.get(p.terminal);
+    const s = p.snap;
+    const status = m?.herdrStatus ?? null;
+    const plan = switchPlan(status, this.now);
+    const current = shared("endfield.sessions")?.[p.terminal]?.account;
+    const currentWord = current == null ? "unknown (no statusline sidecar yet)" : current || "default login";
+    const notes = [
+      (shared("endfield.waiting") ?? []).includes(p.terminal) ? "Background tasks still run. They end with the old process." : null,
+      !s?.sessionId ? "No session id is known: it resumes the newest chat in this folder (--continue)." : s.approx ? PICK_NOTE.guess : null,
+    ].filter(Boolean);
+    const ready = plan.can && Boolean(this.choice) && Boolean(this.run);
+    const tab = this.tab(m);
+    const chipRow = (id, list, on, pick) => h_flex().gap(6).flex_wrap().children(list.map(([k, label, off]) => {
+      const sel = on === k;
+      return h_flex().id(`${id}-${k}`).h(26).px(10).items_center().rounded_full().border_1()
+        .border_color(sel ? C.selBg : C.hairStrong).when(sel, (el) => el.bg(C.selBg)).when(off, (el) => el.opacity(0.4))
+        .when(!off, (el) => el.cursor_pointer().on_click((_e, cx) => { pick(k); cx.notify(); }))
+        .child(div().font_family(FONT.mono).text_size(12).text_color(sel ? C.selText : C.text).child(label));
+    }));
+    const line = (label, tone, text) => h_flex().gap(10).items_center().px(10).py(8).bg(C.ground).border_l(2).border_color(C[tone]).rounded_r(3)
+      .child(micro(label, C.muted).flex_none()).child(div().flex_1().min_w(0).text_size(12).text_color(C.muted).child(text));
+    const accounts = this.accounts ?? [];
+    return root(C, div().id("acc-root").size_full().flex().items_center().justify_center()
+      .on_size_change((_s, cx) => { if (!this.entered) cx.timer.after(MOTION.settle.delay, (cx) => { this.entered = true; cx.notify(); }); })
+      .child(div().w(560).opacity(this.entered ? 1 : 0).top(this.entered ? 0 : 8).relative().transition("opacity", MOTION.dispatch.enter).transition("top", MOTION.dispatch.enter)
+        .child(frame(C, "account", {
+          kicker: `${m?.ident?.callsign ?? ""}  ${m?.program?.name ?? ""}  ${m?.title ?? ""}`,
+          title: "// Account",
+          close: closeButton(C, this, p.overlay),
+          body: v_flex().px(22).pb(16).gap(14)
+            .child(v_flex().gap(6).child(micro(`Move to  (now on ${currentWord})`, C.muted))
+              .child(this.accounts == null ? micro("Reading saved accounts", C.muted)
+                : accounts.length ? chipRow("acc-to", accounts.map((a) => [a, a, a === current]), this.choice, (k) => { this.choice = k; })
+                : div().text_size(12).text_color(C.muted).child("No saved accounts. Manage accounts adds one from a token (claude setup-token).")))
+            .when(status === "working", (el) => el.child(v_flex().gap(6).child(micro("When", C.muted))
+              .child(chipRow("acc-when", [["after", "After this turn", false], ["now", "Stop now", false]], this.now ? "now" : "after", (k) => { this.now = k === "now"; }))))
+            .child(line("Needs", plan.tone, plan.says))
+            .children(notes.map((n) => line("Note", "signal", n)))
+            .child(line("Does", "hairStrong", "Opens a tab that waits for the turn, ends this agent and its tab, and resumes the same chat there on the new account. Close that tab before then to cancel.")),
+          strip: strip()
+            .child(stripCode(v_flex().id("acc-cmd").flex_1().min_w(0).max_h(72).overflow_y_scrollbar())
+              .child(div().child(this.choice ? stepLine({ herdr: "tab.new", args: tab }, appWindow()?.platform) : "Pick an account")))
+            .child(pill(C, "acc-manage", "Manage accounts", { kind: "dark", h: 30, hot: this.hot === "acc-manage", on_hover: this.hover("acc-manage"),
+              action: () => { manageAccounts(); closeOverlay(p.overlay); } }))
+            .child(stripCancel("acc-cancel", () => closeOverlay(p.overlay)))
+            .child(div().when(!ready, (el) => el.opacity(0.45)).child(pill(C, "acc-go", "Switch", { kind: "primary", h: 30, hot: this.hot === "acc-go", on_hover: this.hover("acc-go"),
+              action: () => { if (!ready) return; run("tab.new", tab); cue("tick"); closeOverlay(p.overlay); } }))),
         }))));
   }
 }

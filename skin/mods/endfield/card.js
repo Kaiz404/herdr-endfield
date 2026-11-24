@@ -1,6 +1,7 @@
-// card: the session panel beside the sidebar for a squad row, laid out like an AIC machine panel:
-// an agent's, or a Claude Code sub-agent's (props.sub), which is the same panel without the parts
-// only a terminal has (hovercard.js CARD_KINDS). The squad list opens and closes it: a window while
+// card: the session panel beside the sidebar for a squad row, laid out as a dossier: a header
+// strip (who, the task, status and model), then Context, Tools, Recent and Tasks. An agent's, or a
+// Claude Code sub-agent's (props.sub), which is the same panel without the parts only a terminal
+// has (hovercard.js CARD_KINDS). The squad list opens and closes it: a window while
 // the row is hovered (it never takes the keyboard), a popup when a right-click holds it, so Herdr
 // closes it on Esc and on a press beside it. The panel only reports whether the pointer is on it
 // (shared "endfield.card.hot") and that it closed. Its session is the list's (shared
@@ -14,19 +15,20 @@
 import { div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, run, shared, setShared, closeOverlay, checking } from "herdr";
-import { palette, root, micro, spaced, wide, dots, barcode, ticks, rings, pill, glyph, icon, MOTION, FONT } from "./kit.js";
-import { statusOf, DASH, fmtTokens, taskView, tasksOf, inFlight } from "./fleet.js";
+import { palette, root, micro, spaced, wide, dots, rings, pill, glyph, icon, MOTION, FONT } from "./kit.js";
+import { DASH, fmtTokens, taskView, tasksOf } from "./fleet.js";
 import { roster } from "./roster.js";
-import { longDuration, ago } from "./sessions.js";
 import { readLog, KIND, openComms } from "./comms.js";
 import { openDispatch } from "./dispatch.js";
 import { showWork } from "./report.js";
 import { actionsFor, gate, MODE_WORD } from "./orders.js";
 import { openAction } from "./actions.js";
-import { CARD, PANEL, CARD_KINDS, questionOf } from "./hovercard.js";
+import { CARD, PANEL, CARD_KINDS, questionOf, headerOf, toolsView, recentView } from "./hovercard.js";
 
 const SEGS = 20;
 const HOT_FROM = 0.75;
+// The longest Tools bar, in px: the row's width less the tool's name and its count.
+const BAR_W = 200;
 
 // The list's live session while it is this card's (its sub-agent `p.sub` for a sub-agent's card),
 // else the one the card opened with.
@@ -42,9 +44,11 @@ export class Card {
     this.entered = Boolean(p.shown);
     this.comms = [];
     if (checking()) return;
-    // A running task's elapsed time is a clock: redrawn when the text it shows changes.
+    // The run's elapsed time, Recent's ages and a running task's time are clocks: redrawn when the
+    // text they show changes.
     cx.timer.every(1000, (cx) => {
-      const clocks = taskView(tasksOf(sessionOf(props() ?? this.p)), Date.now()).running.map((t) => t.time).join();
+      const v = this.view(props() ?? this.p, Date.now());
+      const clocks = [...v.head.facts, ...v.recent.map((r) => r.age), ...v.tasks.running.map((t) => t.time)].join();
       if (clocks !== this.clocks) { this.clocks = clocks; cx.notify(); }
     });
     if (p.sub) return;
@@ -77,6 +81,46 @@ export class Card {
     return (over, cx) => { if (over) this.hot = id; else if (this.hot === id) this.hot = null; cx.notify(); };
   }
 
+  /** What the card shows of its session at `now`. A sub-agent's `m` is its parent: the card is headed by the parent's tab. */
+  view(p, now) {
+    const m = roster().all.get(p.terminal);
+    const s = sessionOf(p);
+    const status = (p.sub ? s?.status : m?.status) ?? "idle";
+    const head = headerOf({ sub: Boolean(p.sub), callsign: (p.sub ? p.ident : m?.ident)?.callsign ?? p.callsign, program: m?.program?.name,
+      where: p.where, title: p.title ?? m?.title, approx: s?.approx, status, s, now });
+    return { m, s, status, head, recent: recentView(s?.recent, now), tasks: taskView(tasksOf(s), now) };
+  }
+
+  /** A section's label row: its pieces ([text, colour]), then a hairline to the edge. */
+  label(C, pieces) {
+    return h_flex().gap(8).items_center().min_w(0)
+      .child(spaced(pieces, C.text).flex_none())
+      .child(div().flex_1().h(1).bg(C.hair));
+  }
+
+  /** The Tools section: total calls and turns, then the most called tools as bars. */
+  tools(C, s, turns) {
+    const rows = toolsView(s?.toolCounts);
+    return v_flex().px(18).pt(10).pb(12).gap(6).border_b(1).border_color(C.hair)
+      .child(this.label(C, [["Tools", C.muted], [`${s?.tools ?? 0} calls`, C.text], ["Turns", C.muted], [turns != null ? String(turns) : DASH, C.text]]))
+      .when(rows.length === 0, (el) => el.child(div().h(14).text_size(11).text_color(C.muted).child("No tool calls yet.")))
+      .children(rows.map((t) => h_flex().id(`card-tool-${t.tool}`).h(14).gap(8).items_center().min_w(0)
+        .child(div().w(76).flex_none().truncate().font_family(FONT.mono).text_size(11).child(t.tool))
+        .child(div().w(Math.max(2, Math.round(t.share * BAR_W))).h(6).flex_none().bg(C.text))
+        .child(div().flex_none().font_family(FONT.mono).text_size(10).text_color(C.muted).child(String(t.count)))));
+  }
+
+  /** The Recent section: the last tool calls, newest first, each with its age, tool and what it was asked. */
+  recent(C, rows) {
+    return v_flex().px(18).pt(10).pb(12).gap(6).border_b(1).border_color(C.hair)
+      .child(this.label(C, [["Recent", C.muted]]))
+      .when(rows.length === 0, (el) => el.child(div().h(14).text_size(11).text_color(C.muted).child("None yet.")))
+      .children(rows.map((r, k) => h_flex().id(`card-recent-${k}`).h(14).gap(8).items_center().min_w(0)
+        .child(div().w(30).flex_none().font_family(FONT.mono).text_size(10).text_color(C.muted).child(r.age))
+        .child(div().w(76).flex_none().truncate().font_family(FONT.mono).text_size(11).child(r.tool))
+        .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(C.muted).child(r.arg))));
+  }
+
   /** The Tasks section. view: fleet.js taskView. A finished row is muted, its end word coloured only by TASK_END. */
   tasks(C, { running, finished }) {
     const row = (t) => h_flex().id(`card-task-${t.id}`).h(14).gap(8).items_center().min_w(0)
@@ -102,36 +146,19 @@ export class Card {
     const p = props() ?? this.p;
     if (this.entered && shared("endfield.card.open") !== p.overlay) closeOverlay(p.overlay);
     const K = CARD_KINDS[p.sub ? "sub" : "agent"];
-    // A sub-agent's `m` is its parent: the card is headed by the parent's tab, and says who relays to it.
-    const m = roster().all.get(p.terminal);
-    const s = sessionOf(p);
-    const status = (p.sub ? s?.status : m?.status) ?? "idle";
-    const st = statusOf(status);
+    const { m, s, status, head, recent, tasks } = this.view(p, Date.now());
     const ctx = s?.ctx;
     const filled = ctx ? Math.round((Math.min(100, ctx.pct) / 100) * SEGS) : 0;
     const hot = (ctx?.pct ?? 0) >= HOT_FROM * 100;
     const question = questionOf(s, status);
-    const tasks = taskView(tasksOf(s), Date.now());
     const tasksAny = tasks.running.length + tasks.finished.length > 0;
     const ident = p.sub ? p.ident : m?.ident;
-    const turns = s?.turns ?? m?.turn;
-    // A run that is over stopped its clock at its last write.
-    const ran = s?.startedAt ? longDuration((p.sub && !inFlight(status) ? s.lastAt ?? Date.now() : Date.now()) - s.startedAt) : DASH;
-    // The header names the work, not the terminal: the tab's own name, else its space's.
-    const tabName = m?.agent?.tab_name && !/^\d+$/.test(m.agent.tab_name) ? m.agent.tab_name : null;
+    const mark = glyph(C, status, { size: 11 });
     const actions = actionsFor(m?.program?.key);
     // Typed actions go only to an agent Herdr calls idle, waiting on background work or not.
     const herdr = m?.herdrStatus ?? status;
     const why = gate(herdr);
-    const chat = [s?.model?.short, s?.effort, MODE_WORD[s?.mode] ?? s?.mode].filter(Boolean).join("  ");
     const line = (el) => el.border_b(1).border_color(C.hair);
-    const cell = (el, last) => el.flex_1().min_w(0).px(14).py(12).gap(8).when(!last, (e) => e.border_r(1).border_color(C.hair));
-    const tile = (label, n, bar) => div().relative().size(38).flex_none().rounded(3).border_1().border_color(C.hair).bg(C.raised)
-      .flex().items_center().justify_center().font_family(FONT.mono).text_size(9).child(label)
-      .child(div().absolute().left(0).right(0).bottom(0).h(3).bg(bar))
-      .when(n != null, (el) => el.child(div().absolute().right(3).bottom(5).text_size(8).text_color(C.muted).child(String(n))));
-    const cwd = s?.cwd ?? null;
-    const folder = cwd ? cwd.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || cwd : null;
     const dark = (id, label, action) => h_flex().id(id).h(26).px(12).items_center().rounded_full().border_1().border_color("#555555").text_size(12).font_medium().cursor_pointer()
       .hover((h) => h.bg("#2C2C2C")).on_click(action).child(label);
     const button = {
@@ -160,7 +187,8 @@ export class Card {
         .bg(C.raised).shadow_lg().when(Boolean(p.fit), (el) => el.max_h(p.fit))
         .left(this.entered ? CARD.slide : 0).opacity(this.entered ? 1 : 0)
         .transition("left", MOTION.card.slide).transition("opacity", MOTION.card.reveal)
-        // Head: the operator's bust in a dotted frame, the session's ink chip, the task, who and where.
+        // Header strip: the operator's bust in a dotted frame; who and where, the task, then the
+        // status word and glyph with the model, effort and elapsed time.
         .child(line(h_flex().flex_none().gap(14).items_center().pt(16).pb(14).pl(18).pr(16))
           .child(div().relative().w(66).h(78).flex_none()
             .child(div().absolute().left(0).top(0).w(66).h(78).rounded(3).overflow_hidden().bg(C.ground).border_1().border_color(C.hair)
@@ -172,62 +200,36 @@ export class Card {
                   .child(wide(ident?.badge ?? "?", "#F2F2F2", 12))))
             .child(div().absolute().right(-6).bottom(-6).size(20).rounded_full().bg(C.ink).border_2().border_color("#FFFFFF")
               .flex().items_center().justify_center().font_family(FONT.mono).text_size(8).text_color("#F2F2F2").child(ident?.badge ?? "")))
-          .child(v_flex().flex_1().min_w(0).gap(7)
-            .child(h_flex().gap(6).items_center()
-              .child(div().min_w(0).px(6).py(3).bg(C.ink).child(micro(`// ${tabName ?? m?.spaceName ?? "Session"}${s?.approx ? " ≈" : ""}`, "#F2F2F2", 9).truncate()))
-              .child(div().size(4).flex_none().bg(C.text))
-              .child(barcode(C.cross)))
-            .child(div().text_size(15).font_semibold().truncate().child(p.title ?? m?.title ?? DASH))
-            .child(spaced([ident?.callsign ?? p.callsign, p.sub ? "Sub-agent" : m?.program?.name, ...(p.where ?? [])], C.text, { rest: C.muted }))))
+          .child(v_flex().flex_1().min_w(0).gap(8)
+            .child(spaced(head.who, C.text, { rest: C.muted }))
+            .child(div().text_size(15).font_semibold().truncate().child(head.title))
+            .child(h_flex().gap(8).items_center().min_w(0)
+              .when(Boolean(mark), (el) => el.child(mark))
+              .child(spaced([head.status, ...head.facts], C.text, { rest: C.muted })))))
         // Past its cap (props.fit) the middle scrolls, so the button row is never cut off.
         .child(v_flex().id("card-mid").overflow_y_scrollbar().when(Boolean(p.fit), (el) => el.flex_shrink(1).min_h(PANEL.mid))
-        // The machine panel: what goes in, the state with its march, the work done.
-        .child(line(h_flex())
-          .child(cell(v_flex().relative().overflow_hidden(), false)
-            .child(dots(C.dot))
-            .child(micro("Input", C.muted).relative())
-            .child(h_flex().relative().gap(5)
-              .child(tile(folder ? folder.slice(0, 5) : "—", null, C.flow))
-              .child(tile(s?.model?.short?.split(" ")[0]?.slice(0, 5) ?? m?.program?.name?.slice(0, 5) ?? "—", null, C.lime)))
-            .child(div().relative().truncate().text_size(11).text_color(C.muted).child(folder ?? "prompt")))
-          .child(cell(v_flex().items_center().justify_center(), false)
-            .child(h_flex().w_full().gap(10).items_center()
-              .child(div().flex_1().h(1).bg(C.hairStrong))
-              .child(glyph(C, status, { size: 12 }) ?? div())
-              .child(div().flex_1().h(1).bg(C.hairStrong)))
-            .child(div().text_size(12).font_semibold().child(st?.word ?? status))
-            .child(ticks(C.tick, 81))
-            .child(micro(p.sub ? ran : `${ran}  turn ${turns != null ? String(turns).padStart(2, "0") : DASH}`, C.muted)))
-          // A sub-agent's transcript counts no tool calls, and it has no Chat row to name its model in.
-          .child(p.sub
-            ? cell(v_flex(), true)
-              .child(micro("Model", C.muted))
-              .child(div().h(29).flex().items_center().truncate().text_size(13).font_semibold().child(s?.model?.short ?? DASH))
-              .child(div().truncate().text_size(11).text_color(C.muted).child(s?.effort ? `${s.effort} effort` : "effort not set"))
-            : cell(v_flex(), true)
-              .child(micro("Tools", C.muted))
-              .child(wide(s?.tools != null ? String(s.tools).padStart(2, "0") : DASH, C.text, 24))
-              .child(div().truncate().text_size(11).text_color(C.muted).child("tool calls"))))
-        // Context: the input tokens of the last request (what the session carries now), then 20
-        // blocks lighting 18ms apart; past 75% they run red.
+        // Context: the input tokens of the last request (what the session carries now) of its
+        // window, then 20 blocks lighting 18ms apart; past 75% they run red.
         .child(line(v_flex().px(18).py(12).gap(8))
-          .child(h_flex().justify_between().items_end()
-            .child(micro("Context  input tokens", C.muted))
-            .child(h_flex().gap(4).items_end()
-              .child(wide(ctx ? fmtTokens(ctx.used) : DASH, C.text, 20))
-              .child(micro(ctx ? `of ${fmtTokens(ctx.total)}  ${ctx.pct}%` : "", C.muted))))
+          .child(h_flex().gap(8).items_end()
+            .child(micro("Context", C.muted))
+            .child(div().flex_1())
+            .child(wide(ctx ? `${fmtTokens(ctx.used)} / ${fmtTokens(ctx.total)}` : DASH, C.text, 16))
+            .child(micro(ctx ? `${ctx.pct}%` : "", C.muted)))
           .child(h_flex().gap(2).children(Array.from({ length: SEGS }, (_, k) => {
             const on = k < filled;
-            return div().id(`seg-${k}`).w(9).h(8).flex_none().bg(on ? (hot && k >= SEGS * HOT_FROM ? C.red : C.text) : C.hair)
+            return div().id(`seg-${k}`).flex_1().h(10).bg(on ? (hot && k >= SEGS * HOT_FROM ? C.red : C.text) : C.hair)
               .opacity(on && !this.entered ? 0.25 : 1).transition("opacity", { ...MOTION.row.wipe, delay: k * MOTION.card.segment.delay });
           }))))
+        .child(this.tools(C, s, s?.turns ?? m?.turn))
+        .child(this.recent(C, recent))
         // Background tasks: the running ones, then the finished ones folded under "+N finished".
         .when(tasksAny, (el) => el.child(this.tasks(C, tasks)))
-        // Chat: its model, effort and mode, and what the card can ask of it. Each opens a confirm.
+        // Chat: its mode, and what the card can ask of it. Each opens a confirm.
         .when(K.chat, (el) => el.child(line(v_flex().px(18).pt(10).pb(12).gap(8))
           .child(h_flex().gap(8).items_center().min_w(0)
             .child(micro("Chat", C.muted).flex_none())
-            .child(micro(chat || m?.program?.name || DASH, C.text).min_w(0).truncate())
+            .child(micro(MODE_WORD[s?.mode] ?? s?.mode ?? m?.program?.name ?? DASH, C.text).min_w(0).truncate())
             .child(div().flex_1())
             .child(micro(!actions.length ? "No actions" : why ? (herdr === "done" ? "Look at it first" : "Waits for idle") : "Idle", C.muted).flex_none()))
           .child(h_flex().gap(4).children(actions.map((a) => {
@@ -254,19 +256,10 @@ export class Card {
           .child(div().w(4).flex_none().border_t(1.5).border_b(1.5).border_l(1.5).border_color(C.text))
           .child(div().flex_1().py(6).font_family("JetBrains Mono").text_size(11).line_height(1.45).child(question))
           .child(div().w(4).flex_none().border_t(1.5).border_b(1.5).border_r(1.5).border_color(C.text)))))
-        // The ink footer: the current formula (what goes in ▶▶ what it is doing), then the actions.
-        .child(v_flex().flex_none().mt(12).pl(18).pr(12).py(10).gap(10).bg(C.ink).text_color("#F2F2F2")
-          .child(v_flex().gap(5).min_w(0)
-            .child(micro("Current formula", "#A9A9A3"))
-            .child(h_flex().gap(6).min_w(0).font_family("JetBrains Mono").text_size(11)
-              .child(div().flex_none().child(folder ?? "prompt"))
-              .child(div().flex_none().text_color("#31ACF0").child("▶▶"))
-              .child(div().min_w(0).truncate().child(s?.lastAction ? `${s.lastAction.tool}${s.lastAction.arg ? ` ${s.lastAction.arg}` : ""}` : st?.word ?? DASH))
-              .when(Boolean(s?.lastAt), (el) => el.child(div().flex_none().text_color("#A9A9A3").child(ago(s.lastAt))))))
-          // The last button is the card's main one, set apart at the right.
-          .child(h_flex().gap(6).items_center()
-            .children(K.acts.slice(0, -1).map((act) => button[act]()))
-            .child(div().flex_1())
-            .child(button[K.acts.at(-1)]())))));
+        // The ink footer: the actions, the card's main one set apart at the right.
+        .child(h_flex().flex_none().mt(12).pl(18).pr(12).py(10).gap(6).items_center().bg(C.ink).text_color("#F2F2F2")
+          .children(K.acts.slice(0, -1).map((act) => button[act]()))
+          .child(div().flex_1())
+          .child(button[K.acts.at(-1)]()))));
   }
 }

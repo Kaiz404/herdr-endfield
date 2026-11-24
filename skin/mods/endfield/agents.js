@@ -612,16 +612,20 @@ export class Agents {
         .child(micro(`+${blocked.length - PIN.max} more need input`, C.muted)).child(div().flex_1()).child(micro("Report ▶", C.text))));
   }
 
-  // This list owns the one session poller: the HUD footer gets the focused agent's context and the
+  // This list owns the one session poller: the HUD footer gets the focused agent's context and its
   // account's usage limits, the report every Claude Code agent's context, tokens and turns, and a
   // card action's dialog the model, effort and mode it reads back. Published only when they change.
   share(R) {
     const f = R.flat.find((m) => m.focused);
     const s = f ? this.sessions.get(f.address) : null;
-    const focus = f ? { ctx: s?.ctx ?? null, model: s?.model?.short ?? f.program?.name ?? null } : null;
+    // terminal and session: what the footer's Account dialog needs to resume this chat on another login.
+    const focus = f ? { ctx: s?.ctx ?? null, model: s?.model?.short ?? f.program?.name ?? null, effort: s?.effort ?? null, account: s?.account ?? null, email: this.sessions.email ?? null,
+      terminal: f.address, session: s ? { sessionId: s.sessionId ?? null, cwd: s.cwd ?? null, approx: Boolean(s.approx) } : null } : null;
+    // The focused agent's login's limits when its sidecar names it, else the newest of any login.
+    const limits = (s?.account != null ? this.sessions.accountLimits[s.account] : null) ?? this.sessions.limits;
     const all = Object.fromEntries(R.flat.flatMap((m) => {
       const x = this.sessions.get(m.address);
-      return x ? [[m.address, { ctx: x.ctx ?? null, tokens: x.tokens?.total ?? null, turns: x.turns ?? null, model: x.model?.short ?? null, effort: x.effort, mode: x.mode }]] : [];
+      return x ? [[m.address, { ctx: x.ctx ?? null, tokens: x.tokens?.total ?? null, turns: x.turns ?? null, model: x.model?.short ?? null, effort: x.effort, mode: x.mode, account: x.account }]] : [];
     }));
     // The open card's whole session: the card draws it and runs no poller of its own.
     const card = this.card.open ? this.sessions.get(this.card.open.address) : null;
@@ -630,7 +634,7 @@ export class Agents {
     const models = Object.fromEntries(R.flat.flatMap((m) => { const id = this.sessions.get(m.address)?.model?.id; return id ? [[m.address, id]] : []; }).sort(([a], [b]) => (a < b ? -1 : 1)));
     // Every surface reads an idle or finished agent whose session waits on background work as waiting (fleet.js memberStatus).
     const waiting = R.flat.filter((m) => this.sessions.get(m.address)?.waiting).map((m) => m.address).sort();
-    for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all], ["endfield.card.session", card], ["endfield.limits", this.sessions.limits], ["endfield.models", models], ["endfield.waiting", waiting]]) {
+    for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all], ["endfield.card.session", card], ["endfield.limits", limits], ["endfield.models", models], ["endfield.waiting", waiting]]) {
       const text = JSON.stringify(value);
       if (text !== this.published?.[key]) { (this.published ??= {})[key] = text; setShared(key, value); }
     }

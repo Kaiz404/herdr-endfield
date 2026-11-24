@@ -2,7 +2,8 @@
 # Claude Code statusline, Endfield style. ANSI 16 colours only, so the terminal theme decides the hues.
 # Also writes a per-session sidecar for Herdr's Endfield skin:
 #   ~/.config/herdr-app/data/endfield/sessions/<session_id>.json
-# rate_limits (the account's 5-hour and 7-day usage) rides along for the HUD footer.
+# rate_limits (the account's 5-hour and 7-day usage) rides along for the HUD footer, with the
+# account name the skin's account tool started it on (ENDFIELD_ACCOUNT), so each login keeps its own.
 # One gawk process does the parsing (no jq, no git): forks are what make Git Bash slow.
 
 exec 2>/dev/null
@@ -11,7 +12,7 @@ dir="$HOME/.config/herdr-app/data/endfield/sessions"
 [ -d "$dir" ] || mkdir -p "$dir"
 tmp="$dir/.tmp-$$"
 
-{ IFS= read -r sid; IFS= read -r line; } < <(awk -v term="$HC_TERMINAL_ID" -v tmp="$tmp" '
+{ IFS= read -r sid; IFS= read -r line; } < <(awk -v term="$HC_TERMINAL_ID" -v acct="$ENDFIELD_ACCOUNT" -v tmp="$tmp" '
 function obj(s, key,    i, n, d, c, q, start) {
   if (!match(s, "\"" key "\"[[:space:]]*:[[:space:]]*\\{")) return ""
   start = RSTART + RLENGTH - 1; n = length(s); d = 0; q = 0
@@ -110,6 +111,7 @@ BEGIN { RS = "\001"; E = "\033["; R = E "0m"; B = E "1m"; D = E "90m"; Y = E "33
     printf "{\"session_id\":\"%s\",\"terminal\":%s,\"cwd\":%s,\"transcript_path\":%s,", sid, jstr(term), jstr(cwd_raw), jstr(str(j, "transcript_path")) > tmp
     printf "\"model\":{\"id\":%s,\"display_name\":%s},\"effort\":%s,", jstr(model_id), jstr(str(m, "display_name")), jstr(effort) > tmp
     printf "\"context\":{\"used\":%s,\"total\":%s,\"pct\":%s},", jnum(used), jnum(total), jnum(pct) > tmp
+    printf "\"account\":%s,", (acct ~ /^[A-Za-z0-9_-]+$/ ? jstr(acct) : "null") > tmp
     printf "\"rate_limits\":%s,", (rl == "" ? "null" : "{\"five_hour\":" jwin(obj(rl, "five_hour")) ",\"seven_day\":" jwin(obj(rl, "seven_day")) "}") > tmp
     printf "\"cost_usd\":%s,\"updated_at\":\"%s\"}\n", jnum(cost), strftime("%Y-%m-%dT%H:%M:%SZ", systime(), 1) > tmp
     close(tmp)

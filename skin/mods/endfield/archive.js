@@ -27,6 +27,9 @@ export const PICK_NOTE = {
 
 export const canArchive = (programKey) => programKey in RESUME;
 
+/** The command that starts a program when programs.json can't be asked. */
+export const programBin = (programKey) => RESUME[programKey]?.bin ?? programKey;
+
 /** The record, taken from what the card knew before anything was typed. `approx`: the session id is a guess. */
 export function archiveRecord({ sessionId = null, approx = false, program, cwd = null, title = null, space = null, terminal, created = 0, now }) {
   return { sessionId, program, cwd, title, space, terminal, created, archivedAt: now, ended: null, ...RESUME[program].args(sessionId, approx) };
@@ -82,7 +85,7 @@ export async function recordThenEnd({ chat, update, send }) {
 }
 
 /** The command a Resume opens a tab with: the program as programs.json starts it, then the resume arguments. */
-export const resumeArgv = (chat, run) => [...(run?.length ? run : [RESUME[chat.program]?.bin ?? chat.program]), ...chat.resume];
+export const resumeArgv = (chat, run) => [...(run?.length ? run : [programBin(chat.program)]), ...chat.resume];
 
 /** Resume's tab.new arguments, in the chat's space while it exists. The row draws these and the click runs them. */
 export const resumeTab = (chat, run, spaceIds) => ({
