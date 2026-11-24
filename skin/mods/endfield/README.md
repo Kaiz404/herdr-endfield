@@ -144,7 +144,7 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   once without the ghost's spring home.
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
   `card.js` (the session panel), `actions.js` (a card action's confirm dialog
-  and the Archived list), `dispatch.js` (the Dispatch dialog), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),
+  and the Archived list), `dispatch.js` (the Dispatch dialog), `tabs.js` (its marker's place is `tabmark.js`, no Herdr in it, `tests/tabmark.test.mjs`), `pane.js` (the name plate), `status.js` (the HUD footer),
   `toast.js` (notifications; it decides between the cut-in, the Finished slip and
   the plain slab), `cutin.js` (the needs-input skill caption), `comms.js` (the
   message log Dispatch writes and the Comms pane), `report.js` (the oversight screen: a block in the
@@ -478,10 +478,10 @@ Plates snap; only the yellow marker travels. A list's selection is a plate
 (`plate()`, child 0 of its scroll area, under the rows) that jumps to the
 selected row with no transition, and a 2px yellow marker (`marker()`, the last
 child, over the rows) whose `top` moves there. That needs every row's height to
-be fixed: the `H` tables in `spaces.js` and `agents.js`. The tab strip does the
-same: its yellow plate jumps, and a 3px ink marker along its foot slides over the
-widths each tab reports. Scroll indexes (`scroll_to_item`) are one higher than
-the row index because of the plate.
+be fixed: the `H` tables in `spaces.js` and `agents.js` (where scroll indexes are
+one higher than the row index because of the plate). The tab strip is different:
+the selected tab paints its own yellow, and a 3px ink marker along its foot
+slides over the widths each tab reports, divided by the zoom (`tabmark.js`).
 
 Regions build in placeholder-first after the boot (`Entrance`): drawn at
 opacity 0, then each fades in (`build.in`), `build.stagger` apart.

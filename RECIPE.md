@@ -150,8 +150,10 @@ rendered at 4x. It is a schematic, not a screenshot.
     add machine, fold sidebar, and the palette key in mono.
 - **Tab strip, 36px**, drags the window: tabs run full height, separated by
   hairlines; each shows a mono index `01`, the agent icon, the label and its
-  status. The active tab sits on a yellow plate that snaps to it while a 3px ink marker slides along its foot,
-  with ink text and a close ×. Then an ink "+ New" button (radius 3, a 3px
+  status. The active tab is a yellow plate (its own background, so the plate is the tab's box at any zoom
+  and width) with ink text and a close ×, while a 3px ink marker slides along the strip's foot to it. The
+  marker's left and width come from each tab's `on_size_change` width, which Herdr reports in window px:
+  divide by `settings().zoom` before writing them back (`tabmark.js`). Then an ink "+ New" button (radius 3, a 3px
   yellow tab on its left edge), the Files and Changes pills (ghost; ink when
   open; which show is shared `workspace.panels`), and on Windows and Linux
   44px minimise, maximise/restore and close buttons drawn as thin vector glyphs.
@@ -505,8 +507,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   yellow only while it would go and the input has focus; otherwise outlined,
   and dimmed with the reason in place of the command when the parent is
   working, needs input or is gone. Enter sends too. Nothing sends otherwise.
-- **Tabs:** click selects (the yellow block slides over left and width,
-  300ms), double-click renames, drag reorders, right-click opens the tab menu,
+- **Tabs:** click selects (the yellow plate jumps in one frame; the ink marker
+  slides over left and width, 300ms), double-click renames, drag reorders, right-click opens the tab menu,
   the wheel switches tabs. Hover grows a 24px, 2px underline from the left.
   Close buttons grow a red disc behind the ×.
 - **Ink buttons:** on hover the yellow side tab fades as a yellow ▶ fades in

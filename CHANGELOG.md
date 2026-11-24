@@ -22,6 +22,10 @@
 - **A calmer HUD footer, in three zones.** Left: how many agents work now, and a **Finished** button only while an agent finished a turn you have not seen (click: go to it). Middle: the focused agent's account, model, effort, branch and context. Right: the usage limits. The space and tab breadcrumb is gone (the sidebar and the tab bar show it), the separate Active and Generating counts are now one **Working** count, and the machine shows only when it is remote.
 - **Usage limits follow the focused agent's account.** The HUD footer used to show the limits of whichever session reported last. Now it shows the limits of the focused agent's account, and its account in the middle of the footer. Copy the Claude Code statusline again: it now records the account (`"account"`) in each session file.
 
+### Fixed
+
+- **The selected tab's yellow plate sits on the tab at every zoom.** At any zoom but 100%, the plate and the marker under it were drawn off the selected tab, further off for each tab before it. With long titles zoomed out, the plate covered part of the tab on its left, whose light title could not be read on yellow, and left part of the selected tab's dark title on the dark strip. The selected tab now paints its own plate, and the marker measures the tabs in the zoom you use.
+
 ## 0.3.0
 
 The run-the-fleet release. Squads now tell you how each run is going: its model and effort, how long it has run, its context, and whether it is waiting on background work. Agents are cast from all 36 operators by model tier. You can manage a chat from the skin: rename it, change its model, effort or mode, archive it and resume it later, and arrange squads by dragging. The HUD footer shows your Claude usage limits. Follow [docs/SETUP.md](docs/SETUP.md) to update. Two steps are new: copy the Claude Code statusline again, and fetch the bigger operator pack.

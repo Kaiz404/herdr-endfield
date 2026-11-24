@@ -9,6 +9,7 @@ import { palette, root, find, stop, glyph, freshDot, micro, icon, pad2, telling,
 import { statusOf } from "./fleet.js";
 import { REPORT, toggleReport } from "./report.js";
 import { commsPane, openComms } from "./comms.js";
+import { markAt } from "./tabmark.js";
 
 // A tab Herdr named follows its agent's live title, as the agents list does; a name the person gave stays.
 function label(tab, lead) {
@@ -95,17 +96,18 @@ export default class Tabs {
     const lead = ps.find((p) => p.tab === c.id && p.program?.agent) ?? ps.find((p) => p.tab === c.id);
     const name = label(c, lead);
     const on = c.active;
-    // On the signal block, hues would vanish: its glyphs go ink.
+    // The selected tab is its own yellow plate, so the plate is the tab's box at any zoom and its
+    // ink text always has yellow behind it. On yellow, hues would vanish: its glyphs go ink.
     const K = on ? { ...C, flow: C.ink, signal: C.ink, ink: C.signal } : C;
     const program = lead?.program;
     const hover = (key) => this.hover(key);
     return h_flex().id(`tab-${c.id}`).relative().h_full().pl(14).pr(on ? 8 : 14).gap(8).items_center().flex_none()
-      .border_r(1).border_color(on ? C.signal : C.hair)
+      .border_r(1).border_color(on ? C.signal : C.hair).when(on, (el) => el.bg(C.signal))
       .text_color(on ? C.ink : C.text)
       .on_hover(hover(`tab-${c.id}`))
       .on_size_change((size, cx) => {
         this.widths[c.id] = size.width;
-        if (i <= active) this.scroll.scroll_to_item(active + 1);
+        if (i <= active) this.scroll.scroll_to_item(active);
         cx.notify();
       })
       .child(div().id(`tab-under-${c.id}`).absolute().left(14).bottom(5).h(2).bg(C.text).w(this.hot === `tab-${c.id}` && !on ? 24 : 0)
@@ -147,7 +149,7 @@ export default class Tabs {
     if (selected !== this.selected || active !== this.selectedIndex) {
       this.selected = selected;
       this.selectedIndex = active;
-      if (active >= 0) this.scroll.scroll_to_item(active + 1);
+      if (active >= 0) this.scroll.scroll_to_item(active);
     }
     const rootNode = layout(), sidebar = find(rootNode, "sidebar"), w = appWindow();
     const lightsPadding = w?.platform === "macos" && w.titlebar === "none" && !w.fullscreen && rootNode?.traffic_lights
@@ -158,10 +160,8 @@ export default class Tabs {
     this.syncPanel(space, panel, body, enabled);
     // Game pills: an open panel's pill is ink, a closed one an outline.
     const toggle = (id, label, on, action) => pill(C, id, label, { kind: on ? "ink" : "ghost", knob: null, action: () => { if (!on) cue("tick"); action(); } });
-    // The active tab's yellow block slides between tabs over their measured widths.
-    const lefts = shown.reduce((xs, c) => [...xs, xs.at(-1) + (this.widths[c.id] ?? 0)], [0]);
-    const at = lefts[Math.max(0, active)], width = active >= 0 ? this.widths[shown[active].id] ?? 0 : 0;
-    const block = div().absolute().top(0).bottom(0).bg(C.signal).left(at).w(width);
+    // The ink marker slides between tabs over their measured widths.
+    const { left: at, width } = markAt({ ids: shown.map((c) => c.id), widths: this.widths, active, zoom: settings().zoom });
     const mark = div().id("tab-mark").absolute().bottom(0).h(3).bg(C.ink).left(at).w(width)
       .transition("left", MOTION.select.edge).transition("width", MOTION.select.edge);
     const winButton = (id, name, tip, action, danger) => div().id(id).relative().w(44).h_full().flex().items_center().justify_center()
@@ -174,9 +174,7 @@ export default class Tabs {
       .on_mouse_up("left", () => { this.pressed = null; })
       .on_scroll_wheel((e) => this.wheel(e))
       .child(h_flex().id("tab-scroll").flex_shrink(1).min_w(0).h_full().items_center().overflow_x_scrollbar().track_scroll(this.scroll)
-        .on_size_change((_size, cx) => { if (active >= 0) this.scroll.scroll_to_item(active + 1); cx.notify(); })
-        // Child 0 is the sliding block (scroll indexes above are +1 for it).
-        .child(block)
+        .on_size_change((_size, cx) => { if (active >= 0) this.scroll.scroll_to_item(active); cx.notify(); })
         .children(shown.map((c, i) => this.item(C, space, shown, active, c, i)))
         .child(mark))
       .child(h_flex().h_full().px(10).flex_none().items_center()
