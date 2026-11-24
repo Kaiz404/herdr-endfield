@@ -82,7 +82,7 @@ const MIN = 60000;
 
 test("a generating run: model and effort beside the callsign, elapsed to now, and an 8-block gauge with its numbers", () => {
   const meta = rowMeta({ startedAt: 1, lastAt: 3 * MIN, live: true, model: "Opus 5.5", effort: "medium", used: 157000, total: 1000000, program: "Claude Code" }, 1 + 67 * MIN, 8);
-  assert.deepEqual(meta, { model: "Opus 5.5", effort: "med", time: "1h07", ticking: false, gauge: { lit: 1, hot: false, tip: "157K / 1M · 16%" } });
+  assert.deepEqual(meta, { model: "Opus 5.5", effort: "med", time: "1h07", ticking: false, running: 0, gauge: { lit: 1, hot: false, tip: "157K / 1M · 16%" } });
 });
 
 test("elapsed reads seconds, minutes, hours with minutes, then whole hours and days", () => {
@@ -116,7 +116,7 @@ test("with no total the window is inferred: 1M for a [1m] model or a context pas
 });
 
 test("what isn't known is null or left out, and an agent with no session shows its program", () => {
-  assert.deepEqual(rowMeta({ program: "Codex" }, 0, 8), { model: "Codex", effort: null, time: null, ticking: false, gauge: null });
+  assert.deepEqual(rowMeta({ program: "Codex" }, 0, 8), { model: "Codex", effort: null, time: null, ticking: false, running: 0, gauge: null });
   assert.equal(rowMeta({ model: "Opus 5.5", used: 0 }, 0, 8).gauge, null, "no assistant turn yet: no gauge");
   assert.deepEqual(["low", "medium", "high", "xhigh", "max", "ultra"].map((effort) => rowMeta({ model: "M", effort }, 0, 8).effort),
     ["low", "med", "high", "xhigh", "max", "ultra"]);

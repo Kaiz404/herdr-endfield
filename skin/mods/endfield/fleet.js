@@ -24,6 +24,12 @@ export const DENSE_AT = 12;
 // (it reports to its parent, whose done is the news).
 const childStatus = (s) => (s === "error" ? "blocked" : s === "done" ? "idle" : s ?? "idle");
 
+/**
+ * A listed agent's status on every surface: Herdr's, except that an agent Herdr calls idle or done
+ * reads waiting while its Claude Code session waits on background work it started (Session.waiting).
+ */
+export const memberStatus = (status, waiting) => (waiting && (status === "idle" || status === "done") ? "waiting" : status);
+
 // Creation order (the core's created_ms, else the address number): stable while agents come and
 // go, so a callsign never hops from one agent to another.
 const byCreation = (x, y) => x.created - y.created || x.address.localeCompare(y.address, undefined, { numeric: true });
@@ -40,24 +46,27 @@ export const PINNED = "pinned";
 /**
  * { all: Map<address, Member>, squads: [{ id, num, name, machine, pinned?, members: Member[] }], flat: Member[],
  *   cast: Map<address, ident>, the `prev` of the next call, taken: the slots the members drew and `avoid` (see castCrew) }
- * Member: { address, agent (AgentInfo, null for a child without a pane), program, status, title,
+ * Member: { address, agent (AgentInfo, null for a child without a pane), program, status (memberStatus),
+ *   herdrStatus (Herdr's own: what `hc send --if idle` and the typed actions gate on), title,
  *   space, spaceName, tab, tabIndex, pane, seq, pinned, focused, created, turn, parent (address | null),
  *   depth, kids (addresses), urgency, model (id | null), ident: identity.resolve(...) + { callsign, drawn } }
  * Pinned agents (and their trees) come first, in a squad of their own ahead of every space's, so
  * the list and agent.next start with them. `sort` orders siblings; children stay under their parent.
  * identity: { resolve(program, terminal, {parent, model}) -> ident + {pool}, as(slug, program) } (IDENTITY in kit.js).
  * models: { address: model id } for the agents whose model is known.
+ * waiting: addresses of the agents whose session waits on background work (Session.waiting).
  * prev: the last call's `cast`. avoid: slots a newcomer must not draw (the shown sub-agents', see held).
  * hidden: Hides (archive.js) of chats the person archived and saw end. Their terminal stays out while
  * it lingers with no agent in it (a shell left behind), and shows again once an agent starts there.
  */
-export function buildRoster({ listed, terms, spaces, identity, models = {}, prev = null, avoid = [], sort = BY.priority, hidden = [] }) {
+export function buildRoster({ listed, terms, spaces, identity, models = {}, prev = null, avoid = [], sort = BY.priority, hidden = [], waiting = [] }) {
+  const wait = new Set(waiting);
   const termOf = new Map(terms.map((t) => [t.address, t]));
   const all = new Map();
   for (const a of listed) {
     if (isLeftover(hidden, a.address, termOf.get(a.address)?.created_ms, a.program)) continue;
     all.set(a.address, {
-      address: a.address, agent: a, program: a.program, status: a.status, title: a.title,
+      address: a.address, agent: a, program: a.program, status: memberStatus(a.status, wait.has(a.address)), herdrStatus: a.status, title: a.title,
       space: a.space, spaceName: a.space_name, tab: a.tab, tabIndex: a.tab_index, pane: a.pane,
       seq: a.seq, pinned: Boolean(a.pinned), focused: a.focused, parent: termOf.get(a.address)?.parent ?? null,
       created: termOf.get(a.address)?.created_ms ?? 0, turn: termOf.get(a.address)?.turn ?? null,
@@ -71,7 +80,7 @@ export function buildRoster({ listed, terms, spaces, identity, models = {}, prev
       if (all.has(t.address) || t.state !== "live" || !t.parent || !all.has(t.parent) || isLeftover(hidden, t.address, t.created_ms, t.program)) continue;
       const up = all.get(t.parent);
       all.set(t.address, {
-        address: t.address, agent: null, program: t.program, status: childStatus(t.status), title: t.title || t.name || t.template || t.program?.name || t.address,
+        address: t.address, agent: null, program: t.program, status: childStatus(t.status), herdrStatus: childStatus(t.status), title: t.title || t.name || t.template || t.program?.name || t.address,
         space: up.space, spaceName: up.spaceName, tab: up.tab, tabIndex: up.tabIndex, pane: null,
         seq: up.seq, pinned: false, focused: false, parent: t.parent, created: t.created_ms ?? 0, turn: t.turn ?? null,
       });
@@ -165,6 +174,48 @@ export function subagentView(subs, open) {
   const newest = [...subs].sort((a, b) => at(b) - at(a));
   const active = newest.filter((k) => inFlight(k.status));
   return { shown: open ? newest : active, earlier: newest.length - active.length };
+}
+
+// How a finished background task's row names its end. hue: a palette colour for the word, else muted.
+export const TASK_END = {
+  completed: { word: "done" },
+  failed: { word: "failed", hue: "error" },
+  killed: { word: "killed" },
+  stopped: { word: "stopped" },
+  "timed-out": { word: "timed out" },
+  "ended-with-session": { word: "ended" },
+};
+
+/** The background tasks a session or sub-agent (sessions.js) is running or ran, its sub-agents' included. -> Task[] */
+export const tasksOf = (run) => [...(run?.tasks ?? []), ...(run?.subagents ?? []).flatMap((k) => k.tasks ?? [])];
+
+/**
+ * A background task list, as the session card draws it: the running ones newest started first,
+ * then the finished ones newest ended first. A task seen twice (a resumed agent) shows once.
+ * tasks: Task[] (sessions.js) -> {running: Row[], finished: Row[]}
+ * Row: {id, kind, description, time: elapsed while it runs, else how long it ran (null: unknown), end: TASK_END row | null}
+ */
+export function taskView(tasks, now) {
+  const seen = new Set();
+  const rows = [];
+  for (const t of tasks) {
+    if (seen.has(t.id)) continue;
+    seen.add(t.id);
+    const running = t.state === "running";
+    const to = running ? now : t.endedAt;
+    rows.push({
+      id: t.id, kind: t.kind, description: t.description || t.kind,
+      time: t.startedAt && to ? elapsed(Math.max(0, to - t.startedAt)) : null,
+      end: running ? null : TASK_END[t.state] ?? { word: t.state },
+      at: running ? t.startedAt ?? 0 : t.endedAt ?? 0,
+    });
+  }
+  const newest = (a, b) => b.at - a.at;
+  const strip = ({ at, ...row }) => row;
+  return {
+    running: rows.filter((r) => !r.end).sort(newest).map(strip),
+    finished: rows.filter((r) => r.end).sort(newest).map(strip),
+  };
 }
 
 // ---- casting: which operator an agent is drawn as. IDENTITY in kit.js reads the art pack and the
@@ -342,9 +393,9 @@ const EFFORT = { low: "low", medium: "med", high: "high", xhigh: "xhigh", max: "
  * What a Squads row says about a run. model (or, with no session, the program) and effort sit
  * beside the callsign. time: how long the run has gone, to now while it works, else to its last
  * write. ticking: the time reads seconds and changes each second. gauge: how full its context is,
- * in `segments` blocks. What isn't known is null.
- * run: {startedAt, lastAt, live, model, modelId, effort, used, total, program}, every field optional
- * -> {model, effort, time, ticking, gauge: {lit, hot, tip} | null}
+ * in `segments` blocks. running: how many background tasks it runs. What isn't known is null.
+ * run: {startedAt, lastAt, live, model, modelId, effort, used, total, program, tasks}, every field optional
+ * -> {model, effort, time, ticking, running, gauge: {lit, hot, tip} | null}
  */
 export function rowMeta(run, now, segments) {
   const end = run.live ? now : run.lastAt;
@@ -355,6 +406,7 @@ export function rowMeta(run, now, segments) {
     model: run.model ?? run.program ?? null,
     effort: EFFORT[run.effort] ?? run.effort ?? null,
     time: ms == null ? null : elapsed(ms),
+    running: taskView(run.tasks ?? [], now).running.length,
     ticking: Boolean(run.live) && ms != null && ms < 60000,
     gauge: share == null ? null : {
       lit: Math.round(Math.min(1, share) * segments),

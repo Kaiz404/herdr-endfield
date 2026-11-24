@@ -64,7 +64,8 @@ export class Dispatch {
     const platform = appWindow()?.platform;
     if (this.mode === "send") {
       const T = this.target ? roster().all.get(this.target) : null;
-      const plan = T ? deliverPlan(T.status, this.opt.send === "idle") : null;
+      // hc delivers on Herdr's own status, not the roster's waiting.
+      const plan = T ? deliverPlan(T.herdrStatus, this.opt.send === "idle") : null;
       const args = sendArgs({ target: this.target ?? "?", delivery: this.opt.send === "wait" ? "wait" : plan?.gate ?? this.opt.send, task });
       return { args, text: commandLine(args, platform), task, plan };
     }
@@ -123,8 +124,8 @@ export class Dispatch {
     const model = up && up.program?.key === prog?.key ? up.model ?? null : null;
     const ident = prog ? (prog.shell ? IDENTITY.as(null, { key: "shell", name: "Shell" }) : cast(IDENTITY, IDENTITY.resolve(prog, null, { parent: up?.program ?? null, model }), prog, new Set(R.taken))) : null;
     const callsign = ident?.callsign ?? ident?.name.toUpperCase() ?? "";
-    const tone = { blocked: "signal", working: "flow", error: "error" }[T?.status] ?? "lime";
-    const warn = !send ? null : plan ? [tone, plan.preview ?? (deliverPlan(T.status, false).enabled ? `${plan.reason} Choose Now to send anyway.` : plan.reason)]
+    const tone = { blocked: "signal", working: "flow", error: "error" }[T?.herdrStatus] ?? "lime";
+    const warn = !send ? null : plan ? [tone, plan.preview ?? (deliverPlan(T.herdrStatus, false).enabled ? `${plan.reason} Choose Now to send anyway.` : plan.reason)]
       : term ? ["hairStrong", "A terminal with no agent status: the text is typed and Enter pressed."] : ["hairStrong", "Pick a target."];
     const held = send && plan?.enabled === false;
     const problem = taskProblem({ mode: this.mode, shell: Boolean(prog?.shell), task });

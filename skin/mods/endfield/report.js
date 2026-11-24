@@ -26,7 +26,7 @@ export function goTo(m) {
 const WINDOW_MS = 10 * 60000;
 const BARS = 16;
 // Status order: Needs input, then Finished, Generating, Idle.
-const ORDER = { blocked: 0, error: 0, done: 1, working: 2, idle: 3 };
+const ORDER = { blocked: 0, error: 0, done: 1, waiting: 1.5, working: 2, idle: 3 };
 const COLS = [
   { k: "name", label: "Agent", grow: 2.3, key: (r) => r.m.ident.callsign },
   { k: null, label: "Session · link", grow: 1.25 },

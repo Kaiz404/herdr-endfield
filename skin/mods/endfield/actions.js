@@ -132,7 +132,7 @@ export class ActionDialog {
       if (step.herdr) { run(step.herdr, step.args); continue; }
       // hc keys has no --if: Herdr's status at the click is the gate.
       if (step.hc[0] === "keys") {
-        const why = gate(roster().all.get(target)?.status);
+        const why = gate(roster().all.get(target)?.herdrStatus);
         if (why) { this.state = { phase: "refused", error: why }; cx.notify(); return; }
       }
       const r = await deliver({
@@ -197,7 +197,7 @@ export class ActionDialog {
     const m = roster().all.get(p.terminal);
     const platform = appWindow()?.platform;
     if (!a) return root(C, div().p(20).child(`No ${p.action} action for ${m?.program?.name ?? "this program"}.`));
-    const status = m?.status ?? null;
+    const status = m?.herdrStatus ?? null;
     const steps = this.steps();
     const typedSteps = steps.some((s) => s.hc);
     const why = typedSteps ? gate(status) : null;

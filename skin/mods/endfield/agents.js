@@ -12,7 +12,7 @@ import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE } from "./kit.js";
 import { roster, holdCrew } from "./roster.js";
-import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, PANE_ROLES, opening, transcriptsIn, transcriptPlan, rowShape, rowMeta } from "./fleet.js";
+import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, PANE_ROLES, opening, transcriptsIn, transcriptPlan, rowShape, rowMeta, tasksOf } from "./fleet.js";
 import { toggleReport, goTo } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
@@ -43,7 +43,7 @@ const cwdOf = (a) => panes().find((p) => p.terminal === a.address)?.cwd ?? null;
 
 // A session or sub-agent (sessions.js; both carry these fields) as fleet.js rowMeta reads it.
 const runOf = (s, live, program) => ({ startedAt: s?.startedAt, lastAt: s?.lastAt, live, model: s?.model?.short, modelId: s?.model?.id,
-  effort: s?.effort, used: s?.ctx?.used, total: s?.ctx?.total, program });
+  effort: s?.effort, used: s?.ctx?.used, total: s?.ctx?.total, program, tasks: tasksOf(s) });
 
 const SORTS = [
   { id: "priority", label: "Priority", icon: "clock", by: BY.priority },
@@ -191,7 +191,7 @@ export class Agents {
     const s = this.sessions.get(address);
     let winH = 900;
     try { winH = window.bounds().height; } catch {}
-    const { tall, fit } = cardFit(a.status === "blocked" && s?.question, winH);
+    const { tall, fit } = cardFit(s, a.status, winH);
     let y = b.y - 12 - CARD.pad;
     if (y + tall > winH - 8) y = b.y + b.height + 12 + CARD.pad - tall;
     const id = openOverlay({
@@ -327,7 +327,7 @@ export class Agents {
     const sub = on ? C.selMuted : C.muted;
     const pad = D.pad[depth ? 1 : 0];
     const st = statusOf(m.status);
-    const { model, effort, time, gauge: ctx } = r.meta;
+    const { model, effort, time, running, gauge: ctx } = r.meta;
     const fx = this.fx.of(m.address);
     const pin = this.pinButton(C, r, hot, on);
     const keep = (_e, cx) => { this.card.kept = this.card.open?.id ?? null; cx.notify(); };
@@ -364,6 +364,9 @@ export class Agents {
           .child(wide(m.ident.callsign, fg, 10).flex_shrink(1).min_w(0).truncate())
           .child(head)
           .when(Boolean(pin), (el) => el.child(pin))
+          .when(running > 0, (el) => el.child(h_flex().id(`${r.key}-tasks`).flex_none().gap(3).items_center().text_color(sub)
+            .tooltip(`${running} background task${running === 1 ? "" : "s"} running`)
+            .child(icon("tasks", 10)).child(div().font_family(FONT.mono).text_size(10).line_height(1).child(String(running)))))
           .when(Boolean(time), (el) => el.child(h_flex().flex_none().gap(4).items_center().text_color(sub)
             .child(icon("clock", 10)).child(div().font_family(FONT.mono).text_size(10).line_height(1).child(time))))
           .child(div().flex_none().child(mark)))
@@ -518,7 +521,9 @@ export class Agents {
     // Every surface's roster casts by model (roster.js), so each draws an agent the same.
     // Sorted, so the same models in another order don't publish again.
     const models = Object.fromEntries(R.flat.flatMap((m) => { const id = this.sessions.get(m.address)?.model?.id; return id ? [[m.address, id]] : []; }).sort(([a], [b]) => (a < b ? -1 : 1)));
-    for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all], ["endfield.card.session", card], ["endfield.limits", this.sessions.limits], ["endfield.models", models]]) {
+    // Every surface reads an idle or finished agent whose session waits on background work as waiting (fleet.js memberStatus).
+    const waiting = R.flat.filter((m) => this.sessions.get(m.address)?.waiting).map((m) => m.address).sort();
+    for (const [key, value] of [["endfield.focus", focus], ["endfield.sessions", all], ["endfield.card.session", card], ["endfield.limits", this.sessions.limits], ["endfield.models", models], ["endfield.waiting", waiting]]) {
       const text = JSON.stringify(value);
       if (text !== this.published?.[key]) { (this.published ??= {})[key] = text; setShared(key, value); }
     }
@@ -572,7 +577,7 @@ export class Agents {
       };
       const push = (r) => { rows.push(r); inner += r.h; };
       for (const m of q.members) {
-        const meta = rowMeta(runOf(this.sessions.get(m.address), m.status === "working", m.program?.name), now, GAUGE.segments);
+        const meta = rowMeta(runOf(this.sessions.get(m.address), inFlight(m.status), m.program?.name), now, GAUGE.segments);
         const r = { key: `ag-${m.address}`, m, depth: m.depth, ...sized(m.status, m.depth), top: inner, on: m.agent ? m.focused : m.address === shown,
           title: label(m), meta, up: m.parent ? placed.get(m.parent) : null, click: () => this.focus(m) };
         placed.set(m.address, r);

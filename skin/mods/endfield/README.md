@@ -32,7 +32,12 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   spare, then a number, `PERLICA·2`; each agent keeps its draw so it never hops), its
   parent and depth, and squads in tree order: pinned agents first (they also lead
   `agent.next`), then one per space. Priority ranks an agent by the most urgent
-  status in its tree.
+  status in its tree. A member's `status` is Herdr's, except that `fleet.js
+  memberStatus` reads an idle or done Claude Code agent as `waiting` while its
+  session waits on background work (the agents list publishes those addresses
+  as `endfield.waiting`). Sends and typed actions gate on `herdrStatus`, Herdr's own.
+  The session card's Tasks section and the Squads task count read `fleet.js
+  taskView` over `tasksOf(session)`.
 - Seven modules hold the rules with no Herdr import, so `tests/` runs them under
   `node --test` (CI and `verify.mjs --static` too): `fleet.js` (the `STATUS`
   table, agent status to word, glyph kind, bar colour, entrance effect and rank,

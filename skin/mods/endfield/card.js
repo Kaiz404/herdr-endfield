@@ -8,8 +8,8 @@
 import { div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, run, shared, setShared, closeOverlay, checking } from "herdr";
-import { palette, root, micro, wide, dots, barcode, ticks, rings, pill, glyph, MOTION, FONT } from "./kit.js";
-import { statusOf, DASH, fmtTokens } from "./fleet.js";
+import { palette, root, micro, wide, dots, barcode, ticks, rings, pill, glyph, icon, MOTION, FONT } from "./kit.js";
+import { statusOf, DASH, fmtTokens, taskView, tasksOf } from "./fleet.js";
 import { roster } from "./roster.js";
 import { longDuration, ago } from "./sessions.js";
 import { readLog, KIND, openComms } from "./comms.js";
@@ -22,17 +22,34 @@ export const CARD = { width: 368, pad: 14, slide: 14 };
 const SEGS = 20;
 const HOT_FROM = 0.75;
 
-/** How tall the panel draws, so the list can keep it inside the window before it exists. */
-export const cardHeight = (question) => 516 + (question ? 52 : 0);
+// The Tasks section: its frame, then one row per running task (or the "None running" line).
+const TASKS_H = { frame: 34, row: 22 };
+
+// The list's live session while it is this card's, else the one the card opened with.
+const sessionOf = (p) => {
+  const live = shared("endfield.card.session");
+  return (live?.terminal === p.terminal ? live : null) ?? p.snap ?? null;
+};
+
+// The question a blocked agent asks, shown under the panel.
+const questionOf = (s, status) => (status === "blocked" ? s?.question ?? null : null);
+
+/** How tall the panel draws, so the list can keep it inside the window before it exists. Finished tasks start folded. */
+export function cardHeight(s, status, now = Date.now()) {
+  const { running, finished } = taskView(tasksOf(s), now);
+  const tasks = running.length + finished.length ? TASKS_H.frame + TASKS_H.row * Math.max(1, running.length) : 0;
+  return 516 + (questionOf(s, status) ? 52 : 0) + tasks;
+}
 
 /**
- * The card's window for a window `winH` tall: its height, and `fit` (the panel's height when it
- * had to shrink, else null). A shrunk panel scrolls its middle; the head and the button row stay.
+ * The card's window for a window `winH` tall: its height, and `fit`, the panel's height cap. The
+ * panel draws at its own height up to the cap; past it (a short window, or a task list that grew
+ * or unfolded while open) the middle scrolls, and the head and the button row stay.
  */
-export function cardFit(question, winH) {
-  const want = cardHeight(question) + 2 * CARD.pad;
+export function cardFit(s, status, winH) {
+  const want = cardHeight(s, status) + 2 * CARD.pad;
   const tall = Math.min(want, Math.max(winH - 16, 2 * CARD.pad + 240));
-  return { tall, fit: tall < want ? tall - 2 * CARD.pad : null };
+  return { tall, fit: tall - 2 * CARD.pad };
 }
 
 export class Card {
@@ -41,6 +58,11 @@ export class Card {
     this.entered = false;
     this.comms = [];
     if (checking()) return;
+    // A running task's elapsed time is a clock: redrawn when the text it shows changes.
+    cx.timer.every(1000, (cx) => {
+      const clocks = taskView(tasksOf(sessionOf(props() ?? this.p)), Date.now()).running.map((t) => t.time).join();
+      if (clocks !== this.clocks) { this.clocks = clocks; cx.notify(); }
+    });
     cx.spawn(async (cx) => {
       this.comms = (await readLog()).filter((m) => m.from === p.terminal || m.to === p.terminal);
       cx.notify();
@@ -63,25 +85,48 @@ export class Card {
     return (over, cx) => { if (over) this.hot = id; else if (this.hot === id) this.hot = null; cx.notify(); };
   }
 
+  /** The Tasks section. view: fleet.js taskView. A finished row is muted, its end word coloured only by TASK_END. */
+  tasks(C, { running, finished }) {
+    const row = (t) => h_flex().id(`card-task-${t.id}`).h(14).gap(8).items_center().min_w(0)
+      .child(icon(`task-${t.kind}`, 11).text_color(t.end ? C.dim : C.text))
+      .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.end ? C.muted : C.text).child(t.description))
+      .when(Boolean(t.end), (el) => el.child(micro(t.end.word, t.end.hue ? C[t.end.hue] : C.muted).flex_none()))
+      .child(div().w(30).flex_none().flex().justify_end().font_family(FONT.mono).text_size(10).text_color(C.muted).child(t.time ?? DASH));
+    const toggle = finished.length > 0 && div().id("card-tasks-more").flex_none().cursor_pointer()
+      .on_click((_e, cx) => { this.more = !this.more; cx.notify(); })
+      .child(micro(this.more ? "Show less" : `+${finished.length} finished`, C.text));
+    return v_flex().px(18).pt(10).pb(12).gap(8).border_b(1).border_color(C.hair)
+      .child(h_flex().gap(8).items_center()
+        .child(micro(`Tasks ${String(running.length).padStart(2, "0")}`, C.muted))
+        .child(div().flex_1().h(1).bg(C.hair))
+        .when(Boolean(toggle), (el) => el.child(toggle)))
+      .when(running.length === 0, (el) => el.child(div().h(14).text_size(11).text_color(C.muted).child("None running.")))
+      .children(running.map(row))
+      .when(Boolean(this.more), (el) => el.children(finished.map(row)));
+  }
+
   render(cx) {
     const C = palette();
     const p = props() ?? this.p;
     if (this.entered && shared("endfield.card.open") !== p.overlay) closeOverlay(p.overlay);
     const m = roster().all.get(p.terminal);
-    const live = shared("endfield.card.session");
-    const s = (live?.terminal === p.terminal ? live : null) ?? p.snap ?? null;
+    const s = sessionOf(p);
     const status = m?.status ?? "idle";
     const st = statusOf(status);
     const ctx = s?.ctx;
     const filled = ctx ? Math.round((Math.min(100, ctx.pct) / 100) * SEGS) : 0;
     const hot = (ctx?.pct ?? 0) >= HOT_FROM * 100;
-    const question = status === "blocked" ? s?.question : null;
+    const question = questionOf(s, status);
+    const tasks = taskView(tasksOf(s), Date.now());
+    const tasksAny = tasks.running.length + tasks.finished.length > 0;
     const ident = m?.ident;
     const turns = s?.turns ?? m?.turn;
     // The header names the work, not the terminal: the tab's own name, else its space's.
     const tabName = m?.agent?.tab_name && !/^\d+$/.test(m.agent.tab_name) ? m.agent.tab_name : null;
     const actions = actionsFor(m?.program?.key);
-    const why = gate(status);
+    // Typed actions go only to an agent Herdr calls idle, waiting on background work or not.
+    const herdr = m?.herdrStatus ?? status;
+    const why = gate(herdr);
     const chat = [s?.model?.short, s?.effort, MODE_WORD[s?.mode] ?? s?.mode].filter(Boolean).join("  ");
     const line = (el) => el.border_b(1).border_color(C.hair);
     const cell = (el, last) => el.flex_1().min_w(0).px(14).py(12).gap(8).when(!last, (e) => e.border_r(1).border_color(C.hair));
@@ -102,7 +147,7 @@ export class Card {
       .on_mouse_down_out(() => setShared("endfield.card.closed", p.overlay))
       .on_hover((over) => setShared("endfield.card.hot", over ? p.overlay : null))
       .child(v_flex().id("card").relative().w(CARD.width).flex_none().self_start().overflow_hidden().rounded(4).border_1().border_color(C.hairStrong)
-        .bg(C.raised).shadow_lg().when(Boolean(p.fit), (el) => el.h(p.fit))
+        .bg(C.raised).shadow_lg().when(Boolean(p.fit), (el) => el.max_h(p.fit))
         .left(this.entered ? CARD.slide : 0).opacity(this.entered ? 1 : 0)
         .transition("left", MOTION.card.slide).transition("opacity", MOTION.card.reveal)
         // Head: the operator's bust in a dotted frame, the session's ink chip, the task, who and where.
@@ -124,8 +169,8 @@ export class Card {
               .child(barcode(C.cross)))
             .child(div().text_size(15).font_semibold().truncate().child(p.title ?? m?.title ?? DASH))
             .child(micro([ident?.callsign ?? p.callsign, m?.program?.name, p.where].filter(Boolean).join(" / "), C.muted).truncate())))
-        // On a short window (props.fit) the middle scrolls, so the button row is never cut off.
-        .child(v_flex().id("card-mid").overflow_y_scrollbar().when(Boolean(p.fit), (el) => el.flex_1().min_h(0))
+        // Past its cap (props.fit) the middle scrolls, so the button row is never cut off.
+        .child(v_flex().id("card-mid").overflow_y_scrollbar().when(Boolean(p.fit), (el) => el.flex_shrink(1).min_h(0))
         // The machine panel: what goes in, the state with its march, the work done.
         .child(line(h_flex())
           .child(cell(v_flex().relative().overflow_hidden(), false)
@@ -160,13 +205,15 @@ export class Card {
             return div().id(`seg-${k}`).w(9).h(8).flex_none().bg(on ? (hot && k >= SEGS * HOT_FROM ? C.red : C.text) : C.hair)
               .opacity(on && !this.entered ? 0.25 : 1).transition("opacity", { ...MOTION.row.wipe, delay: k * MOTION.card.segment.delay });
           }))))
+        // Background tasks: the running ones, then the finished ones folded under "+N finished".
+        .when(tasksAny, (el) => el.child(this.tasks(C, tasks)))
         // Chat: its model, effort and mode, and what the card can ask of it. Each opens a confirm.
         .child(line(v_flex().px(18).pt(10).pb(12).gap(8))
           .child(h_flex().gap(8).items_center().min_w(0)
             .child(micro("Chat", C.muted).flex_none())
             .child(micro(chat || m?.program?.name || DASH, C.text).min_w(0).truncate())
             .child(div().flex_1())
-            .child(micro(!actions.length ? "No actions" : why ? (status === "done" ? "Look at it first" : "Waits for idle") : "Idle", C.muted).flex_none()))
+            .child(micro(!actions.length ? "No actions" : why ? (herdr === "done" ? "Look at it first" : "Waits for idle") : "Idle", C.muted).flex_none()))
           .child(h_flex().gap(4).children(actions.map((a) => {
             const off = Boolean(why) && !a.session;
             return h_flex().id(`card-a-${a.key}`).h(24).px(7).flex_none().items_center().rounded_full().border_1().border_color(C.hairStrong)

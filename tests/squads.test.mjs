@@ -45,7 +45,7 @@ test("a squad header's menu: rename always, a move only where there is somewhere
   assert.deepEqual(squadMenu(ORDER, SQUADS, "b"), [], "a space with no agents has no header to click");
 });
 
-const claude = (status, pinned = false) => ({ agent: { pinned }, program: { key: "claude" }, status });
+const claude = (status, pinned = false) => ({ agent: { pinned }, program: { key: "claude" }, status, herdrStatus: status });
 
 test("a chat's menu: Rename and Pin at any time, Archive only while idle", () => {
   assert.deepEqual(chatMenu(claude("idle")).map((i) => [i.key, i.why]), [["rename", null], ["pin", null], ["archive", null]]);
@@ -60,4 +60,9 @@ test("only a chat with a pane gets a menu; a program the card has no actions for
   assert.deepEqual(chatMenu({ agent: null, program: { key: "claude" }, status: "idle" }), []);
   assert.deepEqual(chatMenu({ agent: { pinned: false }, program: { key: "shell" }, status: "idle" }).map((i) => i.key), ["pin"]);
   assert.ok(!chatMenu(claude("idle")).some((i) => i.key === "move"), "Herdr can't move a tab to another space");
+});
+
+test("a chat Herdr calls idle while its session waits on tasks can still be archived", () => {
+  const waiting = { ...claude("idle"), status: "waiting" };
+  assert.equal(chatMenu(waiting).find((i) => i.key === "archive").why, null);
 });
