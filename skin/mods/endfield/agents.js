@@ -8,13 +8,15 @@
 // agents and their sub-agents also show their model and effort, how long they have run and a
 // context gauge (sessions.js, fleet.js rowMeta), their own sub-agents read from
 // the transcript. Agents and sub-agents get a session card while hovered, held open by a
-// right-click (card.js, hovercard.js). An idle row folds to one line.
+// right-click (card.js, hovercard.js). An idle row folds to one line. An agent hidden from its
+// pane (plate.js) keeps its row with a Hidden tag; a click shows it again (dock.js showPlan). The
+// list keeps the Hidden records in its localStorage, so they outlive a restart.
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { agents, panes, focused, spaces, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, settings, checking } from "herdr";
+import { agents, panes, focused, spaces, terminals, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, settings, checking } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, spaced, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE } from "./kit.js";
-import { roster, holdCrew } from "./roster.js";
+import { roster, holdCrew, HIDDEN_KEY } from "./roster.js";
 import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, subLabel, siblingLabels, PANE_ROLES, opening, transcriptsIn, transcriptPlan, rowShape, rowMeta, tasksOf, railSpans } from "./fleet.js";
 import { toggleReport, goTo, showWork } from "./report.js";
 import { openDispatch } from "./dispatch.js";
@@ -24,8 +26,9 @@ import { holding, slotTops, chatBlocks } from "./squads.js";
 import { openSquadMenu } from "./squadmenu.js";
 import { openLink, loadLinks } from "./linkdialog.js";
 import { linkProblem, linkedWith } from "./links.js";
-import { exitSide, movePlan, dockPlan, headerArmed } from "./dock.js";
-import { startDock, moveChat, told, chatOf, anchorOf } from "./docking.js";
+import { exitSide, movePlan, dockPlan, headerArmed, popOutPlan, showPlan, anchorIn } from "./dock.js";
+import { startDock, moveChat, told, chatOf, anchorOf, paneChat, PANE_ASK } from "./docking.js";
+import { hiddenOf, keptHidden } from "./plate.js";
 
 // Fixed heights, so the selection marker knows where the selected row starts (the row's own ink plate snaps).
 // Compact (DENSE_AT agents and up): 34px rows that keep the chip, badge and label over the task.
@@ -162,6 +165,18 @@ export class Agents {
     setShared("endfield.squad.rename", null);
     setShared("endfield.dock.ask", null);
     setShared("endfield.dock.done", null);
+    setShared(PANE_ASK, null);
+    // Published as saved, not pruned: at start-up terminals() can still be empty while the core connects.
+    let hidden = [];
+    try { hidden = JSON.parse(localStorage.getItem("hidden") ?? "[]"); } catch {}
+    setShared(HIDDEN_KEY, Array.isArray(hidden) ? hidden : []);
+  }
+
+  /** Keeps the Hidden records that still stand (plate.js keptHidden), here and for every surface. */
+  setHidden(list) {
+    const kept = keptHidden(list, terminals(), panes().map((p) => p.terminal).filter(Boolean), Date.now());
+    setShared(HIDDEN_KEY, kept);
+    try { localStorage.setItem("hidden", JSON.stringify(kept)); } catch {}
   }
 
   close() {
@@ -453,6 +468,34 @@ export class Agents {
     });
   }
 
+  // A plate's Hide or Pop out, or a click on a hidden agent (docking.js askPane), run here.
+  paneAsked(ask, cx) {
+    if (!ask || ask.at === this.paneAt) return;
+    this.paneAt = ask.at;
+    const { kind, terminal } = ask;
+    const tab = panes().find((p) => p.terminal === terminal)?.tab;
+    if (kind === "hide") {
+      const t = terminals().find((x) => x.address === terminal);
+      const chat = paneChat(terminal);
+      if (!t || !chat) return;
+      // The record first, so the agent never leaves Squads: the park strips the labels Herdr lists it by.
+      this.setHidden([...(shared(HIDDEN_KEY) ?? []).filter((r) => r.terminal !== terminal), hiddenOf(t, chat, Date.now())]);
+      run("terminal.park", { terminal });
+    } else if (kind === "popout") {
+      const chat = chatOf(terminal) ?? paneChat(terminal);
+      const plan = chat ? popOutPlan(chat, panes().filter((p) => p.tab === tab).length) : null;
+      if (plan?.steps) cx.spawn(async (cx) => this.moveNow(cx, chat, plan.steps));
+    } else if (kind === "show") {
+      const chat = chatOf(terminal);
+      if (!chat || chat.pane) return;
+      const plan = showPlan(chat, anchorIn(spaces(), panes(), chat.space), anchorOf(focused()?.pane));
+      cx.spawn(async (cx) => {
+        await this.moveNow(cx, chat, plan.steps);
+        this.setHidden((shared(HIDDEN_KEY) ?? []).filter((r) => r.terminal !== terminal || !panes().some((p) => p.terminal === terminal)));
+      });
+    }
+  }
+
   /**
    * Where one list's blocks are drawn (the squads, or one squad's chats): stacked, or around the
    * held one's gap with the held one at the pointer (squads.js holding). Records the gap and move
@@ -521,6 +564,9 @@ export class Agents {
     const carded = r.key === this.card.open?.key;
     // Linked to another agent (links.js): the glyph says so on its own row, the rail joins the group.
     const linked = () => div().id(`${r.key}-linked`).flex_none().text_color(C.link).tooltip(r.linkTip).child(icon("link", dense || one ? 10 : 11));
+    // Hidden from its pane (plate.js): still running; a click shows it again.
+    const tags = [r.linkTip && linked(),
+      m.hidden && div().id(`${r.key}-hidden`).flex_none().tooltip("Hidden, still running. Click to show it again in its squad").child(micro("Hidden", sub))].filter(Boolean);
     // The connector: a 1px right angle from the parent chip's foot to this chip's side, drawn top-down when the child arrives.
     let link = null;
     if (r.up) {
@@ -541,19 +587,19 @@ export class Agents {
     const label = one
       ? nudge(h_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(8).items_center()
         .child(wide(r.label, fg, 9).flex_none())
-        .when(Boolean(r.linkTip), (el) => el.child(linked()))
+        .children(tags)
         .child(div().min_w(0).truncate().font_medium().text_size(11.5).child(r.title))
       : dense
       ? nudge(v_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(D.lines)
         .child(h_flex().min_w(0).gap(6).items_center()
           .child(wide(r.label, fg, 9).flex_none())
-          .when(Boolean(r.linkTip), (el) => el.child(linked()))
+          .children(tags)
           .child(head))
         .child(div().min_w(0).truncate().font_medium().text_size(11.5).child(r.title))
       : nudge(v_flex(), `${r.key}-label`, hot).flex_1().min_w(0).gap(D.lines)
         .child(h_flex().min_w(0).gap(8).items_center()
           .child(wide(r.label, fg, 10).flex_shrink(1).min_w(0).truncate())
-          .when(Boolean(r.linkTip), (el) => el.child(linked()))
+          .children(tags)
           .child(head)
           .when(Boolean(pin), (el) => el.child(pin))
           .when(running > 0, (el) => el.child(h_flex().id(`${r.key}-tasks`).flex_none().gap(3).items_center().text_color(sub)
@@ -753,6 +799,7 @@ export class Agents {
     setAgentOrder(R.flat.filter((m) => m.agent).map((m) => m.address));
     this.share(R);
     this.docked(shared("endfield.dock.ask"), cx);
+    this.paneAsked(shared(PANE_ASK), cx);
     if (narrow()) return this.rail(C, R);
 
     const shown = focused()?.agent;

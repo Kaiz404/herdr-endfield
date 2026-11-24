@@ -12,15 +12,17 @@ import { palette, root, statusMark, chip, micro, spaced, wide, pad2, barcode, gr
 import { roster } from "./roster.js";
 import { DENSE_AT, fmtTokens } from "./fleet.js";
 import { openArchived } from "./actions.js";
+import { askPane } from "./docking.js";
 
 export const REPORT = { stack: "work-stack", work: "main", report: "report" };
 export const toggleReport = (open) => run("layout.select", { stack: REPORT.stack, child: open ? REPORT.report : REPORT.work });
 /** The panes back in view if the report covers them: every action that focuses an agent runs this first. */
 export const showWork = () => { if (find(layout(), REPORT.stack)?.active === REPORT.report) toggleReport(false); };
-/** Focuses an agent's pane, or peeks a child that has none, with the panes in view. */
+/** Focuses an agent's pane, shows a hidden one again (the agents list runs it), or peeks a child that has none, with the panes in view. */
 export function goTo(m) {
   showWork();
-  run(m.pane ? "pane.focus" : "terminal.peek", m.pane ? { pane: m.pane } : { terminal: m.address });
+  if (m.hidden) askPane("show", m.address);
+  else run(m.pane ? "pane.focus" : "terminal.peek", m.pane ? { pane: m.pane } : { terminal: m.address });
 }
 
 const WINDOW_MS = 10 * 60000;

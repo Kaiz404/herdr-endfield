@@ -11,6 +11,9 @@
 // a beat, then fades and draws nothing again.
 //   endfield.dock.drag  {terminal, anchor (the pane focused when the drag began), grip (the press
 //         inside the held row) and size (the row's, {w, h}), both in the px a mod lays out in, title, at}
+// A pane plate's Hide and Pop out, and a click on a hidden agent in Squads, ask the list the same
+// way (askPane), so a move outlives the plate whose pane it takes away:
+//   endfield.pane.ask  {kind: "hide" | "popout" | "show", terminal, at}
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -28,6 +31,16 @@ export function chatOf(address, m = roster().all.get(address)) {
   return { terminal: m.address, label: m.label, pane: panes().find((p) => p.terminal === address)?.pane ?? null, tab: m.tab, space: m.space,
     machine: machineOf(m.address), linked: m.linked ?? m.helpers?.[0] ?? null };
 }
+
+/** A terminal's pane as a chat, for one the roster doesn't list (a shell). Null when it has no pane. */
+export function paneChat(terminal) {
+  const p = panes().find((x) => x.terminal === terminal);
+  if (!p) return null;
+  return { terminal, label: p.program?.name ?? null, pane: p.pane, tab: p.tab, space: anchorOf(p.pane)?.space ?? null, machine: machineOf(terminal), linked: null };
+}
+
+export const PANE_ASK = "endfield.pane.ask";
+export const askPane = (kind, terminal) => { if (terminal) setShared(PANE_ASK, { kind, terminal, at: Date.now() }); };
 
 /** The Place of pane `pane`, or null when it is gone. */
 export function anchorOf(pane) {
@@ -94,7 +107,8 @@ export async function moveChat(cx, chat, steps) {
   } catch {
     return await recover(cx, chat, home);
   }
-  const tab = keep ? panes().find((p) => p.pane === keep.beside)?.tab ?? null : chat.tab;
+  // A keep with no pane to land beside makes its own tab: wherever it shows is where it was sent.
+  const tab = !keep ? chat.tab : keep.beside ? panes().find((p) => p.pane === keep.beside)?.tab ?? null : whereIs(chat.terminal, panes(), spaces())?.tab ?? null;
   told(chat, tab);
   return whereIs(chat.terminal, panes(), spaces())?.tab === tab;
 }

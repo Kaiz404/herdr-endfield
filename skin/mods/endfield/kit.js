@@ -426,7 +426,7 @@ export function basename(p) {
 export function binding(action) {
   const mac = appWindow()?.platform === "macos";
   const mod = { cmd: mac ? "⌘" : "Ctrl+", ctrl: mac ? "⌃" : "Ctrl+", shift: mac ? "⇧" : "Shift+", alt: mac ? "⌥" : "Alt+", option: mac ? "⌥" : "Alt+" };
-  const b = keys().find((k) => k.section === "global" && k.action === action);
+  const b = keys().find((k) => (k.section === "global" || k.section === "layout:endfield") && k.action === action);
   if (!b) return null;
   const parts = b.keys.endsWith("--") ? [...b.keys.slice(0, -2).split("-"), "-"] : b.keys.split("-");
   return parts.map((p) => mod[p.toLowerCase()] ?? p.toUpperCase()).join("");
