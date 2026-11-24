@@ -62,6 +62,8 @@ const PALETTE = {
     // Hues as glyphs: one shade on the row's ground, another on an inverted row.
     flow: "#1D8FD0",
     flowInv: "#31ACF0",
+    // Linked agents: flow at reduced strength, for the rail and the link glyph.
+    link: "#1D8FD0A6",
     error: "#C42126",
     errorInv: "#FF5A5E",
     glow: "#00000024",
@@ -91,6 +93,7 @@ const PALETTE = {
     barHatch: "#FFFFFF0B",
     flow: "#31ACF0",
     flowInv: "#0F6FA8",
+    link: "#31ACF099",
     error: "#FF5A5E",
     errorInv: "#C42126",
     glow: "#00000080",
@@ -457,13 +460,13 @@ export const MOTION = {
   // to open its gap, and on release (or Esc) it slides into the gap or home.
   drag: { follow: ease(60, "linear"), slide: ease(200) },
   // A chat dragged to move it (dock.js, docking.js). Its ghost pops in and springs after the
-  // pointer a little behind it (ghost), flies into the slab on a drop (fly) or springs home and
-  // fades on a cancel (home, gone), and shrinks into a squad header dropped on (shrink). The drop
-  // zones fade in (zones); the slab grows from its edge and slides between zones (slab). Herdr
-  // re-lays the panes at once, so the slab stays a beat after the chat lands (beat), then fades
-  // (out). wait: how long a landing may take before the overlay gives up and closes. idle: how
-  // long a drag may go with no pointer move before it is cancelled.
-  dock: { ghost: { response: 260, damping: 0.75 }, fly: { response: 300, damping: 0.9 }, home: { response: 280, damping: 1 },
+  // pointer a little behind it (ghost), flies into the slab on a drop (fly) or fades on a cancel
+  // (gone), and shrinks into a squad header dropped on (shrink). The drop zones fade (zones); the
+  // slab grows from its edge and slides between zones (slab). Herdr re-lays the panes at once, so
+  // the slab stays a beat after the chat lands (beat), then fades (out). wait: how long a landing
+  // may take before the dock board gives up and goes. idle: how long a drag may go with no
+  // pointer move before it is cancelled.
+  dock: { ghost: { response: 260, damping: 0.75 }, fly: { response: 300, damping: 0.9 },
     pop: ease(120), gone: ease(200, "ease-in", 80), shrink: ease(200, "ease-in"), zones: ease(160), slab: ease(220), beat: { delay: 160 }, out: ease(180), wait: { delay: 20000 }, idle: { delay: 10000 } },
   pin: { content: ease(100, "linear", 83) },
   dispatch: { enter: ease(200) },

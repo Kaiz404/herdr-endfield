@@ -3,9 +3,11 @@
 //   1. a sidecar a Claude Code statusline writes: data/endfield/sessions/<session_id>.json
 //      {session_id, terminal, cwd, transcript_path, model:{id, display_name}, effort, context:{used, total, pct}, rate_limits, account, updated_at}
 //      The statusline runs again right after /model or /effort; the transcript shows them only at the next turn.
-//   2. the transcript itself, ~/.claude/projects/<cwd slug>/<session>.jsonl. Without a sidecar the
-//      terminal is matched to its folder's most recently written transcript: approximate, since
-//      two sessions in one folder can't be told apart (`approx`).
+//   2. the transcript itself, ~/.claude/projects/<cwd slug>/<session>.jsonl, in the home of the agent's
+//      machine (wslpath gives a WSL machine's as a \\wsl.localhost path; an SSH machine's can't be read,
+//      so its agents get no session). Without a sidecar the terminal is matched to its folder's
+//      most recently written transcript: approximate, since two sessions in one folder can't be
+//      told apart (`approx`).
 // Transcripts run to tens of MB and readTextFile stops at 1 MiB, so tools/probe.mjs (node)
 // reads them, folding only the lines appended since its last run, and the sidecars too (it can
 // skip stale ones by mtime, which a mod can't see). The squad list owns the one poller; the
@@ -25,6 +27,7 @@
 import * as fs from "fs/promises";
 import { exec, appHome, watchFolder, checking } from "herdr";
 import { DASH, contextWindow, runStatus, inFlight, pollPace } from "./fleet.js";
+import { machineOf } from "./dock.js";
 
 const DATA = () => `${appHome()}/data/endfield`;
 const SIDECARS = () => `${DATA()}/sessions`;
@@ -118,9 +121,13 @@ export class Sessions {
     // Folder -> its pending watch; the folders are the ones the last probe said its answer reads.
     this.watches = new Map();
     // Folders whose watch was refused: polled every SLOW_EVERY ticks instead, and watched again then.
-    // A project folder that doesn't exist yet (no session has run there) is polled the same way.
+    // A project folder that doesn't exist yet (no session has run there), or one on another machine, is polled the same way.
     this.blind = new Set();
     this.missing = false;
+    // Machine -> its home as a path this computer reads, or null when it has none (not WSL).
+    // Absent until asked; a machine that couldn't be asked is asked again at a later poll.
+    this.homes = new Map();
+    this.asking = new Set();
     this.ticks = 0;
     this.failed = false;
   }
@@ -168,6 +175,22 @@ export class Sessions {
     });
   }
 
+  /** Asks `machine` for its home once, beside the polls, so a slow machine never holds up local agents. */
+  ask(cx, machine) {
+    if (this.homes.has(machine) || this.asking.has(machine)) return;
+    this.asking.add(machine);
+    cx.spawn(async () => {
+      try {
+        const r = await exec("hc", ["exec", "--on", machine, 'wslpath -w "$HOME"'], { timeout: 10000 });
+        // 127: the machine's shell has no wslpath, so it isn't WSL. Any other failure (hc couldn't
+        // reach it) is asked again at the next poll, which this doesn't bring forward.
+        const home = r.code === 0 && r.stdout.trim() ? r.stdout.trim() : r.code === 127 ? null : undefined;
+        if (home !== undefined) { this.homes.set(machine, home); this.dirty = true; }
+      } catch {}
+      this.asking.delete(machine);
+    });
+  }
+
   stop() {
     this.stopped = true;
     for (const w of this.watches.values()) w.cancel();
@@ -187,7 +210,15 @@ export class Sessions {
           cmd: "sessions",
           cache: `${DATA()}/probe-cache.json`,
           sidecars: SIDECARS(),
-          targets: targets.map((t) => ({ terminal: t.terminal, cwd: t.cwd })),
+          // An agent on a machine whose home this computer can't read is left out: its cwd would
+          // otherwise be matched against this computer's projects folder.
+          targets: targets.flatMap((t) => {
+            const machine = machineOf(t.terminal);
+            if (!machine) return [{ terminal: t.terminal, cwd: t.cwd }];
+            this.ask(cx, machine);
+            const home = this.homes.get(machine);
+            return home ? [{ terminal: t.terminal, cwd: t.cwd, home }] : [];
+          }),
         }));
         const r = await exec("node", [PROBE(), req], { timeout: 20000 });
         const out = r.code === 0 ? JSON.parse(r.stdout) : {};

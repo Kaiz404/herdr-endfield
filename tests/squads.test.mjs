@@ -86,6 +86,17 @@ test("a squad's chats drag as tabs: a chat carries its children, sub-agents and 
   assert.deepEqual(h.tops, [174, 0, 68]);
 });
 
+test("a linked group drags as one chat, its lead's tab, with each member's rows under it", () => {
+  const rows = [
+    { depth: 0, tab: "t1", h: 56, group: "a" }, { depth: 1, h: 50 },
+    { depth: 0, tab: "t4", h: 56, group: "a" }, { depth: 1, h: 26 },
+    { depth: 0, tab: "t2", h: 34 },
+    { depth: 0, tab: "t3", h: 34, group: "b" }, { depth: 0, tab: "t5", h: 34, group: "c" },
+  ];
+  assert.deepEqual(chatBlocks(rows).map((b) => [b.id, b.rows]), [["t1", [0, 1, 2, 3]], ["t2", [4]], ["t3", [5]], ["t5", [6]]],
+    "another group's row starts its own chat");
+});
+
 test("an opened chat carries its active sub-agents, the toggle between and the finished ones under it", () => {
   const rows = [
     { depth: 0, tab: "t1", h: 56 }, { depth: 1, h: 50 }, { depth: 1, h: 26 }, { depth: 1, h: 34 }, { depth: 1, h: 34 },

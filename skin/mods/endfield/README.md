@@ -121,30 +121,38 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   tops with `MOTION.drag` and no height changes.
 - `dock.js` holds the rules for moving a chat, with no Herdr in it
   (`tests/dock.test.mjs`): the drop zone under the pointer (`zoneAt`), the
-  work area's rectangle from the layout tree (`workRect`), the slab each zone
+  dock board's box from the window size and the layout tree (`boardRect`),
+  when a held tab has left the strip (`underStrip`), the slab each zone
   previews (`landing`, `collapsed`), and the steps a drop runs (`dockPlan`
   beside the focused pane, `movePlan` into another squad), each with what
   `panes()` shows once Herdr has applied it (`applied`). Herdr has no "move
   pane to tab": `terminal.park` takes the pane away with the program still
   running, `pane.focus` shows the tab it lands in, and `terminal.keep` with a
   `place` gives it a pane beside the focused one. `docking.js` is the `dock`
-  overlay (a popup over the whole window, opened by the list when a held row
-  leaves by its right edge, since an element only hears the pointer while it
-  is over it) and `moveChat`, which runs the steps. The Squads list runs every
-  move, the overlay's through the shared key `endfield.dock.ask`, because a
-  closing overlay cancels its tasks and a move must not stop between the park
-  and the keep. A move that stops goes back to the tab it came from
+  board and `moveChat`, which runs the steps. The board is a floating block
+  of the layout over `work-body`, so it is in the main window: a popup is a
+  window of its own, and the pointer of a drag held in the main window
+  never reaches it. The list hands it a held row that leaves by its right
+  edge, the tab strip a held tab carried out under it, through the shared
+  key `endfield.dock.drag`. The press began in another block, so the board
+  follows it with `on_window_mouse_move` and `on_window_mouse_up`, which see
+  the whole window. The Squads list runs every move, the board's through
+  the shared key `endfield.dock.ask`, so that one list refuses a second move
+  while one runs and no move stops between the park and the keep. A move that stops goes back to the tab it came from
   (`homeOf`, `recover`) and says where the chat is (`moveToast`); a squad
   header takes a drop only once armed (`headerArmed`). `moveChat` polls
   `panes()` with `cx.sleep` inside its task: a data wait that never
-  repaints, not a motion timer. Not checked in a live window: that the
-  overlay, opened while the button is held, hears the moves and the release
-  (a release it misses can't drop: a press in the overlay cancels, and so do
-  10s with no move), and Esc, which Herdr handles for a popup, closes it at
-  once without the ghost's spring home.
+  repaints, not a motion timer. The board was first a popup overlay, which in a
+  live window heard no move and no release. Not checked in a live window
+  yet: that the floating board hears them through the window observers (a
+  release it misses can't drop: a press on the board cancels, and so do 10s
+  with no move), that its box from `boardRect` fits `work-body`, how the
+  frame Herdr draws round a floating block looks at that size, and that a
+  held tab's moves report `pressed_button` `"left"`, without which a tab
+  never docks.
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
   `card.js` (the session panel), `actions.js` (a card action's confirm dialog
-  and the Archived list), `dispatch.js` (the Dispatch dialog), `tabs.js`, `pane.js` (the name plate), `status.js` (the HUD footer),
+  and the Archived list), `dispatch.js` (the Dispatch dialog), `tabs.js` (its marker's place is `tabmark.js`, no Herdr in it, `tests/tabmark.test.mjs`), `pane.js` (the name plate), `status.js` (the HUD footer),
   `toast.js` (notifications; it decides between the cut-in, the Finished slip and
   the plain slab), `cutin.js` (the needs-input skill caption), `comms.js` (the
   message log Dispatch writes and the Comms pane), `report.js` (the oversight screen: a block in the
@@ -478,10 +486,10 @@ Plates snap; only the yellow marker travels. A list's selection is a plate
 (`plate()`, child 0 of its scroll area, under the rows) that jumps to the
 selected row with no transition, and a 2px yellow marker (`marker()`, the last
 child, over the rows) whose `top` moves there. That needs every row's height to
-be fixed: the `H` tables in `spaces.js` and `agents.js`. The tab strip does the
-same: its yellow plate jumps, and a 3px ink marker along its foot slides over the
-widths each tab reports. Scroll indexes (`scroll_to_item`) are one higher than
-the row index because of the plate.
+be fixed: the `H` tables in `spaces.js` and `agents.js` (where scroll indexes are
+one higher than the row index because of the plate). The tab strip is different:
+the selected tab paints its own yellow, and a 3px ink marker along its foot
+slides over the widths each tab reports, divided by the zoom (`tabmark.js`).
 
 Regions build in placeholder-first after the boot (`Entrance`): drawn at
 opacity 0, then each fades in (`build.in`), `build.stagger` apart.
