@@ -17,17 +17,18 @@
 // Sub = {id, path, title, model, effort, ctx, status: working | waiting | done | idle (fleet.js runStatus),
 //   lastAt, startedAt, lastAction, tasks: Task[]}, in no order (fleet.js subagentView orders them)
 // Task = background work a transcript started: {id, kind: shell | agent | monitor, description, startedAt,
-//   endedAt, state: running | completed | failed | killed | stopped | timed-out | ended-with-session}
+//   expiresAt (a monitor's timeout, else null), endedAt,
+//   state: running | completed | failed | killed | stopped | timed-out | ended-with-session}
 
 import * as fs from "fs/promises";
 import { exec, appHome, watchFolder, checking } from "herdr";
-import { DASH, contextWindow, runStatus, inFlight } from "./fleet.js";
+import { DASH, contextWindow, runStatus, inFlight, pollPace } from "./fleet.js";
 
 const DATA = () => `${appHome()}/data/endfield`;
 const SIDECARS = () => `${DATA()}/sessions`;
 const PROBE = () => `${appHome()}/mods/endfield/tools/probe.mjs`;
 const POLL_MS = 3000;
-const BLIND_EVERY = 5;
+const SLOW_EVERY = 5;
 
 export const isClaude = (a) => a?.program?.key === "claude" || a?.app === "claude-code";
 
@@ -106,7 +107,7 @@ export class Sessions {
     this.key = "";
     // Folder -> its pending watch; the folders are the ones the last probe said its answer reads.
     this.watches = new Map();
-    // Folders whose watch was refused: polled every BLIND_EVERY ticks instead, and watched again then.
+    // Folders whose watch was refused: polled every SLOW_EVERY ticks instead, and watched again then.
     // A project folder that doesn't exist yet (no session has run there) is polled the same way.
     this.blind = new Set();
     this.missing = false;
@@ -118,8 +119,8 @@ export class Sessions {
 
   /**
    * Polls at most every 3s, and only when something changed: a watched transcript or sidecar
-   * folder was written, the targets changed, a live sub-agent may have gone quiet, or a folder
-   * can't be watched and its turn came.
+   * folder was written, the targets changed, a working sub-agent may have gone quiet, or, every
+   * SLOW_EVERY ticks, a wait may have ended unseen (fleet.js pollPace) or a folder can't be watched.
    */
   start(cx, targets) {
     if (checking()) return;
@@ -127,8 +128,10 @@ export class Sessions {
     cx.timer.every(POLL_MS, (cx) => {
       const ts = targets();
       const key = JSON.stringify(ts);
-      const aging = [...this.map.values()].some((s) => s.subagents.some((k) => k.status === "working"));
-      const blindTurn = (this.blind.size > 0 || this.missing) && ++this.ticks % BLIND_EVERY === 0;
+      const slowTurn = ++this.ticks % SLOW_EVERY === 0;
+      const pace = pollPace([...this.map.values()]);
+      const aging = pace === "fast" || (pace === "slow" && slowTurn);
+      const blindTurn = (this.blind.size > 0 || this.missing) && slowTurn;
       if (blindTurn) { const again = [...this.blind]; this.blind.clear(); for (const dir of again) this.watch(cx, dir); }
       if (!(this.dirty || aging || blindTurn || key !== this.key)) return;
       this.poll(cx, ts, key);

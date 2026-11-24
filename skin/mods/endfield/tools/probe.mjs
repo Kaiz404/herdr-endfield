@@ -7,7 +7,7 @@
 //         limits: the newest rate_limits any sidecar carries, {five_hour, seven_day, updated_at} | null}
 //     Parsed carries `final` (the turn has ended: a last message, a handback or an interrupt), `pending`
 //     (a tool call with no result yet; `wait` when it only waits) and `tasks`, the background work the
-//     transcript started: [{id, kind: shell | agent | monitor, description, startedAt, endedAt,
+//     transcript started: [{id, kind: shell | agent | monitor, description, startedAt, expiresAt, endedAt,
 //     state: running | completed | failed | killed | stopped | timed-out | ended-with-session}].
 //     live: whether a Claude Code process still runs the session, from `registry` (default
 //     ~/.claude/sessions/<pid>.json); null when there is no registry to ask.
@@ -22,6 +22,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 
 const PROJECTS = path.join(os.homedir(), ".claude", "projects");
 const REGISTRY = path.join(os.homedir(), ".claude", "sessions");
@@ -34,8 +35,12 @@ const SKIP = /"type":"(api-request|api-request-blob|data-flow-records|file-histo
 const QUEUED = /"type":"(queue-operation|attachment)"/;
 const NOTICE = "<task-notification>";
 // A fold made by an older probe lacks fields this one reads, so it is folded again.
-const FOLD = 2;
+const FOLD = 3;
 const TASKS_KEPT = 200;
+// The cache's one key that is not a transcript: pid -> {procStart, same, at}, whether the process
+// was the one its registry file names when last asked (null: it couldn't be asked).
+const PROCS = "<procs>";
+const PROC_TTL = 60000;
 
 const slug = (cwd) => cwd.replace(/[^A-Za-z0-9]/g, "-");
 
@@ -90,18 +95,43 @@ function fresh() {
     last: null, final: false, pending: null, firstAt: null, lastAt: null, uses: {}, tasks: {}, ends: {} };
 }
 
-// A tool call that only waits: a shell that sleeps, loops or reads a background task's output.
-const WAITS = /^\s*(sleep|until|while)\b|[\\/]tasks[\\/][\w-]+\.output/;
-const waits = (name, input = {}) => (name === "Bash" || name === "PowerShell") && WAITS.test(String(input.command ?? ""));
+// A tool call that only waits: a shell whose every command pauses or looks (a sleep, a loop's test,
+// a read of a log), and that pauses at least once or reads a background task's output. One command
+// that does work makes it work: `sleep 1; npm run build`, `while read f; do convert "$f"; done`.
+// A command this can't read counts as work: quiet work shown as waiting is the worse error.
+const QUOTED = /"(?:[^"\\]|\\.)*"|'[^']*'/g;
+const SPLIT = /\|\||&&|(?<!>)&|[;|\n(){}]/;
+const LEAD = /^(?:(?:while|until|if|elif|do|then|else|!|-not|timeout\s+\S+)(?:\s+|$))+/i;
+const LOOKS = new RegExp(String.raw`^(?:\[\[?\s|:(?:\s|$)|\$(?:true|false)\b|\w+=\S*$|kill\s+-0\b|sed\s+(?!-i)`
+  + String.raw`|git\s+(?:status|log|diff|show|rev-parse)\b|gh\s+(?:pr\s+(?:checks|view|list|status)|run\s+(?:view|watch|list))\b|docker\s+(?:ps|logs|inspect)\b`
+  + String.raw`|(?:sleep|start-sleep|wait|cat|tail|head|grep|rg|test|echo|printf|true|false|get-content|gc|select-object|select-string|test-path`
+  + String.raw`|break|exit|ls|wc|date|curl|pgrep|ps|netstat|tasklist|get-process|done|fi|jq|cd|cut|sort|uniq|awk|tr|seq|for|select)(?:\s|$))`, "i");
+const PAUSES = /^(?:sleep|start-sleep|wait)(?:\s|$)/i;
+const TASK_OUTPUT = /[\\/]tasks[\\/][\w-]+\.output/;
+function waits(name, input = {}) {
+  if (name !== "Bash" && name !== "PowerShell") return false;
+  const command = String(input.command ?? "");
+  const parts = command.replace(QUOTED, "Q").split(SPLIT).map((s) => s.trim().replace(LEAD, "")).filter(Boolean);
+  return parts.length > 0 && parts.every((s) => LOOKS.test(s)) && (parts.some((s) => PAUSES.test(s)) || TASK_OUTPUT.test(command));
+}
 
 const ENDED = new Set(["completed", "failed", "killed", "stopped"]);
 
-// A background task's end, as Claude Code tells the model: its id and status lead the block.
+// A task ends once, so its first end stands: a later block may name it again among others. Only an
+// end from before it was resumed gives way.
+function ended(f, id, end) {
+  const had = f.ends[id];
+  if (!had || had.at < (f.tasks[id]?.resumedAt ?? 0)) f.ends[id] = end;
+}
+
+// A background task's end, as Claude Code tells the model: the ids lead the block, then the status.
+// One block can end several tasks, so every id before the status counts; an id after it is only
+// quoted (in a summary, a result).
 function notices(f, text, at) {
   for (const block of String(text ?? "").split(NOTICE).slice(1)) {
-    const id = /<task-id>([^<]+)<\/task-id>/.exec(block)?.[1];
-    const state = /<status>([^<]+)<\/status>/.exec(block)?.[1];
-    if (id && ENDED.has(state)) f.ends[id] = { state, at };
+    const [head, rest = ""] = block.split("</task-notification>")[0].split("<status>");
+    const state = /^([^<]+)<\/status>/.exec(rest)?.[1];
+    if (ENDED.has(state)) for (const [, id] of head.matchAll(/<task-id>([^<]+)<\/task-id>/g)) ended(f, id, { state, at });
   }
 }
 
@@ -112,11 +142,14 @@ function launched(f, r, use, at) {
   const kind = r.backgroundTaskId ? "shell" : r.isAsync && r.agentId ? "agent" : r.taskId && (r.timeoutMs !== undefined || r.persistent !== undefined) ? "monitor" : null;
   if (kind) {
     const id = r.backgroundTaskId ?? r.agentId ?? r.taskId;
-    f.tasks[id] = { id, kind, description: r.description ?? use?.description ?? null, startedAt: use?.at ?? at };
+    const startedAt = use?.at ?? at;
+    // A monitor that is not persistent stops at its timeout, and no line says so.
+    const expiresAt = kind === "monitor" && !r.persistent && startedAt && r.timeoutMs > 0 ? startedAt + r.timeoutMs : null;
+    f.tasks[id] = { id, kind, description: r.description ?? use?.description ?? null, startedAt, expiresAt };
     const ids = Object.keys(f.tasks);
     for (const old of ids.slice(0, Math.max(0, ids.length - TASKS_KEPT))) if (f.ends[old]) { delete f.tasks[old]; delete f.ends[old]; }
   } else if (r.task_id && String(r.message ?? "").startsWith("Successfully stopped")) {
-    f.ends[r.task_id] = { state: "stopped", at };
+    ended(f, r.task_id, { state: "stopped", at });
   } else if (f.tasks[r.resumedAgentId]) {
     // SendMessage woke an agent that had ended: it runs again from here, under the same id.
     f.tasks[r.resumedAgentId].resumedAt = at;
@@ -196,26 +229,65 @@ const alive = (pid) => {
   try { process.kill(pid, 0); return true; } catch (e) { return e.code === "EPERM"; }
 };
 
-/** sessionId -> {since} for each session a running Claude Code process owns; null with no registry. */
-function registry(dir) {
+/**
+ * pid -> when its process started, in the form a registry file's procStart has; a pid with no
+ * entry has no process, and "?" is a start that can't be read. null when this platform can't be
+ * asked: only Windows is, where procStart is a FILETIME and Get-Process gives the same.
+ */
+function starts(pids) {
+  if (process.platform !== "win32") return null;
+  const script = `Get-Process -Id ${pids.join(",")} -ErrorAction SilentlyContinue | ForEach-Object { try { "$($_.Id) $($_.StartTime.ToFileTimeUtc())" } catch { "$($_.Id) ?" } }`;
+  try {
+    const out = execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", script], { encoding: "utf8", timeout: 8000, windowsHide: true });
+    return new Map(out.split(/\r?\n/).filter(Boolean).map((l) => l.trim().split(" ")));
+  } catch { return null; }
+}
+
+/**
+ * sessionId -> {since} for each session a running Claude Code process owns; null with no registry.
+ * A registry file outlives a crashed session, and its pid is then free for any other process, so
+ * the process counts only if it started when the file says (procStart). Asking takes a process of
+ * its own, so each answer is kept in `seen` for PROC_TTL. A process that can't be asked counts.
+ */
+function registry(dir, seen) {
   let names;
   try { names = fs.readdirSync(dir); } catch { return null; }
+  const now = Date.now();
+  const found = names.map((n) => /^\d+\.json$/.test(n) ? readJson(path.join(dir, n)) : null).filter((s) => s?.sessionId && alive(s.pid));
+  const known = (s) => seen[s.pid]?.procStart === s.procStart && now - seen[s.pid].at < PROC_TTL;
+  for (const pid of Object.keys(seen)) if (!found.some((s) => String(s.pid) === pid && known(s))) delete seen[pid];
+  const ask = found.filter((s) => s.procStart && !seen[s.pid]);
+  const got = ask.length ? starts(ask.map((s) => s.pid)) : null;
   const live = new Map();
-  for (const n of names) {
-    const s = /^\d+\.json$/.test(n) ? readJson(path.join(dir, n)) : null;
-    if (s?.sessionId && alive(s.pid)) live.set(s.sessionId, { since: s.startedAt ?? 0 });
+  for (const s of found) {
+    if (ask.includes(s)) {
+      const start = got ? got.get(String(s.pid)) ?? null : "?";
+      seen[s.pid] = { procStart: s.procStart, same: start === "?" ? null : start === String(s.procStart), at: now };
+    }
+    if (seen[s.pid]?.same ?? true) live.set(s.sessionId, { since: s.startedAt ?? 0 });
   }
   return live;
 }
 
-// A task's end may be written to another transcript of its session than the one that started it
-// (a sub-agent's monitor that outlives it reports to the main one), so `ends` is the session's.
-// A task with no end is running only if the process that started it still is.
-function settle(f, ends, owner) {
-  const { uses, ends: _own, tasks, ...rest } = f;
+// A task's end may be written to another transcript of its session than the one that started it (a
+// sub-agent's monitor that outlives it reports to the main one). Such an end moves to the fold that
+// holds its task, so no fold keeps an end it has no task for.
+function rehome(folds) {
+  for (const f of folds) for (const [id, end] of Object.entries(f.ends)) {
+    if (f.tasks[id]) continue;
+    const home = folds.find((g) => g.tasks[id]);
+    if (home) ended(home, id, end);
+    delete f.ends[id];
+  }
+}
+
+// A task with no end is running only if the process that started it still is and, for a monitor
+// with a timeout, only until then.
+function settle(f, owner, now) {
+  const { uses, ends, tasks, ...rest } = f;
   return { ...rest, tasks: Object.values(tasks).map((t) => {
     const from = t.resumedAt ?? t.startedAt;
-    const end = ends[t.id]?.at >= from ? ends[t.id] : null;
+    const end = ends[t.id]?.at >= from ? ends[t.id] : t.expiresAt && t.expiresAt <= now ? { state: "timed-out", at: t.expiresAt } : null;
     const gone = !owner || from < owner.since;
     return { ...t, endedAt: end?.at ?? null, state: end?.state ?? (gone ? "ended-with-session" : "running") };
   }) };
@@ -228,8 +300,9 @@ function subagents(cache, transcript) {
   return names.filter((n) => /^agent-.+\.jsonl$/.test(n)).map((n) => {
     const p = path.join(dir, n);
     const meta = readJson(p.replace(/\.jsonl$/, ".meta.json")) ?? {};
-    return { id: n.slice(6, -6), path: p, description: meta.description ?? null, agentType: meta.agentType ?? null, ...summary(cache, p) };
-  });
+    const s = summary(cache, p);
+    return s && { id: n.slice(6, -6), path: p, description: meta.description ?? null, agentType: meta.agentType ?? null, ...s };
+  }).filter(Boolean);
 }
 
 /**
@@ -260,7 +333,8 @@ function sessions(req) {
   const out = {};
   const watch = new Set(req.sidecars ? [req.sidecars] : []);
   const missing = new Set();
-  const owners = registry(req.registry ?? REGISTRY);
+  const now = Date.now();
+  const owners = registry(req.registry ?? REGISTRY, cache[PROCS] ??= {});
   if (owners) watch.add(req.registry ?? REGISTRY);
   for (const t of req.targets) {
     const sidecar = side.get(t.terminal) ?? null;
@@ -286,14 +360,13 @@ function sessions(req) {
     if (!main) continue;
     const sessionId = path.basename(transcript, ".jsonl");
     const subs = subagents(cache, transcript);
-    const ends = Object.assign({}, ...[main, ...subs].map((f) => f.ends));
+    rehome([main, ...subs]);
     // No registry at all: nothing says the session died, so its open tasks still count as running.
     const owner = owners ? owners.get(sessionId) : { since: 0 };
-    out[t.terminal] = { transcript, approx, sessionId, live: owners ? owners.has(sessionId) : null, ...settle(main, ends, owner),
-      subagents: subs.map((s) => settle(s, ends, owner)), sidecar };
+    out[t.terminal] = { transcript, approx, sessionId, live: owners ? owners.has(sessionId) : null, ...settle(main, owner, now),
+      subagents: subs.map((s) => settle(s, owner, now)), sidecar };
   }
-  const now = Date.now();
-  for (const [p, c] of Object.entries(cache)) if (now - (c.used ?? 0) > CACHE_DAYS * DAY || !stat(p)) delete cache[p];
+  for (const [p, c] of Object.entries(cache)) if (p !== PROCS && (now - (c.used ?? 0) > CACHE_DAYS * DAY || !stat(p))) delete cache[p];
   // Atomic replace: several mod copies may probe at once; the loser's work is only redone later.
   const tmp = `${req.cache}.${process.pid}.tmp`;
   try { fs.writeFileSync(tmp, JSON.stringify(cache)); fs.renameSync(tmp, req.cache); } catch { try { fs.unlinkSync(tmp); } catch {} }

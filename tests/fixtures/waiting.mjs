@@ -125,3 +125,57 @@ write("session-dead/subagents/agent-asuborphan.jsonl", () => [
   prompt("asuborphan", "Run the suite."),
   use("asuborphan", "toolu_o1", "Bash", { command: "npm test", description: "Run the tests" }),
 ]);
+
+const monitor = (sub, id, task, description, { timeoutMs = 600000, persistent = false } = {}) => [
+  use(sub, id, "Monitor", { command: "tail -f build.log", description, timeout_ms: timeoutMs, persistent }),
+  result(sub, id, `Monitor started (task ${task}).`, { taskId: task, timeoutMs, persistent }),
+];
+// One block that ends several tasks: the ids, then one status. The summary may quote another id.
+const batch = (ids, status, summary) => `<task-notification>\n${ids.map((id) => `<task-id>${id}</task-id>\n`).join("")}`
+  + `<status>${status}</status>\n<summary>${summary}</summary>\n<note>These tasks ended together.</note>\n</task-notification>`;
+const CENTURY = 100 * 365 * 86400000;
+
+// A live session whose tasks end in one batched block, or by a monitor's timeout, or not at all.
+write("session-batch.jsonl", () => [
+  prompt(null, "Build, and watch the logs."),
+  ...shell(null, "toolu_b1", "bone", "npm run build:a", "Build A"),
+  ...shell(null, "toolu_b2", "btwo", "npm run build:b", "Build B"),
+  ...monitor(null, "toolu_b3", "bwatch", "build log", { persistent: true }),
+  ...shell(null, "toolu_b4", "bkept", "npm run dev", "Preview server"),
+  ...monitor(null, "toolu_b5", "bexpired", "deploy log"),
+  ...monitor(null, "toolu_b6", "blong", "release log", { timeoutMs: CENTURY }),
+  ...monitor(null, "toolu_b7", "bforever", "error log", { persistent: true }),
+  ...shell(null, "toolu_b8", "bbroke", "npm run build:c", "Build C"),
+  queued("session-batch", notice("bbroke", "toolu_b8", "failed", "Background command \"Build C\" failed (exit code 1)")),
+  // The block also names a task that had already ended.
+  queued("session-batch", batch(["bone", "btwo", "bwatch", "bbroke"], "stopped", "4 background tasks stopped. <task-id>bkept</task-id> was left running.")),
+  say(null, "The builds are stopped. The preview is still up."),
+]);
+
+// Ended its turn to wait on a monitor, which then timed out without a word.
+write("session-batch/subagents/agent-asubexpired.jsonl", () => [
+  prompt("asubexpired", "Watch the deploy."),
+  ...monitor("asubexpired", "toolu_e1", "bsubmon", "deploy log", { timeoutMs: 300000 }),
+  say("asubexpired", "The monitor is armed. I'll wait for it."),
+]);
+
+// Waited on two shells, which one block then ended; its last word came before that block.
+write("session-batch/subagents/agent-asubbatched.jsonl", () => [
+  prompt("asubbatched", "Run both suites."),
+  ...shell("asubbatched", "toolu_g1", "bsuitea", "npm run test:a", "Suite A"),
+  ...shell("asubbatched", "toolu_g2", "bsuiteb", "npm run test:b", "Suite B"),
+  say("asubbatched", "Both suites are running. I'll wait for them."),
+  queued("session-batch", `${PREAMBLE}${batch(["bsuitea", "bsuiteb"], "completed", "2 background commands completed")}`),
+]);
+
+// Sub-agents quiet inside a shell call: which commands only wait.
+const blocked = (id, tool, command) => write(`session-batch/subagents/agent-${id}.jsonl`, () => [
+  prompt(id, "Go."),
+  use(id, `toolu_${id}`, tool, { command, description: "Run it" }),
+]);
+blocked("asubsleepbuild", "Bash", "sleep 1; npm run build");
+blocked("asubreadloop", "Bash", "while read f; do convert \"$f\" out/; done < list.txt");
+blocked("asubredirect", "Bash", "npm test > <temp>\\tasks\\bsuitea.output");
+blocked("asubuntil", "Bash", "until grep -q \"ready|listening\" server.log 2>&1; do sleep 2; done");
+blocked("asubpwsh", "PowerShell", "Start-Sleep -Seconds 30; Get-Content build.log -Tail 5");
+blocked("asubpwshloop", "PowerShell", "while (-not (Test-Path out\\done.txt)) { Start-Sleep 2 }");

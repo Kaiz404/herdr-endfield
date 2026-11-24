@@ -134,6 +134,18 @@ export function runStatus(run, parent) {
 // Still in flight: a sub-agent in one of these shows under its parent without being asked for.
 export const inFlight = (status) => status === "working" || status === "waiting";
 
+/**
+ * How often to ask again when no file was written: a status can change by time alone. A working
+ * sub-agent may go quiet: "fast". A wait may end with no write to see, by a monitor's timeout or
+ * its session's crash: "slow". Else null.
+ * sessions: Session[] (sessions.js)
+ */
+export function pollPace(sessions) {
+  const subs = sessions.flatMap((s) => s.subagents);
+  if (subs.some((k) => k.status === "working")) return "fast";
+  return sessions.some((s) => s.waiting) || subs.some((k) => k.status === "waiting") ? "slow" : null;
+}
+
 // A Claude Code session's own sub-agents under its row: the ones in flight (working or waiting),
 // or all of them while `open`, newest started first (by start, not last write, so a busy one
 // doesn't hop past a newer one). `earlier` counts the ones that are over, which a toggle row offers.

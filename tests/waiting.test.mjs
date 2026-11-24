@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { runStatus, subagentView, statusOf, rank, rowShape } from "../skin/mods/endfield/fleet.js";
+import { runStatus, subagentView, statusOf, rank, rowShape, pollPace } from "../skin/mods/endfield/fleet.js";
 import { transcripts } from "./fixtures/waiting.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -14,6 +14,7 @@ const HOUR = 3600000;
 // The fixtures' clock starts here; a process that started later can't own what they launched.
 const BEFORE_FIXTURES = Date.parse("2026-01-01T00:00:00Z");
 const AFTER_FIXTURES = Date.parse("2026-03-01T00:00:00Z");
+const SESSIONS = ["session-live", "session-dead", "session-batch"];
 
 let dir;
 before(() => {
@@ -27,7 +28,7 @@ before(() => {
     fs.utimesSync(p, old, old);
   }
   fs.mkdirSync(path.join(dir, "sidecars"));
-  for (const id of ["session-live", "session-dead"]) {
+  for (const id of SESSIONS) {
     fs.writeFileSync(path.join(dir, "sidecars", `${id}.json`), JSON.stringify({ terminal: id, transcript_path: path.join(dir, "projects", `${id}.jsonl`), updated_at: "1" }));
   }
 });
@@ -42,7 +43,7 @@ function probe(name, owners) {
   }
   const req = path.join(dir, `req-${name}.json`);
   fs.writeFileSync(req, JSON.stringify({ cmd: "sessions", cache: path.join(dir, `cache-${name}.json`), sidecars: path.join(dir, "sidecars"), registry,
-    targets: [{ terminal: "session-live", cwd: null }, { terminal: "session-dead", cwd: null }] }));
+    targets: SESSIONS.map((terminal) => ({ terminal, cwd: null })) }));
   return JSON.parse(execFileSync("node", [PROBE, req], { encoding: "utf8" })).sessions;
 }
 
@@ -50,6 +51,8 @@ const exited = () => spawnSync(process.execPath, ["-e", ""]).pid;
 const owned = () => probe("owned", [
   { sessionId: "session-live", pid: process.pid, startedAt: BEFORE_FIXTURES },
   { sessionId: "session-dead", pid: exited(), startedAt: BEFORE_FIXTURES },
+  // The registry has one file per pid, so the second live session borrows the test runner's.
+  { sessionId: "session-batch", pid: process.ppid, startedAt: BEFORE_FIXTURES },
 ]);
 const states = (run) => Object.fromEntries(run.tasks.map((t) => [t.id, t.state]));
 const statuses = (session, parent = "working") => Object.fromEntries(session.subagents.map((s) => [s.id, runStatus({ ...s, live: session.live, now: Date.now() }, parent)]));
@@ -139,6 +142,63 @@ test("an older probe's cached fold, which has no tasks, is folded again", () => 
   fs.writeFileSync(cache, JSON.stringify({ [transcript]: { to: fs.statSync(transcript).size, fold: { final: true, pending: null }, used: Date.now() } }));
   const live = probe("stale", [{ sessionId: "session-live", pid: process.pid, startedAt: BEFORE_FIXTURES }])["session-live"];
   assert.equal(live.tasks.length, 5);
+});
+
+test("one notification block that names several tasks ends each of them, and none it only quotes", () => {
+  const batch = owned()["session-batch"];
+  const { bone, btwo, bwatch, bkept, bbroke } = states(batch);
+  assert.deepEqual({ bone, btwo, bwatch, bkept }, { bone: "stopped", btwo: "stopped", bwatch: "stopped", bkept: "running" },
+    "bkept is named after the status, in the summary");
+  assert.equal(bbroke, "failed", "a task ends once: the block names it again after it had failed");
+  assert.equal(statuses(batch).asubbatched, "done", "both the shells it waited on have ended");
+});
+
+test("a monitor with a timeout ends at it; a persistent one, or one whose timeout is ahead, runs on", () => {
+  const batch = owned()["session-batch"];
+  const { bexpired, blong, bforever } = states(batch);
+  assert.deepEqual({ bexpired, blong, bforever }, { bexpired: "timed-out", blong: "running", bforever: "running" });
+  const expired = batch.tasks.find((t) => t.id === "bexpired");
+  assert.equal(expired.endedAt - expired.startedAt, 600000, "it ended when its ten minutes were up");
+  assert.equal(statuses(batch).asubexpired, "done", "the monitor it waited on has timed out");
+  const ended = owned()["session-live"].subagents.find((s) => s.id === "asubwaiting").tasks.find((t) => t.id === "bmonitor");
+  assert.equal(ended.state, "completed", "an end that was written wins over the timeout");
+});
+
+test("a shell call is a wait only when every command in it pauses or looks", () => {
+  const { asubsleepbuild, asubreadloop, asubredirect, asubuntil, asubpwsh, asubpwshloop } = statuses(owned()["session-batch"]);
+  assert.deepEqual({ asubsleepbuild, asubreadloop, asubredirect }, { asubsleepbuild: "working", asubreadloop: "working", asubredirect: "working" },
+    "a sleep before a build, a loop that converts files and a suite writing to a task's output all do work");
+  assert.deepEqual({ asubuntil, asubpwsh, asubpwshloop }, { asubuntil: "waiting", asubpwsh: "waiting", asubpwshloop: "waiting" });
+});
+
+// A registry file's procStart on Windows: the process's start as a FILETIME.
+const procStart = (pid) => execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${pid}).StartTime.ToFileTimeUtc()`], { encoding: "utf8" }).trim();
+
+test("a registry file whose pid now belongs to another process does not keep its session alive", { skip: process.platform !== "win32" && "process start times are read on Windows only" }, () => {
+  const owner = { sessionId: "session-live", pid: process.pid, startedAt: BEFORE_FIXTURES };
+  const reused = probe("reused", [{ ...owner, procStart: "1" }])["session-live"];
+  assert.equal(reused.live, false, "this process did not start when the file says its session's did");
+  assert.deepEqual(states(reused), { asubwaiting: "ended-with-session", asubresumed: "ended-with-session", bserver: "ended-with-session", bfailed: "failed", bstopped: "stopped" });
+  assert.equal(probe("reused", null)["session-live"].live, false, "asked again within the minute, the answer is the same");
+  assert.equal(probe("same", [{ ...owner, procStart: procStart(process.pid) }])["session-live"].live, true);
+});
+
+test("an end written to another transcript moves to the one that holds its task, and is still read from there", () => {
+  owned();
+  const again = owned()["session-live"];
+  assert.equal(again.subagents.find((s) => s.id === "asubwaiting").tasks.find((t) => t.id === "bmonitor").state, "completed");
+  const cache = JSON.parse(fs.readFileSync(path.join(dir, "cache-owned.json"), "utf8"));
+  const folds = Object.values(cache).filter((c) => c.fold);
+  assert.ok(folds.length > 10);
+  assert.deepEqual(folds.flatMap((c) => Object.keys(c.fold.ends).filter((id) => !c.fold.tasks[id])), [], "no transcript keeps an end for a task it did not start");
+});
+
+test("the poller keeps a fast pace while a sub-agent works, a slow one while anything waits, and none otherwise", () => {
+  const session = (waiting, ...subs) => ({ waiting, subagents: subs.map((status) => ({ status })) });
+  assert.equal(pollPace([session(false, "done"), session(false, "waiting", "working")]), "fast");
+  assert.equal(pollPace([session(false, "done", "waiting")]), "slow", "a waiting row clears only by a poll: its session may have crashed");
+  assert.equal(pollPace([session(true)]), "slow");
+  assert.equal(pollPace([session(false, "done", "idle"), session(false)]), null);
 });
 
 const sub = (id, status, startedAt) => ({ id, status, startedAt, lastAt: startedAt });
