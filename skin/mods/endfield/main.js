@@ -19,7 +19,7 @@
 //   comms     the Comms pane: who sent what to whom
 //   action    a session card action's confirm dialog (the exact hc command, on the person's click)
 //   archived  the archived chats, each with Resume
-//   link      Link as helper: one agent dropped on another, the notes typed on the person's click
+//   link      Link: one agent dropped on another, saved on the click, each note typed into it only while idle
 //   account   moves a Claude Code chat to another saved login (a new tab resumes it there, on the click)
 //   transcript  a Claude Code sub-agent's transcript, a pane Squads opens right of its parent
 
