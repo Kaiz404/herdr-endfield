@@ -49,6 +49,17 @@ test("only an idle agent takes typed actions; done says to look first", () => {
   assert.ok(gate("blocked"));
 });
 
+test("a key press says its only gate is the status read before it, and what a prompt would do with it", () => {
+  for (const table of Object.values(ACTIONS)) {
+    for (const action of Object.values(table)) {
+      if (!action.keys) continue;
+      assert.match(action.needs, /no idle check/);
+      assert.match(action.needs, /permission prompt/);
+    }
+  }
+  assert.ok(gate("blocked"), "Next mode is refused while it waits on a question");
+});
+
 test("the card's actions per program", () => {
   assert.deepEqual(actionsFor("claude").map((a) => a.key), ["rename", "plan", "mode", "model", "effort", "archive"]);
   assert.deepEqual(actionsFor("codex").map((a) => a.key), ["rename", "model", "archive"]);

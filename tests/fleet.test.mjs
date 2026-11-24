@@ -145,10 +145,12 @@ test("a sub-agent whose transcript has no timestamp yet sorts by its last write"
   assert.deepEqual(view.shown.map((k) => k.id), ["new", "old"]);
 });
 
-test("an archived agent stays out of the squads, a new terminal at its address doesn't", () => {
-  const terms = [term("t1", 100), term("t2", 200)];
-  const R = buildRoster({ listed: [agent("t1", "s1", "idle"), agent("t2", "s1", "idle")], terms, spaces, identity: identity(), archived: ["t1@100"] });
-  assert.deepEqual(R.flat.map((m) => m.address), ["t2"]);
-  const reborn = buildRoster({ listed: [agent("t1", "s1", "idle")], terms: [term("t1", 900)], spaces, identity: identity(), archived: ["t1@100"] });
-  assert.deepEqual(reborn.flat.map((m) => m.address), ["t1"]);
+test("an archived chat's leftover shell stays out; an agent started there, or a new terminal at its address, shows", () => {
+  const shell = { key: "shell", name: "pwsh", agent: false, shell: true };
+  const live = { ...claude, agent: true };
+  const hidden = [{ life: "t1@100", program: "claude" }];
+  const shown = (listed, terms) => buildRoster({ listed, terms, spaces, identity: identity(), hidden }).flat.map((m) => m.address);
+  assert.deepEqual(shown([agent("t1", "s1", "idle", { program: shell }), agent("t2", "s1", "idle")], [term("t1", 100, null, { program: shell }), term("t2", 200)]), ["t2"]);
+  assert.deepEqual(shown([agent("t1", "s1", "idle", { program: live })], [term("t1", 100, null, { program: live })]), ["t1"], "a new agent in the same shell tab");
+  assert.deepEqual(shown([agent("t1", "s1", "idle", { program: shell })], [term("t1", 900, null, { program: shell })]), ["t1"], "a new terminal at the address");
 });

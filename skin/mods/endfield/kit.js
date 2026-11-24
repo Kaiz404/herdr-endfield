@@ -581,6 +581,20 @@ export function pill(C, id, label, { kind = "paper", knob = "▶", hot = false, 
       .text_size(knob === "+" ? 11 : 8).child(knob)));
 }
 
+// ---- the graphite command strip under Dispatch and the session card's dialogs: the exact
+// command, Cancel and the one yellow action. Same in both themes.
+export const STRIP = { bg: "#374045", text: "#F2F2F2", dim: "#B9C2C7", edge: "#6B777D", code: "JetBrains Mono" };
+
+/** The strip itself, at the dialog's foot. */
+export const strip = () => h_flex().pl(22).pr(14).py(12).gap(12).items_center().bg(STRIP.bg).text_color(STRIP.text).rounded_b(3);
+
+/** The face of a command line in the strip; `el` keeps its own size and scrolling. */
+export const stripCode = (el) => el.font_family(STRIP.code).text_size(10.5).line_height(1.4).text_color(STRIP.dim);
+
+/** The strip's Cancel. */
+export const stripCancel = (id, action) => h_flex().id(id).h(30).px(14).items_center().rounded_full().border_1().border_color(STRIP.edge).cursor_pointer()
+  .on_click(action).child(div().text_size(12).font_medium().text_color(STRIP.text).child("Cancel"));
+
 // ---- the geometric layer: generated SVGs, tinted, drawn large and clipped by their parent.
 
 /** A field of dots (6px pitch) filling a relative, overflow-hidden parent. */

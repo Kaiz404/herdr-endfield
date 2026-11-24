@@ -296,9 +296,11 @@ Every action that types into the agent waits until it is idle. If the agent is w
 
 ### Archive a chat and resume it
 
-**Archive** ends the agent with `/exit` (`/quit` for Codex and Cursor) and keeps its transcript. The chat leaves Squads and goes on the archived list in `data/endfield/archive.json`.
+**Archive** first writes the chat to the archived list in `data/endfield/archive.json`, then ends the agent with `/exit` (`/quit` for Codex and Cursor). The transcript stays. The dialog waits until Herdr shows the program has ended, and then says **Archived**. If the program is still running after 20 seconds, the dialog says **Still running** and the agent stays in Squads. A shell left behind in its terminal is kept out of Squads until another agent starts there.
 
-To bring one back, open the **Report**, click **Archived**, and click **Resume** on the chat. A new tab opens in its space and folder and runs `claude --resume <session id>`. Codex and Cursor resume their newest chat, and the list says so.
+**Next mode** presses Shift+Tab with `hc keys`, which has no idle check of its own. The dialog checks that the agent is idle just before the press. If a permission prompt opens in between, the key press goes to that prompt and can answer it.
+
+To bring one back, open the **Report**, click **Archived**, and click **Resume** on the chat. Each chat shows the exact command Resume runs, such as `claude --resume <session id>`. A new tab opens in its space and folder and runs it. The list warns when the command may reopen a different chat. This happens for Codex and Cursor, which resume their newest chat, and for a Claude Code chat whose session id was matched by its folder. **Resume** is dimmed while the chat is still running.
 
 ### Read Comms
 

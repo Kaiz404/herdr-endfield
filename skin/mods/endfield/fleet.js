@@ -1,7 +1,7 @@
 // fleet: the status table and the roster rules, with no Herdr in them (tests/fleet.test.mjs runs
 // them in node). roster.js feeds buildRoster() Herdr's live lists; kit.js re-exports the table.
 
-import { lifeKey } from "./archive.js";
+import { isLeftover } from "./archive.js";
 
 // Every role reads a status through this table: its word, how its glyph draws, its bar colour,
 // its entrance effect, its rank (how urgent) and whether its Squads row folds to one line.
@@ -43,15 +43,14 @@ export const PINNED = "pinned";
  * Pinned agents (and their trees) come first, in a squad of their own ahead of every space's, so
  * the list and agent.next start with them. `sort` orders siblings; children stay under their parent.
  * identity: { resolve(program, terminal, {parent}), as(slug, program), spares() } (IDENTITY in kit.js).
- * archived: lifeKeys (archive.js) of agents the person archived; they stay out even while their
- * terminal lingers (a shell left behind once the program ended).
+ * hidden: Hides (archive.js) of chats the person archived and saw end. Their terminal stays out while
+ * it lingers with no agent in it (a shell left behind), and shows again once an agent starts there.
  */
-export function buildRoster({ listed, terms, spaces, identity, sort = BY.priority, archived = [] }) {
+export function buildRoster({ listed, terms, spaces, identity, sort = BY.priority, hidden = [] }) {
   const termOf = new Map(terms.map((t) => [t.address, t]));
-  const gone = new Set(archived);
   const all = new Map();
   for (const a of listed) {
-    if (gone.has(lifeKey(a.address, termOf.get(a.address)?.created_ms))) continue;
+    if (isLeftover(hidden, a.address, termOf.get(a.address)?.created_ms, a.program)) continue;
     all.set(a.address, {
       address: a.address, agent: a, program: a.program, status: a.status, title: a.title,
       space: a.space, spaceName: a.space_name, tab: a.tab, tabIndex: a.tab_index, pane: a.pane,
@@ -64,7 +63,7 @@ export function buildRoster({ listed, terms, spaces, identity, sort = BY.priorit
   while (grew) {
     grew = false;
     for (const t of terms) {
-      if (all.has(t.address) || t.state !== "live" || !t.parent || !all.has(t.parent)) continue;
+      if (all.has(t.address) || t.state !== "live" || !t.parent || !all.has(t.parent) || isLeftover(hidden, t.address, t.created_ms, t.program)) continue;
       const up = all.get(t.parent);
       all.set(t.address, {
         address: t.address, agent: null, program: t.program, status: childStatus(t.status), title: t.title || t.name || t.template || t.program?.name || t.address,

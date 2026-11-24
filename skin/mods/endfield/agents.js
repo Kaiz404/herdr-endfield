@@ -16,7 +16,7 @@ import { BY, DENSE_AT, statusOf, subNumbers, subagentView, TRANSCRIPT, transcrip
 import { toggleReport, goTo } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
-import { CARD, cardHeight } from "./card.js";
+import { CARD, cardFit } from "./card.js";
 import { wantedCard, dismissed } from "./hovercard.js";
 
 // Fixed heights, so the selection marker knows where the selected row starts (the row's own ink plate snaps).
@@ -173,9 +173,9 @@ export class Agents {
     const a = agents().find((x) => x.address === address);
     if (!b || !a) return null;
     const s = this.sessions.get(address);
-    const tall = cardHeight(a.status === "blocked" && s?.question) + 2 * CARD.pad;
     let winH = 900;
     try { winH = window.bounds().height; } catch {}
+    const { tall, fit } = cardFit(a.status === "blocked" && s?.question, winH);
     let y = b.y - 12 - CARD.pad;
     if (y + tall > winH - 8) y = b.y + b.height + 12 + CARD.pad - tall;
     const id = openOverlay({
@@ -183,7 +183,7 @@ export class Agents {
       at: { x: Math.round(b.x + b.width - 12 - CARD.pad), y: Math.round(Math.max(0, y)) },
       width: CARD.width + CARD.slide + 2 * CARD.pad,
       height: tall,
-      props: { role: "card", terminal: address, ...this.info[address], snap: s ?? null },
+      props: { role: "card", terminal: address, ...this.info[address], snap: s ?? null, fit },
     });
     return { id, address };
   }

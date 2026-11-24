@@ -11,7 +11,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { props, closeOverlay, openOverlay, spaces, terminals, knownAgents, exec, hc, checking, window as appWindow } from "herdr";
-import { palette, root, micro, wide, chip, glyph, pill, barcode, dots, cue, growDisc, IDENTITY, MOTION, FONT } from "./kit.js";
+import { palette, root, micro, wide, chip, glyph, pill, barcode, dots, cue, growDisc, IDENTITY, MOTION, FONT, STRIP, strip, stripCode, stripCancel } from "./kit.js";
 import { roster } from "./roster.js";
 import { append } from "./comms.js";
 import { sendArgs, runArgs, taskProblem, commandLine, deliver, timeoutFor, deliverPlan } from "./orders.js";
@@ -222,17 +222,16 @@ export class Dispatch {
         .when(Boolean(banner), (el) => el.child(h_flex().mx(22).mb(12).px(10).py(7).gap(8).items_center().border_l(2).border_color(this.state.phase === "sent" ? C.lime : C.red).bg(C.ground)
           .child(micro(banner[0], banner[1]).flex_none()).child(div().flex_1().min_w(0).font_family(FONT.mono).text_size(11).child(this.state.error ?? problem))))
         // The graphite strip: who ▶▶ whom, the exact command, Cancel and the one yellow action.
-        .child(h_flex().pl(22).pr(14).py(12).gap(12).items_center().bg("#374045").text_color("#F2F2F2").rounded_b(3)
+        .child(strip()
           .child(v_flex().flex_1().min_w(0).gap(6)
             .child(h_flex().gap(8).items_center().min_w(0)
-              .child(micro("Current formula", "#B9C2C7"))
-              .child(wide("You", "#F2F2F2", 10).flex_none())
+              .child(micro("Current formula", STRIP.dim))
+              .child(wide("You", STRIP.text, 10).flex_none())
               .child(div().text_size(9).text_color("#31ACF0").child("▶▶"))
-              .child(wide(send ? (T ? `${T.ident.callsign} · ${T.address}` : this.target ?? "—") : `New ${prog?.name ?? ""} · ${lone ? space?.name ?? "" : `child of ${this.parent}`}`, "#F2F2F2", 10).min_w(0).truncate()))
+              .child(wide(send ? (T ? `${T.ident.callsign} · ${T.address}` : this.target ?? "—") : `New ${prog?.name ?? ""} · ${lone ? space?.name ?? "" : `child of ${this.parent}`}`, STRIP.text, 10).min_w(0).truncate()))
             // Every argument, wrapped rather than cut: this line runs exactly what Dispatch runs.
-            .child(div().id("dl-cmd").min_w(0).max_h(58).overflow_y_scrollbar().font_family("JetBrains Mono").text_size(10.5).line_height(1.4).text_color("#B9C2C7").child(text)))
-          .when(!done, (el) => el.child(h_flex().id("dl-cancel").h(30).px(14).items_center().rounded_full().border_1().border_color("#6B777D").cursor_pointer()
-            .on_click(() => closeOverlay(p.overlay)).child(div().text_size(12).font_medium().text_color("#F2F2F2").child("Cancel"))))
+            .child(stripCode(div().id("dl-cmd").min_w(0).max_h(58).overflow_y_scrollbar()).child(text)))
+          .when(!done, (el) => el.child(stripCancel("dl-cancel", () => closeOverlay(p.overlay))))
           .when(done, (el) => el.child(pill(C, "dl-close-done", "Close", { kind: "dark", knob: "×", h: 30, hot: this.hot === "dl-close-done", on_hover: this.hover("dl-close-done"), action: () => closeOverlay(p.overlay) })))
           .when(!done, (el) => el.child(div().when(!ready, (el) => el.opacity(0.45)).child(pill(C, "dl-go", this.state.phase === "busy" ? "Dispatching" : "Dispatch", { kind: "primary", h: 30, hot: this.hot === "dl-go", on_hover: this.hover("dl-go"),
             action: (_e, cx) => { if (ready) cx.spawn(async (cx) => this.confirm(cx)); } })))))));

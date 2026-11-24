@@ -156,6 +156,7 @@ const RENAME = {
  * What each program's chat can be asked to do, as data. An action types `text(values)` with
  * hc send --if idle, or presses `keys`, or (rename) runs Herdr's tab.rename and optionally types
  * `session(values)`. `read` names what the dialog reads back afterwards (null: it says "sent").
+ * `needs`, on a keys action, replaces the dialog's idle line: a key press has no --if.
  * An `archive` action ends the program; the dialog then records the chat (archive.js).
  */
 export const ACTIONS = {
@@ -163,6 +164,7 @@ export const ACTIONS = {
     rename: RENAME,
     plan: { label: "Plan", text: () => "/plan", read: "mode", note: "Turns on plan mode: it plans and asks before it edits." },
     mode: { label: "Next mode", keys: ["shift+tab"], read: "mode",
+      needs: "Idle when Herdr last said. hc keys has no idle check of its own: the only gate is that status, read just before the press. If a permission prompt opens in between, Shift+Tab goes to the prompt and can answer it.",
       note: "One Shift+Tab: manual, accept edits, plan, auto, then manual again. A mode set at launch (don't ask, bypass) leaves the cycle once passed." },
     model: { label: "Model", fields: [{ key: "model", kind: "choice", label: "Model", list: CLAUDE_MODELS }], text: (v) => `/model ${word(v.model)}`, read: "model",
       note: "Typed /model also saves it as your default model for new sessions." },
@@ -187,7 +189,12 @@ export const ACTIONS = {
 /** The actions a program offers, in card order; none for a program not in the table. */
 export const actionsFor = (programKey) => Object.entries(ACTIONS[programKey] ?? {}).map(([key, a]) => ({ key, ...a }));
 
-/** Why a typed action can't run now, or null. */
+/**
+ * Why a typed action can't run now, or null. Stricter than deliverPlan, which sends a task to a done
+ * agent plain: a task is a message it reads at its prompt, but these are slash commands that change
+ * its settings or end it. They keep --if idle, which refuses done, so the person sees what it
+ * finished before changing or ending the chat.
+ */
 export function gate(status) {
   if (status === "idle") return null;
   return {
@@ -222,6 +229,9 @@ export const stepLine = (step, platform) => (step.hc ? commandLine(step.hc, plat
 
 // Claude Code's own mode line under its prompt (measured on 2.1.330), e.g. "⏸ plan mode on (shift+tab to cycle)".
 const MODE_LINE = [[/plan mode on/i, "plan"], [/accept edits on/i, "acceptEdits"], [/auto mode on/i, "auto"], [/manual mode on/i, "default"], [/don't ask on/i, "dontAsk"], [/bypass permissions on/i, "bypassPermissions"]];
+
+/** A permission mode in words, for the card's chat line and the dialog's read-back. */
+export const MODE_WORD = { default: "manual", acceptEdits: "accept edits", plan: "plan", auto: "auto", dontAsk: "don't ask", bypassPermissions: "bypass" };
 
 /** The permission mode Claude Code shows in its last screen lines, or null. The transcript records a change only at the next turn. */
 export function modeOnScreen(text) {

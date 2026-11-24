@@ -15,16 +15,25 @@ import { longDuration, ago } from "./sessions.js";
 import { readLog, KIND, openComms } from "./comms.js";
 import { openDispatch } from "./dispatch.js";
 import { showWork } from "./report.js";
-import { actionsFor, gate } from "./orders.js";
+import { actionsFor, gate, MODE_WORD } from "./orders.js";
 import { openAction } from "./actions.js";
 
 export const CARD = { width: 368, pad: 14, slide: 14 };
 const SEGS = 20;
 const HOT_FROM = 0.75;
-const MODE_WORD = { default: "manual", acceptEdits: "accept edits", plan: "plan", auto: "auto", dontAsk: "don't ask", bypassPermissions: "bypass" };
 
 /** How tall the panel draws, so the list can keep it inside the window before it exists. */
 export const cardHeight = (question) => 516 + (question ? 52 : 0);
+
+/**
+ * The card's window for a window `winH` tall: its height, and `fit` (the panel's height when it
+ * had to shrink, else null). A shrunk panel scrolls its middle; the head and the button row stay.
+ */
+export function cardFit(question, winH) {
+  const want = cardHeight(question) + 2 * CARD.pad;
+  const tall = Math.min(want, Math.max(winH - 16, 2 * CARD.pad + 240));
+  return { tall, fit: tall < want ? tall - 2 * CARD.pad : null };
+}
 
 export class Card {
   init(p, cx) {
@@ -93,11 +102,11 @@ export class Card {
       .on_mouse_down_out(() => setShared("endfield.card.closed", p.overlay))
       .on_hover((over) => setShared("endfield.card.hot", over ? p.overlay : null))
       .child(v_flex().id("card").relative().w(CARD.width).flex_none().self_start().overflow_hidden().rounded(4).border_1().border_color(C.hairStrong)
-        .bg(C.raised).shadow_lg()
+        .bg(C.raised).shadow_lg().when(Boolean(p.fit), (el) => el.h(p.fit))
         .left(this.entered ? CARD.slide : 0).opacity(this.entered ? 1 : 0)
         .transition("left", MOTION.card.slide).transition("opacity", MOTION.card.reveal)
         // Head: the operator's bust in a dotted frame, the session's ink chip, the task, who and where.
-        .child(line(h_flex().gap(14).items_center().pt(16).pb(14).pl(18).pr(16))
+        .child(line(h_flex().flex_none().gap(14).items_center().pt(16).pb(14).pl(18).pr(16))
           .child(div().relative().w(66).h(78).flex_none()
             .child(div().absolute().left(0).top(0).w(66).h(78).rounded(3).overflow_hidden().bg(C.ground).border_1().border_color(C.hair)
               .border_b(3).border_color(ident?.accent ?? C.hairStrong)
@@ -115,6 +124,8 @@ export class Card {
               .child(barcode(C.cross)))
             .child(div().text_size(15).font_semibold().truncate().child(p.title ?? m?.title ?? DASH))
             .child(micro([ident?.callsign ?? p.callsign, m?.program?.name, p.where].filter(Boolean).join(" / "), C.muted).truncate())))
+        // On a short window (props.fit) the middle scrolls, so the button row is never cut off.
+        .child(v_flex().id("card-mid").overflow_y_scrollbar().when(Boolean(p.fit), (el) => el.flex_1().min_h(0))
         // The machine panel: what goes in, the state with its march, the work done.
         .child(line(h_flex())
           .child(cell(v_flex().relative().overflow_hidden(), false)
@@ -179,9 +190,9 @@ export class Card {
         .when(Boolean(question), (el) => el.child(h_flex().mx(18).mt(12).gap(8).items_stretch()
           .child(div().w(4).flex_none().border_t(1.5).border_b(1.5).border_l(1.5).border_color(C.text))
           .child(div().flex_1().py(6).font_family("JetBrains Mono").text_size(11).line_height(1.45).child(question))
-          .child(div().w(4).flex_none().border_t(1.5).border_b(1.5).border_r(1.5).border_color(C.text))))
+          .child(div().w(4).flex_none().border_t(1.5).border_b(1.5).border_r(1.5).border_color(C.text)))))
         // The ink footer: the current formula (what goes in ▶▶ what it is doing), then the actions.
-        .child(v_flex().mt(12).pl(18).pr(12).py(10).gap(10).bg(C.ink).text_color("#F2F2F2")
+        .child(v_flex().flex_none().mt(12).pl(18).pr(12).py(10).gap(10).bg(C.ink).text_color("#F2F2F2")
           .child(v_flex().gap(5).min_w(0)
             .child(micro("Current formula", "#A9A9A3"))
             .child(h_flex().gap(6).min_w(0).font_family("JetBrains Mono").text_size(11)

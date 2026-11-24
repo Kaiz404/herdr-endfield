@@ -5,19 +5,21 @@
 //             steps go through hc send --if idle; Next mode's hc keys runs only if Herdr still
 //             says idle at the click. Afterwards it reads back the model or effort (the squad
 //             list's session data) or the mode (Claude Code's own line, hc read), else says sent.
-//             Archive ends the program, then records the chat in data/endfield/archive.json and
-//             keeps its terminal out of Squads (shared "endfield.archived", roster.js).
+//             Archive records the chat in data/endfield/archive.json first (archiving), then
+//             types the end command, then watches Herdr until the program is gone. Only then is
+//             the record marked ended and a shell left behind kept out of Squads (shared
+//             "endfield.archived", roster.js); otherwise the dialog says it is still running.
 //   archived  props {role: "archived", overlay}: the archived chats, newest first, each with
 //             Resume: a new tab running the program's resume command (archive.js), on the click only.
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { props, closeOverlay, openOverlay, readTextFile, writeTextFile, appHome, exec, hc, run, shared, setShared, spaces, knownAgents, checking, window as appWindow } from "herdr";
-import { palette, root, micro, pill, barcode, growDisc, cue, MOTION, FONT } from "./kit.js";
+import { props, closeOverlay, openOverlay, readTextFile, writeTextFile, appHome, exec, hc, run, shared, setShared, spaces, agents, terminals, knownAgents, checking, window as appWindow } from "herdr";
+import { palette, root, micro, pill, barcode, growDisc, cue, MOTION, FONT, STRIP, strip, stripCode, stripCancel } from "./kit.js";
 import { roster } from "./roster.js";
 import { append } from "./comms.js";
-import { ACTIONS, gate, valuesProblem, actionSteps, stepLine, modeOnScreen, deliver, timeoutFor } from "./orders.js";
-import { archiveRecord, parseArchive, withChat, withoutChat, resumeArgv, lifeKey } from "./archive.js";
+import { ACTIONS, MODE_WORD, gate, valuesProblem, actionSteps, stepLine, modeOnScreen, deliver, timeoutFor, shQuote } from "./orders.js";
+import { archiveRecord, parseArchive, withoutChat, withEnded, updateFile, recordThenEnd, exitState, hideOf, keptHides, withoutHide, resumeTab, resumeState } from "./archive.js";
 import { ago } from "./sessions.js";
 
 const ARCHIVE = () => `${appHome()}/data/endfield/archive.json`;
@@ -25,7 +27,8 @@ const ARCHIVE = () => `${appHome()}/data/endfield/archive.json`;
 const HIDDEN_CAP = 50;
 const READ_TRIES = 8;
 const READ_EVERY_MS = 1000;
-const MODE_WORD = { default: "manual", acceptEdits: "accept edits", plan: "plan", auto: "auto", dontAsk: "don't ask", bypassPermissions: "bypass permissions" };
+// Claude Code saves and exits within a few seconds of /exit; past this the dialog says it is still running.
+const EXIT_TRIES = 20;
 
 export const openAction = (p) => openOverlay({ mod: "endfield", kind: "dialog", frame: "none", width: 600, height: 520, props: { role: "action", ...p } });
 export const openArchived = () => openOverlay({ mod: "endfield", kind: "dialog", frame: "none", width: 640, height: 540, props: { role: "archived" } });
@@ -33,6 +36,8 @@ export const openArchived = () => openOverlay({ mod: "endfield", kind: "dialog",
 async function readArchive() {
   try { return (await readTextFile(ARCHIVE())) ?? null; } catch { return null; }
 }
+
+const updateArchive = (change) => updateFile({ read: readArchive, write: (text, expected) => writeTextFile(ARCHIVE(), text, expected), change });
 
 // The dialogs' shared frame: corner brackets, a title block, a body, the graphite command strip.
 function frame(C, id, { kicker, title, close, body, strip }) {
@@ -75,6 +80,8 @@ export class ActionDialog {
     // edit -> busy -> sent | refused (may Confirm again) | uncertain; deliver() in orders.js.
     this.state = { phase: "edit", error: null };
     this.read = null;
+    // Archive only: watching | ended | running (not seen to end in time).
+    this.exit = null;
     this.before = this.readNow();
     this.entered = false;
     if (checking()) return;
@@ -120,6 +127,7 @@ export class ActionDialog {
     const platform = appWindow()?.platform;
     this.state = { phase: "busy", error: null };
     cx.notify();
+    if (this.action.archive) { await this.archive(cx); cx.notify(); return; }
     for (const step of this.steps()) {
       if (step.herdr) { run(step.herdr, step.args); continue; }
       // hc keys has no --if: Herdr's status at the click is the gate.
@@ -136,25 +144,50 @@ export class ActionDialog {
     }
     cue("tick");
     this.state = { phase: "sent", error: null };
-    if (this.action.archive) await this.archive();
-    else if (this.action.read) this.readBack(cx);
+    if (this.action.read) this.readBack(cx);
     cx.notify();
   }
 
-  // The program was told to end: the chat goes in the archive, and its terminal out of Squads.
-  async archive() {
+  // The record first, then the end command (recordThenEnd), then Herdr is watched (watchExit).
+  async archive(cx) {
     const m = roster().all.get(this.p.terminal);
     const s = this.p.snap;
     const chat = archiveRecord({
-      sessionId: s?.sessionId ?? null, program: this.program, cwd: s?.cwd ?? null, title: m?.title ?? null,
+      sessionId: s?.sessionId ?? null, approx: Boolean(s?.approx), program: this.program, cwd: s?.cwd ?? null, title: m?.title ?? null,
       space: m?.space ?? null, terminal: this.p.terminal, created: m?.created ?? 0, now: Date.now(),
     });
-    const hidden = shared("endfield.archived") ?? [];
-    setShared("endfield.archived", [...hidden, lifeKey(this.p.terminal, m?.created)].slice(-HIDDEN_CAP));
-    const text = await readArchive();
-    try { await writeTextFile(ARCHIVE(), withChat(text, chat), text); } catch (e) {
-      this.state = { phase: "sent", error: `Ended, but the archive could not be written: ${String(e?.message ?? e)}` };
-    }
+    const [step] = this.steps();
+    const r = await recordThenEnd({
+      chat,
+      update: updateArchive,
+      send: () => deliver({
+        args: step.hc,
+        exec: (a) => exec("hc", a, { timeout: timeoutFor({ mode: "send", delivery: "idle" }) }),
+        log: () => append({ at: Date.now(), from: "you", to: chat.terminal, kind: "action", via: `Session card ${stepLine(step, appWindow()?.platform)}`, text: step.hc.at(-1) }),
+      }),
+    });
+    if (r.phase === "refused") { this.state = r; return; }
+    // Sent, or uncertain (it may have been typed): either way the lists say whether it took.
+    this.state = r.phase === "sent" ? { phase: "sent", error: null } : r;
+    this.exit = "watching";
+    this.watchExit(cx, chat);
+  }
+
+  // hc exiting 0 means /exit was typed, not that the program ended: Herdr's lists are the evidence.
+  watchExit(cx, chat, tries = 0) {
+    cx.timer.after(READ_EVERY_MS, (cx) => cx.spawn(async (cx) => {
+      if (exitState(chat, agents(), terminals()) === "ended") {
+        setShared("endfield.archived", keptHides([...(shared("endfield.archived") ?? []), hideOf(chat)], terminals()).slice(-HIDDEN_CAP));
+        const marked = await updateArchive((text) => withEnded(text, chat.archivedAt, Date.now()));
+        this.exit = "ended";
+        if (!marked.ok) this.state = { phase: "sent", error: `It ended, but the archive could not mark it (${marked.error}). Report > Archived still resumes it.` };
+        cue("tick");
+        cx.notify();
+        return;
+      }
+      if (tries + 1 >= EXIT_TRIES) { this.exit = "running"; cx.notify(); return; }
+      this.watchExit(cx, chat, tries + 1);
+    }));
   }
 
   render(cx) {
@@ -187,11 +220,15 @@ export class ActionDialog {
       .child(div().size(14).rounded(2).border(1.5).border_color(C.text).flex().items_center().justify_center().when(this.alsoSession, (el) => el.bg(C.selBg).child(div().text_size(10).text_color(C.selText).child("✓"))))
       .child(div().text_size(12).child("Also name the session with /rename (it must be idle)")) : null;
     const pre = why ? ["red", why] : problem ? ["hairStrong", problem]
+      : a.needs ? ["signal", a.needs]
       : typedSteps ? ["lime", "Idle. hc types it only while it stays idle, after any draft you left in it."] : ["hairStrong", "Herdr only: nothing is typed into the agent."];
     const read = this.read;
-    const outcome = this.state.error ? [{ refused: "hc said", sent: "Sent" }[this.state.phase] ?? "Check first", C.error, this.state.error]
+    const name = m?.program?.name ?? "It";
+    const outcome = this.exit === "ended" && !this.state.error ? ["Archived", C.text, `${name} ended. Report > Archived resumes it.`]
+      : this.state.error ? [{ refused: "hc said", sent: "Sent" }[this.state.phase] ?? "Check first", C.error, this.state.error]
       : this.state.phase !== "sent" ? null
-      : a.archive ? ["Archived", C.text, "It is ending. Report > Archived resumes it."]
+      : this.exit === "watching" ? ["Ending", C.text, `${a.text()} typed. Waiting for Herdr to stop listing it.`]
+      : this.exit === "running" ? ["Still running", C.error, `${a.text()} was typed, but ${name} hasn't ended after ${EXIT_TRIES}s, so it stays in Squads. Look at its terminal.`]
       : !a.read ? ["Sent", C.text, "Sent. This program's state can't be read back here."]
       : !read ? ["Sent", C.text, "Sent. Reading it back."]
       : read.moved ? ["Now", C.text, a.read === "mode" ? `Mode: ${MODE_WORD[read.value] ?? read.value}` : `${a.read === "model" ? "Model" : "Effort"}: ${read.value}`]
@@ -210,14 +247,13 @@ export class ActionDialog {
               .child(micro("Needs", C.muted).flex_none()).child(div().text_size(12).text_color(C.muted).child(pre[1])))
             .child(h_flex().gap(10).items_center().px(10).py(8).bg(C.ground).border_l(2).border_color(C.hairStrong).rounded_r(3)
               .child(micro("Does", C.muted).flex_none()).child(div().text_size(12).text_color(C.muted).child(a.note)))
-            .when(Boolean(outcome), (el) => el.child(h_flex().px(10).py(7).gap(8).items_center().border_l(2).border_color(this.state.error ? C.red : C.lime).bg(C.ground)
+            .when(Boolean(outcome), (el) => el.child(h_flex().px(10).py(7).gap(8).items_center().border_l(2).border_color(outcome[1] === C.error ? C.red : C.lime).bg(C.ground)
               .child(micro(outcome[0], outcome[1]).flex_none()).child(div().flex_1().min_w(0).font_family(FONT.mono).text_size(11).child(outcome[2])))),
           // The exact commands, one per line, wrapped rather than cut: Confirm runs these and nothing else.
-          strip: h_flex().pl(22).pr(14).py(12).gap(12).items_center().bg("#374045").text_color("#F2F2F2").rounded_b(3)
-            .child(v_flex().id("ac-cmd").flex_1().min_w(0).max_h(72).overflow_y_scrollbar().gap(4).font_family("JetBrains Mono").text_size(10.5).line_height(1.4).text_color("#B9C2C7")
+          strip: strip()
+            .child(stripCode(v_flex().id("ac-cmd").flex_1().min_w(0).max_h(72).overflow_y_scrollbar().gap(4))
               .children(steps.map((s) => div().child(stepLine(s, platform)))))
-            .when(!done, (el) => el.child(h_flex().id("ac-cancel").h(30).px(14).items_center().rounded_full().border_1().border_color("#6B777D").cursor_pointer()
-              .on_click(() => closeOverlay(p.overlay)).child(div().text_size(12).font_medium().text_color("#F2F2F2").child("Cancel"))))
+            .when(!done, (el) => el.child(stripCancel("ac-cancel", () => closeOverlay(p.overlay))))
             .when(done, (el) => el.child(pill(C, "ac-done", "Close", { kind: "dark", knob: "×", h: 30, hot: this.hot === "ac-done", on_hover: this.hover("ac-done"), action: () => closeOverlay(p.overlay) })))
             .when(!done, (el) => el.child(div().when(!ready, (el) => el.opacity(0.45)).child(pill(C, "ac-go", this.state.phase === "busy" ? "Running" : a.archive ? "Archive" : "Confirm",
               { kind: "primary", h: 30, hot: this.hot === "ac-go", on_hover: this.hover("ac-go"), action: (_e, cx) => cx.spawn(async (cx) => this.confirm(cx, ready)) })))),
@@ -228,46 +264,65 @@ export class ActionDialog {
 export class Archived {
   init(_p, cx) {
     this.chats = [];
-    this.text = null;
     this.error = null;
     this.entered = false;
+    // programs.json's run argv per program, asked once: every row draws the command its Resume runs.
+    this.runs = null;
+    this.busy = false;
     if (checking()) return;
-    cx.spawn(async (cx) => { await this.load(); cx.notify(); });
+    cx.spawn(async (cx) => {
+      await this.load();
+      try { this.runs = Object.fromEntries((await knownAgents()).map((g) => [g.key, g.run])); } catch { this.runs = {}; }
+      cx.notify();
+    });
   }
 
   async load() {
-    this.text = await readArchive();
-    this.chats = parseArchive(this.text);
+    this.chats = parseArchive(await readArchive());
   }
 
   hover(id) { return (over, cx) => { if (over) this.hot = id; else if (this.hot === id) this.hot = null; cx.notify(); }; }
 
-  // A new tab in the chat's space (or the shown one), in its folder, running the resume command.
+  // What a row's Resume runs, and whether it may: one call for the drawing and the click.
+  plan(c) {
+    const running = c.ended == null && exitState(c, agents(), terminals()) === "running";
+    return { tab: resumeTab(c, this.runs?.[c.program], spaces().map((s) => s.id)), ...resumeState(c, running) };
+  }
+
+  // A new tab in the chat's space (or the shown one), in its folder, running the drawn command.
   async resume(cx, chat) {
-    let runArgv = null;
-    try { runArgv = (await knownAgents()).find((g) => g.key === chat.program)?.run ?? null; } catch {}
-    const space = spaces().some((s) => s.id === chat.space) ? chat.space : undefined;
-    run("tab.new", { name: chat.title ?? undefined, space, folder: chat.cwd ?? undefined, argv: resumeArgv(chat, runArgv) });
-    try { await writeTextFile(ARCHIVE(), withoutChat(this.text, chat.archivedAt), this.text); this.error = null; } catch (e) {
-      this.error = `Resumed, but the archive could not be updated: ${String(e?.message ?? e)}`;
-    }
+    const plan = this.plan(chat);
+    if (this.busy || !this.runs || !plan.can) return;
+    this.busy = true;
+    cx.notify();
+    run("tab.new", plan.tab);
+    setShared("endfield.archived", withoutHide(shared("endfield.archived") ?? [], chat));
+    const r = await updateArchive((text) => withoutChat(text, chat.archivedAt));
+    this.error = r.ok ? null : `Resumed, but the archive could not be updated: ${r.error}`;
     cue("tick");
     await this.load();
+    this.busy = false;
     cx.notify();
   }
 
   render(cx) {
     const C = palette();
     const p = props() ?? {};
-    const row = (c, i) => v_flex().id(`ar-${c.archivedAt}`).gap(6).px(14).py(10).border_b(1).border_color(C.hair)
-      .child(h_flex().gap(10).items_center().min_w(0)
-        .child(micro(String(i + 1).padStart(2, "0"), C.muted).flex_none())
-        .child(div().flex_1().min_w(0).truncate().text_size(13).font_semibold().child(c.title ?? c.terminal))
-        .child(micro(ago(c.archivedAt), C.muted).flex_none())
-        .child(pill(C, `ar-go-${c.archivedAt}`, "Resume", { kind: "dark", knob: "▶", hot: this.hot === c.archivedAt, on_hover: this.hover(c.archivedAt),
-          action: (_e, cx) => cx.spawn(async (cx) => this.resume(cx, c)) })))
-      .child(div().truncate().font_family(FONT.mono).text_size(10.5).text_color(C.muted).child(`${c.cwd ?? ""}  ${resumeArgv(c, null).join(" ")}`))
-      .when(Boolean(c.approx), (el) => el.child(micro("Resumes the newest chat, not necessarily this one", C.muted, 9)));
+    const row = (c, i) => {
+      const plan = this.plan(c);
+      const go = plan.can && Boolean(this.runs) && !this.busy;
+      return v_flex().id(`ar-${c.archivedAt}`).gap(6).px(14).py(10).border_b(1).border_color(C.hair)
+        .child(h_flex().gap(10).items_center().min_w(0)
+          .child(micro(String(i + 1).padStart(2, "0"), C.muted).flex_none())
+          .child(div().flex_1().min_w(0).truncate().text_size(13).font_semibold().child(c.title ?? c.terminal))
+          .child(micro(ago(c.archivedAt), C.muted).flex_none())
+          .child(div().when(!go, (el) => el.opacity(0.45)).child(pill(C, `ar-go-${c.archivedAt}`, "Resume", { kind: "dark", knob: "▶", hot: this.hot === c.archivedAt, on_hover: this.hover(c.archivedAt),
+            action: (_e, cx) => cx.spawn(async (cx) => this.resume(cx, c)) }))))
+        // The folder and the exact argv Resume hands tab.new, wrapped rather than cut.
+        .child(div().font_family(FONT.mono).text_size(10.5).text_color(C.muted)
+          .child(`${plan.tab.folder ?? ""}  ${this.runs ? plan.tab.argv.map(shQuote).join(" ") : "Asking which command starts it"}`))
+        .when(Boolean(plan.note), (el) => el.child(micro(plan.note, plan.can ? C.muted : C.error, 9)));
+    };
     return root(C, div().id("ar-root").size_full().flex().items_center().justify_center()
       .on_size_change((_s, cx) => { if (!this.entered) cx.timer.after(MOTION.settle.delay, (cx) => { this.entered = true; cx.notify(); }); })
       .child(div().w(600).opacity(this.entered ? 1 : 0).relative().transition("opacity", MOTION.dispatch.enter)
@@ -282,8 +337,8 @@ export class Archived {
                 .child(div().text_size(13).font_medium().child("Nothing archived"))
                 .child(div().text_size(12).text_color(C.muted).child("Archive on a session card ends a chat and keeps it here."))))
               .children(this.chats.map(row))),
-          strip: h_flex().pl(22).pr(14).py(10).bg("#374045").rounded_b(3)
-            .child(micro("Resume opens a new tab and runs the command shown, only when you click it", "#B9C2C7")),
+          strip: strip().py(10)
+            .child(micro("Resume opens a new tab and runs the command shown, only when you click it", STRIP.dim)),
         }))));
   }
 }

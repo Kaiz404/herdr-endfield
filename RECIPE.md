@@ -96,7 +96,9 @@ rendered at 4x. It is a schematic, not a screenshot.
     a send it reads back the model or effort (session data) or the mode
     (Claude Code's own line under its prompt), else says Sent.
   - Archived list, 600px, from Report's Archived pill: archived chats newest
-    first, each with its folder, its resume command and **Resume**.
+    first, each with its folder, the exact argv Resume runs (programs.json
+    `run` plus the resume arguments), a warning when it may reopen another
+    chat, and **Resume** (dimmed while the chat still runs).
   - Footer, 40px: settings (with an orange diamond when an update is ready),
     add machine, fold sidebar, and the palette key in mono.
 - **Tab strip, 36px**, drags the window: tabs run full height, separated by
