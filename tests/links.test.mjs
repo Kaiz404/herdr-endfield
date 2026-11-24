@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseLinks, withLink, withoutLink, withNoted, helperUntold, lifeOf, byLife, linkProblem, linkNotes, linkSteps, linkThenTell } from "../skin/mods/endfield/links.js";
+import { parseLinks, withLink, withoutLink, withNoted, untold, lifeOf, byLife, linkProblem, linkNotes, linkSteps, linkThenTell, tell, outcome } from "../skin/mods/endfield/links.js";
 import { buildRoster, BY } from "../skin/mods/endfield/fleet.js";
 import { identityOf } from "./identity.mjs";
 
@@ -97,14 +97,17 @@ test("a helper another window already linked is refused, never moved to a second
   assert.deepEqual(parseLinks(withLink(ended, link("t3@30", "t2@20"), LIVES)).map((l) => l.a), ["t3@30"], "a lead whose terminal ended doesn't hold it");
 });
 
-test("each note sent is noted on the link, and only an untold helper is offered its note again", () => {
+test("each note sent is noted on the link, and each untold side, lead or helper, is offered Send note on its own card", () => {
   let text = withLink(null, link("t1@10", "t2@20", { noted: { lead: false, helper: false } }), LIVES);
+  assert.deepEqual(untold(parseLinks(text), "t1@10"), [{ side: "lead", lead: "t1", helper: "t2" }]);
+  assert.deepEqual(untold(parseLinks(text), "t2@20"), [{ side: "helper", lead: "t1", helper: "t2" }]);
   text = withNoted(text, "t2@20", "lead", LIVES);
-  const [l] = parseLinks(text);
-  assert.deepEqual(l.noted, { lead: true, helper: false });
-  assert.equal(helperUntold(l), true);
-  assert.equal(helperUntold(parseLinks(withNoted(text, "t2@20", "helper", LIVES))[0]), false);
-  assert.equal(helperUntold(link("t1@10", "t2@20")), false, "a link with no notes recorded offers nothing");
+  assert.deepEqual(parseLinks(text)[0].noted, { lead: true, helper: false });
+  assert.deepEqual(untold(parseLinks(text), "t1@10"), [], "a told lead is offered nothing");
+  assert.equal(untold(parseLinks(text), "t2@20").length, 1);
+  assert.deepEqual(untold(parseLinks(withNoted(text, "t2@20", "helper", LIVES)), "t2@20"), []);
+  assert.deepEqual(untold([link("t1@10", "t2@20")], "t2@20"), [], "a link with no notes recorded offers nothing");
+  assert.deepEqual(untold([link("t1@10", "t2@20", { noted: { lead: false, helper: true } }), link("t1@10", "t3@30", { noted: { lead: false, helper: true } })], "t1@10").map((n) => n.helper), ["t2", "t3"], "a lead owed two notes gets one per helper");
 });
 
 const LEAD = { address: "t1", label: "CLAUDE", title: "fix the\nlogin flow", cwd: "C:/work/app" };
@@ -128,56 +131,83 @@ test("each note names the other by folder and task, points at SendMessage, and a
 
 const oneLine = (s) => s.replace(/\s+/g, " ").trim();
 
-test("Confirm types the lead's note, then the helper's, each with hc send --if idle and never --force", () => {
+test("each note is one hc send --if idle line, never --force", () => {
   const steps = linkSteps(LEAD, HELPER);
   assert.deepEqual(steps.map((s) => s.hc.slice(0, 5)), [["send", "t1", "--if", "idle", "--"], ["send", "t2", "--if", "idle", "--"]]);
   assert.ok(steps.every((s) => !s.hc.includes("--force")));
 });
 
-const fake = (phases) => {
+const fake = (phases, idle = { lead: true, helper: true }) => {
   const log = [];
   return {
     log,
+    idle: (who) => idle[who],
     keep: async () => { log.push("keep"); return { ok: true }; },
-    unkeep: async () => { log.push("unkeep"); return { ok: true }; },
     told: async (step) => { log.push(`told ${step.who}`); return { ok: true }; },
     send: async (step) => { log.push(step.hc[1]); return phases.shift(); },
   };
 };
 const STEPS = linkSteps(LEAD, HELPER);
 const sent = { phase: "sent" }, refused = { phase: "refused", error: "not idle" };
+const NAMES = { lead: "PERLICA", helper: "TYPHOEUS" };
 
-test("the link is saved before anything is typed, and taken back when the lead refused", async () => {
+test("Link saves first, then types both notes when both are idle", async () => {
   const ok = fake([sent, sent]);
-  assert.deepEqual(await linkThenTell({ steps: STEPS, ...ok }), { phase: "sent", error: null, next: 2 });
+  const r = await linkThenTell({ steps: STEPS, ...ok });
+  assert.deepEqual(r.out, { lead: "sent", helper: "sent" });
   assert.deepEqual(ok.log, ["keep", "t1", "told lead", "t2", "told helper"]);
-  const busy = fake([refused]);
-  const r = await linkThenTell({ steps: STEPS, ...busy });
-  assert.equal(r.phase, "refused");
-  assert.equal(r.next, 0);
-  assert.deepEqual(busy.log, ["keep", "t1", "unkeep"], "the helper is never told about a lead that wasn't");
+  assert.equal(outcome({ ...r, names: NAMES }), "Linked. Both agents have their note.");
+});
+
+test("a busy agent doesn't block Link: the link is saved and nothing is typed into a working agent", async () => {
+  const both = fake([], { lead: false, helper: false });
+  const r = await linkThenTell({ steps: STEPS, ...both });
+  assert.equal(r.ok, true);
+  assert.deepEqual(both.log, ["keep"], "saved, nothing typed, nothing noted told");
+  assert.deepEqual(r.out, { lead: "busy", helper: "busy" });
+  assert.equal(outcome({ ...r, names: NAMES }), "Linked. PERLICA and TYPHOEUS are busy. Send each note from its card when it's free.");
+
+  const helperBusy = fake([sent], { lead: true, helper: false });
+  const h = await linkThenTell({ steps: STEPS, ...helperBusy });
+  assert.deepEqual(helperBusy.log, ["keep", "t1", "told lead"], "only the idle lead is typed into");
+  assert.equal(outcome({ ...h, names: NAMES }), "Linked. TYPHOEUS is busy. Send its note from its card when it's free.");
+
+  const leadBusy = fake([sent], { lead: false, helper: true });
+  await linkThenTell({ steps: STEPS, ...leadBusy });
+  assert.deepEqual(leadBusy.log, ["keep", "t2", "told helper"], "a busy lead doesn't hold back the helper's note");
+});
+
+test("an agent hc refuses (it stopped being idle) is left untold, and the link stays", async () => {
+  const f = fake([refused, sent]);
+  const r = await linkThenTell({ steps: STEPS, ...f });
+  assert.deepEqual(f.log, ["keep", "t1", "t2", "told helper"]);
+  assert.deepEqual(r.out, { lead: "busy", helper: "sent" });
+});
+
+test("a link that can't be saved types nothing", async () => {
   const noFile = fake([]);
   noFile.keep = async () => ({ ok: false, error: "disk" });
-  assert.match((await linkThenTell({ steps: STEPS, ...noFile })).error, /Nothing was typed/);
+  const r = await linkThenTell({ steps: STEPS, ...noFile });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /Nothing was typed/);
   assert.deepEqual(noFile.log, []);
 });
 
-test("a helper that refused keeps the link, untold, and the retry types only its note", async () => {
-  const first = fake([sent, refused]);
-  const r = await linkThenTell({ steps: STEPS, ...first });
-  assert.deepEqual([r.phase, r.next], ["refused", 1]);
-  assert.deepEqual(first.log, ["keep", "t1", "told lead", "t2"], "the helper is not noted as told");
-  const again = fake([sent]);
-  assert.equal((await linkThenTell({ steps: STEPS, from: r.next, ...again })).phase, "sent");
-  assert.deepEqual(again.log, ["t2", "told helper"], "no second save, no second note to the lead");
+test("an uncertain send counts as told, so Send note can't type it twice", async () => {
+  const f = fake([{ phase: "uncertain", error: "timed out" }, sent]);
+  const r = await linkThenTell({ steps: STEPS, ...f });
+  assert.deepEqual(f.log, ["keep", "t1", "told lead", "t2", "told helper"]);
+  assert.match(outcome({ ...r, names: NAMES }), /^Linked\. PERLICA may not have its note \(timed out\)\.$/);
 });
 
-test("an uncertain helper send counts as told, so Send note again can't type it twice", async () => {
-  const told = [];
-  const r = await linkThenTell({
-    steps: ["lead", "helper"], keep: async () => ({ ok: true }), unkeep: async () => ({ ok: true }),
-    told: async (s) => { told.push(s); }, send: async (s) => ({ phase: s === "helper" ? "uncertain" : "sent", error: s === "helper" ? "timed out" : null }),
-  });
-  assert.equal(r.phase, "uncertain");
-  assert.deepEqual(told, ["lead", "helper"]);
+test("Send note types only that side's note, only while it is idle, and saves nothing new", async () => {
+  const helperOnly = STEPS.filter((s) => s.who === "helper");
+  const f = fake([sent]);
+  const r = await tell({ steps: helperOnly, ...f });
+  assert.deepEqual(f.log, ["t2", "told helper"]);
+  assert.equal(outcome({ ...r, names: NAMES, linked: false }), "Sent. TYPHOEUS has its note.");
+  const late = fake([], { lead: true, helper: false });
+  const l = await tell({ steps: helperOnly, ...late });
+  assert.deepEqual(late.log, []);
+  assert.match(outcome({ ...l, names: NAMES, linked: false }), /TYPHOEUS isn't idle any more\. Nothing was typed/);
 });
