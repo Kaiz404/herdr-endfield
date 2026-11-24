@@ -167,28 +167,18 @@ function labelOf(t, k) {
   return L?.[k] ?? null;
 }
 
+/** A terminal's bare tab id from its herdr.tab label, or null. */
+export const tabLabel = (t) => { const tab = labelOf(t, "herdr.tab"); return tab == null ? null : bare(tab); };
+
 /**
- * Every live terminal that ends with space `id` (space.close: "Close a space and end its
- * terminals"), from Herdr's lists, not the roster: so shells, servers and archived chats' hidden
- * shells are in it too. A terminal with a pane is in the space its tab is in; one without is in it
- * by its herdr.space or herdr.tab label, or as a live descendant of one in it.
- * -> Ender[] in terminals() order: {terminal, created, life, kind: "agent" | "sub-agent" | "shell",
- * program, status, parent, title, depth}. A sub-agent is an agent whose parent ends with it.
+ * The live terminals `own` says are in a place, with every live descendant of one. own(t, pane,
+ * agent): t's pane (panes()) and agents() entry, either may be undefined. -> Ender[] in terminals() order.
  */
-export function spaceTerminals(id, { spaces, panes, listed, terms }) {
-  const tabIds = (spaces.find((s) => s.id === id)?.tabs ?? []).map((t) => t.id);
-  const tabs = new Set(tabIds), labelTabs = new Set(tabIds.map(bare));
+function enders(own, { panes, listed, terms }) {
   const paneOf = new Map(panes.filter((p) => p.terminal).map((p) => [p.terminal, p]));
   const agentOf = new Map(listed.map((a) => [a.address, a]));
   const live = terms.filter((t) => (t.state ?? "live") === "live");
-  const own = (t) => {
-    const p = paneOf.get(t.address);
-    if (p) return tabs.has(p.tab);
-    if (agentOf.get(t.address)?.space === id) return true;
-    const sp = labelOf(t, "herdr.space"), tab = labelOf(t, "herdr.tab");
-    return (sp != null && bare(sp) === bare(id)) || (tab != null && labelTabs.has(bare(tab)));
-  };
-  const inside = new Set(live.filter(own).map((t) => t.address));
+  const inside = new Set(live.filter((t) => own(t, paneOf.get(t.address), agentOf.get(t.address))).map((t) => t.address));
   for (let grew = true; grew;) {
     grew = false;
     for (const t of live) if (!inside.has(t.address) && t.parent && inside.has(t.parent)) { inside.add(t.address); grew = true; }
@@ -204,6 +194,31 @@ export function spaceTerminals(id, { spaces, panes, listed, terms }) {
     };
   });
 }
+
+/**
+ * Every live terminal that ends with space `id` (space.close: "Close a space and end its
+ * terminals"), from Herdr's lists, not the roster: so shells, servers and archived chats' hidden
+ * shells are in it too. A terminal with a pane is in the space its tab is in; one without is in it
+ * by its herdr.space or herdr.tab label, or as a live descendant of one in it.
+ * -> Ender[] in terminals() order: {terminal, created, life, kind: "agent" | "sub-agent" | "shell",
+ * program, status, parent, title, depth}. A sub-agent is an agent whose parent ends with it.
+ */
+export function spaceTerminals(id, { spaces, panes, listed, terms }) {
+  const tabIds = (spaces.find((s) => s.id === id)?.tabs ?? []).map((t) => t.id);
+  const tabs = new Set(tabIds), labelTabs = new Set(tabIds.map(bare));
+  return enders((t, p, a) => {
+    if (p) return tabs.has(p.tab);
+    if (a?.space === id) return true;
+    const sp = labelOf(t, "herdr.space"), tab = tabLabel(t);
+    return (sp != null && bare(sp) === bare(id)) || (tab != null && labelTabs.has(tab));
+  }, { panes, listed, terms });
+}
+
+/**
+ * Every live terminal that ends with tab `id` (tab.close, or a pane.close of its parent's pane): one
+ * with a pane there, one without a pane that carries its herdr.tab label, and every live descendant.
+ */
+export const tabTerminals = (id, lists) => enders((t, p) => (p ? p.tab === id : tabLabel(t) === bare(id)), lists);
 
 const GROUP = { agent: "agents", "sub-agent": "subs", shell: "shells" };
 

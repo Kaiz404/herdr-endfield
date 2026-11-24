@@ -154,7 +154,9 @@ rendered at 4x. It is a schematic, not a screenshot.
 - **Tab strip, 36px**, drags the window: tabs run full height, separated by
   hairlines; each shows a mono index `01`, the agent icon, the label and its
   status. The active tab is a yellow plate (its own background, so the plate is the tab's box at any zoom
-  and width) with ink text and a close ×, while a 3px ink marker slides along the strip's foot to it. The
+  and width) with ink text, while a 3px ink marker slides along the strip's foot to it. A close × shows
+  on the active tab and the hovered one, as in VS Code; every tab keeps room for it, so a hover never
+  shifts the strip. The
   marker's left and width come from each tab's `on_size_change` width, which Herdr reports in window px:
   divide by `settings().zoom` before writing them back (`tabmark.js`). Then an ink "+ New" button (radius 3, a 3px
   yellow tab on its left edge), the Files and Changes pills (ghost; ink when
@@ -542,10 +544,24 @@ rendered at 4x. It is a schematic, not a screenshot.
   and dimmed with the reason in place of the toggle when the parent is
   working, needs input or is gone. Enter sends too. Nothing sends otherwise.
 - **Tabs:** click selects (the yellow plate jumps in one frame; the ink marker
-  slides over left and width, 300ms), double-click renames, drag reorders, a
-  drag out under the strip docks the tab's lead agent (Dock, above), right-click opens the tab menu,
-  the wheel switches tabs. Hover grows a 24px, 2px underline from the left.
-  Close buttons grow a red disc behind the ×.
+  slides over left and width, 300ms), drag reorders, a
+  drag out under the strip docks the tab's lead agent (Dock, above), the wheel switches tabs.
+  Hover grows a 24px, 2px underline from the left. Close buttons grow a red disc behind the ×.
+  They act like VS Code's tabs (`tabplate.js`), on the tab's focused pane with the name plate's own
+  actions: double-click toggles Zoom (selecting the tab first; a one-pane tab doesn't zoom) and
+  never starts a drag. Middle-click and the × close the tab without selecting it, and never end
+  an agent. The click only asks (`askTab`); the Squads list plans the close on Herdr's lists when it
+  runs (`closePlan`) and runs it as one job (`runClose`). Each agent pane (`kindOf`, Herdr's
+  `listed` included) is parked as the plate's Hide does, one at a time, and the job waits until
+  `panes()` and `terminals()` show the park. It plans again after each. Only then do the other panes
+  close, and never one an agent runs under (`pane.close` ends a terminal's dependent children).
+  `tab.close` runs only when no agent terminal belongs to the tab, with a pane or without
+  (`tabTerminals`: its `herdr.tab` label, or a descendant of a terminal in it). A park not seen in
+  time stops the job before any close. The toast comes from the job and says what it did.
+  Right-click opens a menu at the pointer: Rename (`tab.rename`, also F2), Split right, Split
+  down, Zoom, Pop out (only out of a split), Move to squad (every other squad, numbered, the
+  focused pane's chat joining it by `movePlan`, greyed with why), Close. Each row names its key.
+  The ×'s tooltip names `tab.close`'s key only where `tab.close` is what runs, since that key ends agents.
 - **Ink buttons:** on hover the yellow side tab fades as a yellow ▶ fades in
   and slides from 2px to 9px, and the label slides 5px right (200ms).
 - **Footer:** round icon buttons fill signal yellow on hover (a disc grows from
@@ -560,7 +576,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   anything else); right-click opens a menu at the pointer with Split right,
   Split down, Zoom, Pop out and the ✕, each with its key, the ones that
   can't run greyed with why. Esc is the terminal's, so it never unzooms.
-  Hide, Pop out and a click on a Hidden row in Squads run in the Squads
+  Hide, Pop out, a click on a Hidden row in Squads, and a tab's Close and Move to squad run in the Squads
   list, one move at a time, each step once `panes()` shows the last; a Pop
   out whose keep doesn't show puts the pane back in its tab and a notice
   says where it is.

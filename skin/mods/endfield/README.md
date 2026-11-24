@@ -176,6 +176,19 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   `herdr.*` labels and turns keep off, `herdr-app ls` no longer lists it,
   `terminal.keep` with no place gives it a new tab, and with `place: "right"`
   a pane right of the focused one, labels and keep back.
+- `tabplate.js` says what a tab offers, with no Herdr in it
+  (`tests/tabplate.test.mjs`), built on `plate.js`: the tab's focused pane
+  (`paneOfTab`), its right-click menu (`tabActions`: Rename, that pane's plate
+  actions without its ✕, Move to squad by `movePlan`, Close), and its Close
+  (`closePlan`, `runClose`, `closeToast`). Herdr's `tab.close` ends every
+  terminal in the tab and `pane.close` a terminal's dependent children, so
+  Close only asks the list with the tab (`docking.js` `askTab`). The list plans
+  on Herdr's lists then, parks each agent pane and waits to see it parked,
+  plans again, closes only a pane no agent runs under, and runs `tab.close`
+  only when no agent terminal belongs to the tab (`archive.js`
+  `tabTerminals`). `runClose` takes its Herdr calls as `io`, so the tests run
+  it on a fake. Move to squad asks through `askPane` (`{space}`).
+  `tabs.js` draws the strip and the `tabmenu` popup.
 - `brand.js` (brand, footer, boot), `spaces.js`, `agents.js` (squads, sort menu),
   `card.js` (the session panel), `actions.js` (a card action's confirm dialog
   and the Archived list), `dispatch.js` (the Dispatch dialog), `tabs.js` (its marker's place is `tabmark.js`, no Herdr in it, `tests/tabmark.test.mjs`), `pane.js` (the name plate), `status.js` (the HUD footer),

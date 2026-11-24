@@ -27,7 +27,9 @@ import { openSquadMenu } from "./squadmenu.js";
 import { openLink, loadLinks } from "./linkdialog.js";
 import { linkProblem, linkedWith } from "./links.js";
 import { exitSide, movePlan, dockPlan, headerArmed, popOutPlan, showPlan, anchorIn } from "./dock.js";
-import { startDock, moveChat, told, chatOf, anchorOf, paneChat, PANE_ASK } from "./docking.js";
+import { startDock, moveChat, told, chatOf, anchorOf, paneChat, until, PANE_ASK } from "./docking.js";
+import { world } from "./pane.js";
+import { runClose, closeToast } from "./tabplate.js";
 import { hiddenOf, keptHidden } from "./plate.js";
 
 // Fixed heights, so the selection marker knows where the selected row starts (the row's own ink plate snaps).
@@ -467,24 +469,38 @@ export class Agents {
     });
   }
 
-  // A plate's Hide or Pop out, or a click on a hidden agent (docking.js askPane), run here.
+  /** Hides a pane's terminal: its Hidden record first, so an agent never leaves Squads (the park strips the labels Herdr lists it by), then the park. */
+  hide(terminal) {
+    const t = terminals().find((x) => x.address === terminal);
+    const chat = paneChat(terminal);
+    if (!t || !chat) return;
+    this.setHidden([...(shared(HIDDEN_KEY) ?? []).filter((r) => r.terminal !== terminal), hiddenOf(t, chat, Date.now())]);
+    run("terminal.park", { terminal });
+  }
+
+  /** A tab's Close (tabplate.js runClose), one job at a time with the moves. The notice says what the job did. */
+  async closeTab(cx, tab) {
+    if (this.moving) { notify({ title: "One move at a time", body: "A chat is still moving. Close the tab again when it lands.", level: "info" }); return; }
+    this.moving = true;
+    try {
+      const toast = closeToast(await runClose(tab, { world, park: (terminal) => this.hide(terminal), run, until: (ok) => until(cx, ok) }));
+      if (toast) notify(toast);
+    } finally { this.moving = false; }
+  }
+
+  // A plate's Hide or Pop out, a click on a hidden agent, or a tab's Close or Move to squad (docking.js askPane, askTab), run here.
   paneAsked(ask, cx) {
     if (!ask || ask.at === this.paneAt) return;
     this.paneAt = ask.at;
     const { kind, terminal } = ask;
     const tab = panes().find((p) => p.terminal === terminal)?.tab;
-    if (kind === "hide") {
-      const t = terminals().find((x) => x.address === terminal);
-      const chat = paneChat(terminal);
-      if (!t || !chat) return;
-      // The record first, so the agent never leaves Squads: the park strips the labels Herdr lists it by.
-      this.setHidden([...(shared(HIDDEN_KEY) ?? []).filter((r) => r.terminal !== terminal), hiddenOf(t, chat, Date.now())]);
-      run("terminal.park", { terminal });
-    } else if (kind === "popout") {
+    if (kind === "close") cx.spawn(async (cx) => this.closeTab(cx, ask.tab));
+    else if (kind === "hide") this.hide(terminal);
+    else if (kind === "popout" || kind === "move") {
       const chat = chatOf(terminal) ?? paneChat(terminal);
-      const plan = chat ? popOutPlan(chat, panes().filter((p) => p.tab === tab).length) : null;
+      const plan = !chat ? null : kind === "move" ? movePlan(chat, spaces(), panes(), ask.space) : popOutPlan(chat, panes().filter((p) => p.tab === tab).length);
       if (plan?.steps) cx.spawn(async (cx) => this.moveNow(cx, chat, plan.steps));
-      else notify({ title: "Can't pop it out", body: plan?.problem ?? "Herdr no longer lists that chat.", level: "info" });
+      else notify({ title: kind === "move" ? "Can't move it" : "Can't pop it out", body: plan?.problem ?? "Herdr no longer lists that chat.", level: "info" });
     } else if (kind === "show") {
       const chat = chatOf(terminal);
       if (!chat) { notify({ title: "Can't show it", body: `Herdr no longer lists ${terminal}. If it ended, resume it with claude --resume.`, level: "info" }); return; }

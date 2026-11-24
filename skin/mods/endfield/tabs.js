@@ -1,18 +1,24 @@
-// tabs: the tab strip (window drag). Behaviour ported from the shipped `tabs` mod:
-// double-click rename, drag reorder, right-click menu, wheel switching, the + menu,
-// Files/Changes with per-space memory, and window buttons where the system draws none.
+// tabs: the tab strip (window drag). Behaviour ported from the shipped `tabs` mod: drag reorder,
+// wheel switching, the + menu, Files/Changes with per-space memory, and window buttons where the
+// system draws none. A tab acts like a VS Code tab (tabplate.js says what it offers): double-click
+// zooms its focused pane, middle-click and its ✕ close it without ending an agent (the Squads list
+// runs the close, docking.js askTab), right-click opens
+// the `tabmenu` popup. Rename is in that menu and on F2 (Herdr's tab.rename).
 // Ours: a held tab carried out under the strip docks its lead agent in the work area (docking.js).
 
 import { div, svg, image } from "gpui-kit";
-import { h_flex, ScrollHandle } from "gpui-base";
-import { spaces, panes, focused, run, openOverlay, window as appWindow, shared, layout, settings } from "herdr";
-import { palette, root, find, stop, glyph, freshDot, micro, icon, pad2, telling, growDisc, pill, cue, Entrance, MOTION } from "./kit.js";
+import { h_flex, v_flex, ScrollHandle } from "gpui-base";
+import { spaces, focused, run, openOverlay, closeOverlay, props, window as appWindow, shared, layout, settings } from "herdr";
+import { palette, root, find, stop, glyph, freshDot, micro, icon, pad2, telling, growDisc, pill, cue, binding, Entrance, MOTION } from "./kit.js";
 import { statusOf } from "./fleet.js";
 import { REPORT, toggleReport } from "./report.js";
 import { commsPane, openComms } from "./comms.js";
 import { underStrip } from "./dock.js";
-import { startDock } from "./docking.js";
+import { startDock, askTab, chatOf, paneChat } from "./docking.js";
 import { markAt } from "./tabmark.js";
+import { world, perform, menuRow, MENU } from "./pane.js";
+import { tipOf } from "./plate.js";
+import { closePlan, closeAction, tabActions, paneOfTab } from "./tabplate.js";
 
 // The plate a tab's agent is carried on, as the dock board draws it: its size, and where the pointer holds it.
 const CARRIED = { size: { w: 228, h: 52 }, grip: { x: 24, y: 16 } };
@@ -24,6 +30,53 @@ function label(tab, lead) {
   if (!lead?.program?.agent) return base;
   const live = telling(lead);
   return (tab.name === prog || !tab.named) && live ? live : base;
+}
+
+const leadOf = (id, ps) => ps.find((p) => p.tab === id && p.program?.agent) ?? ps.find((p) => p.tab === id);
+
+/** Tab `id`'s menu (tabplate.js tabActions) on Herdr's lists now, with its space and tab. */
+function menuOf(id) {
+  const all = spaces(), w = world(), ps = w.panes;
+  const space = all.find((s) => s.tabs.some((t) => t.id === id));
+  const lead = leadOf(id, ps);
+  const focus = paneOfTab(id, ps);
+  const chat = focus?.terminal ? chatOf(focus.terminal) ?? paneChat(focus.terminal) : null;
+  return { tab: space?.tabs.find((t) => t.id === id) ?? null, lead, ...tabActions({ id, space: space?.id }, w, { spaces: all, chat }) };
+}
+
+/** Runs a tab menu action: Close through the list, which plans it then; a pane action on the tab's focused pane, shown first. */
+function act(m, a) {
+  if (a.id === "close") return askTab(m.tab.id);
+  if (a.select && !m.tab?.active) run("tab.select", { id: m.tab.id });
+  perform(a, m.pane);
+}
+
+const openTabMenu = (id) => {
+  const m = menuOf(id);
+  const rows = m.actions.length + m.moves.length + 1, titles = m.moves.length ? 2 : 1;
+  openOverlay({ mod: "endfield", kind: "popup", width: MENU.w, height: titles * MENU.title + rows * MENU.row + 2 * MENU.pad, props: { role: "tabmenu", tab: id } });
+};
+
+/** A tab's right-click menu: Rename, its focused pane's actions, Move to squad, Close. props {role: "tabmenu", tab}. */
+export class TabMenu {
+  pick(p, m, a) {
+    closeOverlay(p.overlay);
+    act(m, a);
+  }
+
+  render() {
+    const C = palette();
+    const p = props();
+    const m = menuOf(p.tab);
+    const heading = (text) => div().h(MENU.title).px(8).flex().items_center().child(micro(text, C.muted).truncate());
+    if (!m.tab || !m.pane) return root(C, v_flex().w_full().p(MENU.pad).bg(C.raised).child(heading("Gone")));
+    const row = (a) => menuRow(C, `tm-${a.id}`, a, () => this.pick(p, m, a));
+    return root(C, v_flex().w_full().p(MENU.pad).bg(C.raised)
+      .child(heading(label(m.tab, m.lead)))
+      .children(m.actions.map(row))
+      .when(m.moves.length > 0, (el) => el.child(heading("Move to squad")).children(m.moves.map(row)))
+      .child(row(m.close)));
+  }
 }
 
 const PANELS = [
@@ -112,20 +165,27 @@ export default class Tabs {
     return st.fresh ? freshDot(C, 7) : glyph(C, s, { size: 10 });
   }
 
-  item(C, space, shown, active, c, i) {
-    const ps = panes();
-    const lead = ps.find((p) => p.tab === c.id && p.program?.agent) ?? ps.find((p) => p.tab === c.id);
+  item(C, space, shown, active, c, i, w) {
+    const ps = w.panes;
+    const lead = leadOf(c.id, ps);
     const name = label(c, lead);
     const on = c.active;
+    // VS Code: the ✕ shows on the active tab and the hovered one. Its slot is always there, so a hover never shifts the strip.
+    const shut = on || this.over === c.id;
+    const close = closeAction(closePlan(c.id, w));
     // The selected tab is its own yellow plate, so the plate is the tab's box at any zoom and its
     // ink text always has yellow behind it. On yellow, hues would vanish: its glyphs go ink.
     const K = on ? { ...C, flow: C.ink, signal: C.ink, ink: C.signal } : C;
     const program = lead?.program;
     const hover = (key) => this.hover(key);
-    return h_flex().id(`tab-${c.id}`).relative().h_full().pl(14).pr(on ? 8 : 14).gap(8).items_center().flex_none()
+    return h_flex().id(`tab-${c.id}`).relative().h_full().pl(14).pr(8).gap(8).items_center().flex_none()
       .border_r(1).border_color(on ? C.signal : C.hair).when(on, (el) => el.bg(C.signal))
       .text_color(on ? C.ink : C.text)
-      .on_hover(hover(`tab-${c.id}`))
+      .on_hover((over, cx) => {
+        if (over) this.over = c.id;
+        else if (this.over === c.id) this.over = null;
+        hover(`tab-${c.id}`)(over, cx);
+      })
       .on_size_change((size, cx) => {
         this.widths[c.id] = size.width;
         if (i <= active) this.scroll.scroll_to_item(active);
@@ -135,28 +195,36 @@ export default class Tabs {
         .transition("width", MOTION.row.wipe))
       .on_mouse_down("left", (e, cx) => {
         cx.stop_propagation();
-        this.pressed = i;
+        // A double-click zooms and holds nothing: its release only selects this tab.
+        const twice = e.click_count === 2;
+        this.pressed = twice ? null : i;
         this.held = lead?.program?.agent && e.click_count === 1 ? { terminal: lead.terminal, title: name } : null;
-        if (e.click_count === 2) run("tab.rename", { id: c.id });
+        if (twice) {
+          const m = menuOf(c.id), zoom = m.actions.find((a) => a.id === "zoom" && !a.why);
+          if (zoom) act(m, zoom);
+        }
         cx.notify();
       })
+      // Middle-click closes this tab where it is: no select first, so no other tab is shown or closed.
+      .on_mouse_down("middle", (_e, cx) => { cx.stop_propagation(); askTab(c.id); })
       .on_mouse_up("left", () => {
         const from = this.pressed;
         this.pressed = null;
         if (from !== null && from !== i) run("tab.move", { id: shown[from].id, index: space.tabs.findIndex((x) => x.id === c.id) + 1 });
         else run("tab.select", { id: c.id });
       })
-      .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
+      .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openTabMenu(c.id); })
       .child(micro(pad2(i + 1), on ? C.ink : C.muted).relative())
       .when(Boolean(program?.icon) && Boolean(program?.agent), (el) => el.child(program.tint ? svg(program.icon).relative().size(13).flex_none().text_color(on ? C.ink : C.muted) : image(program.icon).relative().size(13).flex_none()))
       .child(div().relative().max_w(180).truncate().text_size(12.5).font_medium().child(name))
       .when(c.zoomed, (el) => el.child(micro("Zoom", on ? C.ink : C.muted, 9).relative()))
       .child(div().relative().flex_none().child(this.signal(K, c.status) ?? div()))
-      .when(on, (el) => el.child(div().id(`close-${c.id}`).relative().size(18).flex().items_center().justify_center()
-        .text_color(C.ink).on_hover(hover(`close-${c.id}`))
-        .tooltip("Close tab").on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); })
+      .child(div().id(`close-${c.id}`).relative().size(18).flex().items_center().justify_center().opacity(shut ? 1 : 0)
+        .text_color(on || this.hot === `close-${c.id}` ? C.ink : C.text).on_hover(hover(`close-${c.id}`))
+        .tooltip(tipOf(close, binding)).on_mouse_down("left", stop).on_mouse_down("middle", stop)
+        .on_click((_e, cx) => { cx.stop_propagation(); askTab(c.id); })
         .child(growDisc(`close-disc-${c.id}`, 18, 18, 18, this.hot === `close-${c.id}`, C.red))
-        .child(icon("close", 10).relative())));
+        .child(icon("close", 10).relative()));
   }
 
   hover(key) {
@@ -205,7 +273,7 @@ export default class Tabs {
       .on_scroll_wheel((e) => this.wheel(e))
       .child(h_flex().id("tab-scroll").flex_shrink(1).min_w(0).h_full().items_center().overflow_x_scrollbar().track_scroll(this.scroll)
         .on_size_change((_size, cx) => { if (active >= 0) this.scroll.scroll_to_item(active); cx.notify(); })
-        .children(shown.map((c, i) => this.item(C, space, shown, active, c, i)))
+        .children((() => { const w = world(); return shown.map((c, i) => this.item(C, space, shown, active, c, i, w)); })())
         .child(mark))
       .child(h_flex().h_full().px(10).flex_none().items_center()
         .child(pill(C, "tab-new", "New tab", { knob: "+", hot: this.hot === "tab-new", on_hover: this.hover("tab-new"),
