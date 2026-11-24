@@ -30,6 +30,8 @@ const H = {
 };
 const PIN = { max: 3, row: 34, more: 22 };
 // A wheel notch in lines, as pixels, for the "N below" estimate (the scroll area reports no offset).
+// How far a held squad header must move before it counts as a drag.
+const DRAG_START_PX = 4;
 const LINE_PX = 20;
 // The squad name field takes the keyboard again once the menu that asked for it has closed.
 const NAME_FOCUS_MS = 300;
@@ -275,8 +277,13 @@ export class Agents {
 
   /** The pointer over squad q while a header is held: q is where it drops if Herdr can move it there. */
   dragOver(q, order) {
-    return (_e, cx) => {
+    return (e, cx) => {
       if (!this.drag) return;
+      // A press only becomes a drag once the pointer has moved a few pixels: a shaky click stays a click.
+      if (!this.drag.live) {
+        if (this.drag.y != null && Math.abs((e.position?.y ?? this.drag.y) - this.drag.y) < DRAG_START_PX) return;
+        this.drag.live = true;
+      }
       const over = q.id === this.drag.from || squadMove(order, this.drag.from, q.id) ? q.id : null;
       if (over !== this.drag.over) { this.drag.over = over; cx.notify(); }
     };
@@ -286,7 +293,7 @@ export class Agents {
   drop(order, cx) {
     const d = this.drag;
     this.drag = null;
-    const move = d?.over ? squadMove(order, d.from, d.over) : null;
+    const move = d?.live && d.over ? squadMove(order, d.from, d.over) : null;
     if (move) run("space.move", move);
     if (d) cx.notify();
   }
@@ -428,21 +435,19 @@ export class Agents {
         .on_mouse_down_out((_e, cx) => this.stopNaming(cx))
         .on_key_down((e, cx) => { if (e.key === "escape") this.stopNaming(cx); })
         .child(Input.new(this.nameInput))
-      : wide(q.name, C.text, 10).relative().flex_shrink(1).min_w(0).truncate();
+      // The name renames on a double-click and never folds, so renaming can't fold and unfold the squad.
+      : div().id(`${id}-title`).relative().flex_shrink(1).min_w(0)
+        .when(!q.pinned, (el) => el.on_click((e, cx) => { cx.stop_propagation(); if (e.click_count === 2) this.startNaming(q.id, cx); }))
+        .child(wide(q.name, C.text, 10).truncate());
     return h_flex().id(id).relative().h(D.head).flex_none().pl(14).pr(10).gap(8).items_center().cursor_pointer()
       .on_hover((over, cx) => { if (over) this.hovered = id; else if (this.hovered === id) this.hovered = null; cx.notify(); })
-      .on_click((e, cx) => {
-        if (naming) return;
-        this.fold(q.id, cx);
-        // The first click of a double-click folded it: the second unfolds it and edits the name.
-        if (e.click_count === 2 && !q.pinned) this.startNaming(q.id, cx);
-      })
+      .on_click((_e, cx) => { if (!naming) this.fold(q.id, cx); })
       .on_mouse_move(this.dragOver(q, order))
       .when(!q.pinned, (el) => el
-        .on_mouse_down("left", (e) => { if (e.click_count === 1) this.drag = { from: q.id, over: q.id }; })
+        .on_mouse_down("left", (e) => { if (e.click_count === 1) this.drag = { from: q.id, over: q.id, y: e.position?.y ?? null, live: false }; })
         .on_mouse_down("right", () => openSquadMenu({ kind: "squad", id: q.id })))
       .when(lifted, (el) => el.opacity(0.5))
-      .tooltip(q.pinned ? "Pinned agents, from every space. Click to fold." : `Squad ${q.num} ${q.name}. Click to fold, drag to reorder, double-click to rename, right-click for more.`)
+      .tooltip(q.pinned ? "Pinned agents, from every space. Click to fold." : `Squad ${q.num} ${q.name}. Click to fold, drag to reorder, double-click the name to rename, right-click for more.`)
       .child(wipe(`${id}-wipe`, C.sunken, this.width, hot))
       .when(edge === "top" || (edge === "bottom" && folded), (el) => el.child(dropLine(C, edge)))
       .child(div().relative().w(22).h(16).flex_none().flex().items_center().justify_center().rounded(3).bg(C.selBg)
