@@ -1,26 +1,32 @@
-// The session card's rules: which rows have a card and what each offers, whose card is up, when a
-// press takes it away, and where its window goes and how tall it is. No Herdr import: tests/ runs
-// it under node.
+// The session card's rules: which rows have a card and what each offers, what its header and its
+// Tools and Recent sections say, whose card is up, when a press takes it away, and where its window
+// goes and how tall it is. No Herdr import: tests/ runs it under node.
 
-import { taskView, tasksOf } from "./fleet.js";
+import { taskView, tasksOf, statusOf, inFlight, longDuration, elapsed, effortWord, DASH } from "./fleet.js";
 
 export const CARD = { width: 368, pad: 14, slide: 14 };
 
-// What the panel draws at, in px at zoom 1: the head and the ink footer never scroll, and `mid` is
-// the least the scrolling middle keeps (the machine panel).
-export const PANEL = { head: 110, foot: 104, mid: 120 };
+// What the panel draws at, in px at zoom 1: the header strip and the ink footer never scroll, and
+// `mid` is the least the scrolling middle keeps (the context gauge and the top of Tools).
+export const PANEL = { head: 110, foot: 58, mid: 120 };
 
-// The Tasks section: its frame, then one row per running task (or the "None running" line).
-const TASKS_H = { frame: 34, row: 22 };
+// Each middle section's height. A list (Tools, Recent, Tasks) is a frame, then one row per item,
+// or one line saying there are none.
+const SECTION_H = { context: 59, chat: 66, comms: 73, question: 52, list: { frame: 35, row: 20 }, tasks: { frame: 34, row: 22 } };
+
+// How many tools Tools ranks, and how many calls Recent lists (probe.mjs keeps 5).
+export const TOP_TOOLS = 4;
+export const RECENT = 5;
 
 /**
- * One row per kind of card, by what its Squads row is. `chat` and `comms`: the sections only a
- * terminal has. `acts`: the footer's buttons, in order. `base`: the panel's height with no tasks.
- * A Claude Code sub-agent is not a terminal: nothing to rename, pin, archive, peek or dispatch to.
+ * One row per kind of card, by what its Squads row is. Both share the header strip, Context, Tools,
+ * Recent and Tasks. `chat` and `comms`: the sections only a terminal has. `acts`: the footer's
+ * buttons, in order. A Claude Code sub-agent is not a terminal: nothing to rename, pin, archive,
+ * peek or dispatch to.
  */
 export const CARD_KINDS = {
-  agent: { chat: true, comms: true, acts: ["peek", "pin", "dispatch", "go"], base: 516 },
-  sub: { chat: false, comms: false, acts: ["followup", "transcript"], base: 390 },
+  agent: { chat: true, comms: true, acts: ["peek", "pin", "dispatch", "go"] },
+  sub: { chat: false, comms: false, acts: ["followup", "transcript"] },
 };
 
 /** The kind of card a Squads row gets, from its key: "ag-<terminal>" or "sa-<sub-agent id>". Null: no card. */
@@ -29,11 +35,48 @@ export const cardKind = (key) => (`${key ?? ""}`.startsWith("ag-") ? "agent" : `
 /** The question a blocked agent asks, shown under the panel. */
 export const questionOf = (s, status) => (status === "blocked" ? s?.question ?? null : null);
 
+// An MCP tool is named mcp__<server>__<tool>: the tool's own name is the part that says what it did.
+const toolLabel = (name) => (String(name).startsWith("mcp__") ? String(name).split("__").at(-1) : String(name));
+
+/**
+ * The Tools section: the `n` most called tools, most first (a tie by name), each with its share of
+ * the most called one's count, which is its bar's length. counts: Session/Sub toolCounts.
+ */
+export function toolsView(counts, n = TOP_TOOLS) {
+  const ranked = Object.entries(counts ?? {}).sort(([a, x], [b, y]) => y - x || a.localeCompare(b)).slice(0, n);
+  const most = ranked[0]?.[1] ?? 0;
+  return ranked.map(([tool, count]) => ({ tool: toolLabel(tool), count, share: count / most }));
+}
+
+/** The Recent section: the last tool calls newest first, each with how long ago it was. recent: Session/Sub recent. */
+export const recentView = (recent, now) => [...(recent ?? [])].slice(-RECENT).reverse()
+  .map((r) => ({ age: r.at ? elapsed(Math.max(0, now - r.at)) : DASH, tool: toolLabel(r.tool), arg: r.arg ?? "" }));
+
+/**
+ * The header strip's three lines. who: callsign, kind (the program, or "Sub-agent") and where it
+ * runs (a sub-agent's `via <parent>` first), with `≈` when its transcript was matched by folder
+ * only. title: the task. status and facts: the status word, then model, effort and elapsed. A run
+ * in flight counts to now; one that is over stopped its clock at its last write.
+ */
+export function headerOf({ sub = false, callsign, program, where = [], title, approx = false, status, s, now }) {
+  const end = inFlight(status) ? now : s?.lastAt ?? now;
+  return {
+    who: [callsign, sub ? "Sub-agent" : program, ...where, approx ? "≈" : null].filter(Boolean),
+    title: title || DASH,
+    status: statusOf(status)?.word ?? status,
+    facts: [s?.model?.short, effortWord(s?.effort), s?.startedAt ? longDuration(end - s.startedAt) : null].filter(Boolean),
+  };
+}
+
+const listH = (rows) => SECTION_H.list.frame + SECTION_H.list.row * Math.max(1, rows);
+
 /** How tall the panel draws, so the list can keep it inside the window before it exists. Finished tasks start folded. */
 export function cardHeight(s, status, kind = "agent", now = Date.now()) {
+  const K = CARD_KINDS[kind];
   const { running, finished } = taskView(tasksOf(s), now);
-  const tasks = running.length + finished.length ? TASKS_H.frame + TASKS_H.row * Math.max(1, running.length) : 0;
-  return CARD_KINDS[kind].base + (questionOf(s, status) ? 52 : 0) + tasks;
+  const tasks = running.length + finished.length ? SECTION_H.tasks.frame + SECTION_H.tasks.row * Math.max(1, running.length) : 0;
+  return PANEL.head + PANEL.foot + SECTION_H.context + listH(toolsView(s?.toolCounts).length) + listH(recentView(s?.recent, now).length)
+    + tasks + (K.chat ? SECTION_H.chat : 0) + (K.comms ? SECTION_H.comms : 0) + (questionOf(s, status) ? SECTION_H.question : 0);
 }
 
 // The card's window keeps EDGE from the app window's top and foot, and LIFT past its row.

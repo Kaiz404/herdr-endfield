@@ -1,8 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CARD, PANEL, cardPlace, windowHeight, resized } from "../skin/mods/endfield/hovercard.js";
+import { CARD, PANEL, cardPlace, cardHeight, windowHeight, resized } from "../skin/mods/endfield/hovercard.js";
 
-const WANT = 516;
+// A lead agent's full Dossier: four tools ranked, five recent calls, one task running.
+const WANT = cardHeight({
+  toolCounts: { Bash: 23, Read: 16, Edit: 11, Grep: 7 },
+  recent: Array.from({ length: 5 }, () => ({ at: 0, tool: "Bash", arg: "npm test" })),
+  tasks: [{ id: "b1", kind: "shell", description: "npm test", startedAt: 0, endedAt: null, state: "running" }],
+}, "working", "agent", 1000);
 const ZOOMS = [0.5, 0.8, 0.9, 1, 1.25, 1.5, 2, 3];
 const VIEWPORTS = [240, 300, 360, 480, 600, 800, 1080, 1440];
 const row = (y) => ({ y, height: 44 });
