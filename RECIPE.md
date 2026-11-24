@@ -55,8 +55,11 @@ rendered at 4x. It is a schematic, not a screenshot.
     context past 200K, else 200K). The status and elapsed never shrink; the
     model and effort give way first, then the callsign truncates. While a
     generating row under a minute is on screen the list redraws each second
-    so its seconds count; otherwise every 30 seconds. Sub-agent rows show
-    the same. What isn't known is left out. Compact rows keep only the
+    so its seconds count; otherwise every 30 seconds. While a Claude Code run
+    has background tasks running, a stack glyph and their count (`≡ 3`, muted,
+    tooltip "3 background tasks running") sit left of the clock; the model
+    and effort give way to it. Sub-agent rows show the same. What isn't
+    known is left out. Compact rows keep only the
     status glyph at the right. An idle
     row folds to one 34px line (26px compact): a 22px chip (18px compact),
     the callsign, the task at 11.5px and "zZ Idle". Blocked rows carry 4px hazard stripes on the left edge.
@@ -82,14 +85,25 @@ rendered at 4x. It is a schematic, not a screenshot.
     cells (Input on a dot field: the folder and model as item tiles; the
     state with its march, a tick ruler and `elapsed  turn`; Tools: tool calls
     in the wide face); Context (the input tokens of the last request, which
-    is what the session carries now, `of 1M  6%`, and 20 blocks); Chat (model,
+    is what the session carries now, `of 1M  6%`, and 20 blocks); Tasks,
+    only once the session started background work (`Tasks 02`, a hairline,
+    `+N finished` / `Show less` at the right; one 14px row per running task,
+    newest started first: its kind glyph, a prompt for a shell, a figure for
+    an agent, a pulse for a monitor, then its description and elapsed
+    `42s` / `27m` / `1h07`, or "None running."; unfolded, the finished ones
+    follow newest ended first, muted, with their end word `done`, `failed`
+    (red), `killed`, `stopped`, `timed out` or `ended` and how long they
+    ran; its own and its sub-agents' tasks together); Chat (model,
     effort and mode, then one pill per action: Claude Code Rename, Plan, Next
     mode, Model, Effort, Archive; Codex Rename, Model, Archive; Cursor Rename,
     Plan, Archive; typed ones dim with the reason when the agent isn't idle);
     Comms (the last two messages in and out, `Log ▶`); the question in
     brackets when blocked; an ink footer with the Current formula (`folder
     ▶▶ last action`), Peek, Pin, Dispatch + and Answer/Focus ▶. Unknown
-    fields (any non-Claude agent) read `—`.
+    fields (any non-Claude agent) read `—`. The panel draws at its own
+    height up to the window's room; past it (a short window, a task list
+    that grew or unfolded while open) the middle scrolls and the head and
+    footer stay.
   - Action dialog, 560px, from a Chat pill: the field it needs (a name, a
     choice of models or levels), a Needs line (idle, or why not), a Does line
     (the side effect: `/model` and `/effort` also become your defaults for new
@@ -233,6 +247,17 @@ rendered at 4x. It is a schematic, not a screenshot.
   of Squads (`endfield.archived`). Resume runs `tab.new {name, space, folder,
   argv}` with the program's `run` argv plus `--resume <id>` (Claude Code),
   `resume --last` (Codex) or `resume` (Cursor), and drops the record.
+  The dimming and every send gate on Herdr's own status, so an agent that
+  reads Waiting but Herdr calls idle takes typed actions.
+- **Claude Code agent waiting on background work:** when Herdr says idle or
+  done but the session's turn ended (or it sits in a wait) with a
+  background shell, agent, monitor or sub-agent still running, the agent
+  reads Waiting (two still bars) everywhere its status shows: Squads, the
+  pane plate, the Report and the session panel. It counts as neither
+  Finished nor Idle in the HUD footer and the Report, and sorts below
+  Finished and above Generating (`STATUS.waiting.rank`), as agent.next does. One
+  place decides it (`fleet.js memberStatus`, fed by the session poller's
+  `endfield.waiting`). The Finished slip still follows Herdr's done.
 - **Claude Code sub-agent row:** read from its transcript, not from how long
   ago it wrote. Working while a tool call has no result or its turn has not
   ended. Waiting when that tool call only waits (a shell that sleeps, loops
