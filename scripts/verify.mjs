@@ -6,6 +6,7 @@ import { readFileSync, readdirSync, existsSync, mkdtempSync, copyFileSync, rmSyn
 import { join, basename } from "node:path";
 import { tmpdir } from "node:os";
 import { ROOT, SKIN, home, posix, owned, walk, entries, modDirs, RETIRED } from "./skin.mjs";
+import { dividers } from "./dividers.mjs";
 
 const STATIC = process.argv.includes("--static");
 const failures = [];
@@ -61,6 +62,8 @@ for (const f of sources) {
     fail(`${f.rel}: looks like it starts an agent session via hc run; skins must never spawn agents`);
 }
 ok(`scanned ${sources.length} skin sources for banned timers and agent spawns`);
+check("no dots between data in skin code (CONTRIBUTING: design rules)",
+  ...sources.filter((f) => !f.rel.includes("/tools/")).flatMap((f) => dividers(text(f)).map((d) => `${f.rel}:${d.line}: a glyph separates data (${d.text.slice(0, 80)}); use a gap, tone or a hairline, or a comma in a tooltip`)));
 
 const kit = readFileSync(join(SKIN, "mods", "endfield", "kit.js"), "utf8");
 const braces = (src, from) => {
