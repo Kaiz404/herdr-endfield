@@ -22,7 +22,8 @@ rendered at 4x. It is a schematic, not a screenshot.
     "Field ops", "Local" and "v<version>" 10px apart (the last two dimmer), and the window's only tri-colour bar
     (28x3px: `#FF1AAC` 5px, `#00FFA2` 5px, `#FFFA00` 18px) right-aligned 10px
     above the bottom hairline.
-  - Spaces: header "// Spaces" (Geist 13 semibold), a mono count and a `+`.
+  - Spaces: header "// Spaces" (Geist 13 semibold), a mono count, a `+` and a
+    `▾` chevron (`▸` when folded; not on the rail).
     Rows are 38px: `// name` (Geist 13 medium, the `//` muted) over a mono
     10px label (tab count, repo, branch, ↑ahead ↓behind). The selected row is
     inverted (ink, `#F2F2F2` text) in one frame; a 2px yellow marker travels
@@ -248,7 +249,11 @@ rendered at 4x. It is a schematic, not a screenshot.
   tri-colour bar wipes in.
 - **Spaces:** click selects (the ink fill wipes in, the yellow edge grows
   down); drag reorders within a machine (a 2px line shows where); right-click
-  opens the space menu; the machine header folds its group.
+  opens the space menu; the machine header folds its group. The header's
+  chevron (or the `endfield.toggleSpaces` key) folds Spaces to its 38px
+  header with `layout.resize`, and Squads takes the height; unfolding
+  restores the share it had. The fold is shared state, so it survives a
+  restart.
 - **Squads:** click focuses the pane (the plate snaps, the yellow marker
   travels, 300ms); a child without a pane opens as a peek; a Claude Code
   sub-agent opens its transcript beside its parent. A squad header folds it;
@@ -367,7 +372,7 @@ rendered at 4x. It is a schematic, not a screenshot.
   `toast: "endfield"` (the mod's `toast` role), `preview: "layouts/endfield.svg"`.
   - `sidebar` (column, 248px, min 44, max 480, chrome): `brand` (64px,
     `window_drag`), `sidebar-lists` (`spaces` weight 1, `agents` weight 1.2,
-    min 90 each), `sidebar-footer` (40px).
+    min 38 and 90: `spaces` folds to its 38px header), `sidebar-footer` (40px).
   - `work` (column, canvas): `tabs` (36px, `window_drag`), `work-body` (row,
     padding 8, gap 8: the `work-stack` stack, whose children are `main` with
     the pane frame and `report` (role `report`), and the hidden `panel`, 368px,
