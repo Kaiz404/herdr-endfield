@@ -189,6 +189,19 @@
           ],
           "padding": 8,
           "gap": 8,
+          "floating": [
+            {
+              "id": "dock",
+              "content": {
+                "mod": "endfield",
+                "props": {
+                  "role": "dock"
+                }
+              },
+              "edge": "top",
+              "align": "start"
+            }
+          ],
           "background": {
             "image": "mods/endfield/art/grid.svg",
             "fit": "cover"
