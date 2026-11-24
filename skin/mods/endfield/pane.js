@@ -6,7 +6,7 @@
 import { div } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { panes, props, run, layout, shared } from "herdr";
-import { palette, root, stop, midTrunc, statusMark, badge, chip, hazard, micro, wide, icon, basename, telling, growDisc, Entrance, StatusFx, MOTION } from "./kit.js";
+import { palette, root, stop, midTrunc, statusMark, badge, chip, hazard, micro, spaced, wide, icon, basename, telling, growDisc, Entrance, StatusFx, MOTION } from "./kit.js";
 import { roster } from "./roster.js";
 import { PANE_ROLES, paneRole } from "./fleet.js";
 
@@ -57,7 +57,7 @@ export default class PaneHeader {
     const name = (role === "comms" && "Comms") || (role === "transcript" && "Transcript") || (p.program?.agent && telling(p)) || ((p.program?.agent || p.program?.shell) && p.program.name) || p.title || p.program?.name || "shell";
     // The skin's own pane (Comms) is named for what it is, with the "//" tile, not an unknown program.
     const comms = role === "comms";
-    const where = comms ? "Who sent what to whom" : [m?.ident.callsign, p.terminal?.toUpperCase(), basename(p.cwd), midTrunc(p.branch)].filter(Boolean).join(" · ");
+    const where = comms ? ["Who sent what to whom"] : [m?.ident.callsign, p.terminal?.toUpperCase(), basename(p.cwd), midTrunc(p.branch)];
     const pane = p.pane;
     const on = p.focused;
     const open = this.hovered;
@@ -92,7 +92,7 @@ export default class PaneHeader {
           : badge({ ...C, selBg: on ? C.ink : C.sunken, selText: on ? "#F2F2F2" : C.text }, on ? p.program : { ...p.program, tile: null, color: null }, 18)))
       .when(Boolean(m), (el) => el.child(div().relative().tooltip(m.ident.callsign).child(chip(C, m.ident, status, { size: 22, id: `ph-chip-${pane}`, flash: fx.flash ? fx : null, ground: C.raised }))))
       .child(wide(name, C.text, 12).relative().flex_shrink(1).min_w(0).truncate())
-      .child(micro(where, C.muted).relative().flex_shrink(2).min_w(0).truncate())
+      .child(spaced(where, C.muted, { rest: C.dim }).relative().flex_shrink(2))
       .child(div().flex_1())
       .child(div().relative().flex_none().child(pulse
         ? div().h(18).px(9).flex().items_center().rounded_full().bg(C.ink).text_color(C.signal).text_size(10).font_semibold().child("Needs input")

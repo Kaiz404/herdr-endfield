@@ -9,7 +9,7 @@
 import { div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, closeOverlay, openOverlay, run, agents, spaces } from "herdr";
-import { palette, root, micro, wide, chip, cue, MOTION, FONT } from "./kit.js";
+import { palette, root, micro, spaced, wide, chip, cue, MOTION, FONT } from "./kit.js";
 import { roster } from "./roster.js";
 import { showWork } from "./report.js";
 
@@ -164,6 +164,6 @@ export class Toast {
         .child(div().min_w(0).truncate().text_size(12).child(m?.title ?? p.body ?? ""))
         .child(h_flex().gap(8).items_center()
           .child(this.pill(C, "toast-view", "View", false))
-          .child(micro(`// ${this.from.name} · ${a.address.toUpperCase()}`, C.muted).min_w(0).truncate())));
+          .child(spaced([`// ${this.from.name}`, a.address.toUpperCase()], C.muted, { rest: C.dim }))));
   }
 }
