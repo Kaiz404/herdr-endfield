@@ -330,7 +330,7 @@ The **Report** pill, next to Comms, swaps the work area for one screen with ever
 
 **What it does.** Every **New space** control in the Endfield sidebar opens the new space in your home base, a workspace folder, instead of your home folder. An agent treats the folder it starts in as its project. Started in your home folder, it can read and change everything there, such as `.ssh`, `.aws` and other programs' settings. Started in the home base, it works inside that folder.
 
-The Spaces header shows the base, for example `BASE · PROJECTS`. Hover the `+` to see the full path.
+The Spaces header shows the base, for example `BASE` and `PROJECTS` side by side. Hover the `+` to see the full path.
 
 - If you set nothing, the base is `Projects` in your home folder. If you have no `Projects` folder, the base is your home folder.
 - If the folder you set does not exist, new spaces open in your home folder, and the header shows the base in red with `NOT FOUND`.
