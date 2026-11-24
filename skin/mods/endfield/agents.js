@@ -371,7 +371,9 @@ export class Agents {
     d.list = e.bounds ?? d.list;
     if (!d.live) {
       // A press only becomes a drag once the pointer has moved a few pixels: a shaky click stays a click.
-      if (Math.abs(y - d.y0) < DRAG_START_PX) return;
+      // Any direction counts: a chat carried straight right, out of the sidebar, is a drag too.
+      const x = e.position?.x ?? d.p0?.x ?? 0;
+      if (Math.hypot(x - (d.p0?.x ?? x), y - d.y0) < DRAG_START_PX) return;
       d.live = true;
       d.back = focused()?.pane ?? null;
       this.keys.focus();
