@@ -121,7 +121,7 @@ node scripts/demo-fleet.mjs down
 
    Without `--accept`, the script prints the notice and asks `Download for personal use on this machine? [y/N]`. To fetch only some operators, add `--only perlica,ember`.
 
-If you fetched the pack before version 0.3.0, it has 8 operators. Run `node scripts/fetch-operators.mjs --accept` again to add the other 28. It skips the operators you already have. Casting by model uses only the operators your pack has, so with the old pack most agents draw the same few operators.
+If you fetched the pack before version 0.3.0, it has 8 operators. Run `node scripts/fetch-operators.mjs --accept` again to add the other 29 (28 operators and a second Endministrator card). It skips the operators you already have. Casting by model uses only the operators your pack has, so with the old pack most agents draw the same few operators.
 
 **Check it worked.** The script ends with `Done. 37 operator(s) built into <folder>.` A second run prints `Nothing to do: every operator is built and up to date.` `node scripts/verify.mjs` prints `art pack: 37 operators, all files present`. The sidebar shows portraits within 30 seconds, because the skin rereads the pack every 30 seconds.
 
@@ -379,7 +379,7 @@ Every action that types into the agent waits until it is idle. If the agent is w
 
 **Next mode** presses Shift+Tab with `hc keys`, which has no idle check of its own. The dialog checks that the agent is idle just before the press. If a permission prompt opens in between, the key press goes to that prompt and can answer it.
 
-**Check it worked.** The dialog shows the new name, model, effort or mode, or **Sent**. The **You** tab in Comms lists the action.
+**Check it worked.** The dialog shows the new name, model, effort or mode, or **Sent**. The **You** tab in Comms lists every action that typed into the agent; a Herdr-only rename (without the `/rename` box) is not logged there.
 
 **Undo.** Run the same action again with the old value. Rename it back, pick the old model or effort, or press **Next mode** until the old mode shows. `/model` and `/effort` also changed your default for new sessions, and the same action puts it back.
 
@@ -387,7 +387,7 @@ Every action that types into the agent waits until it is idle. If the agent is w
 
 **Archive** first writes the chat to the archived list in `data/endfield/archive.json`, then ends the agent with `/exit` (`/quit` for Codex and Cursor). The transcript stays. The dialog waits until Herdr shows the program has ended, and then says **Archived**. If the program is still running after 20 seconds, the dialog says **Still running** and the agent stays in Squads. A shell left behind in its terminal is kept out of Squads until another agent starts there.
 
-To bring one back, open the **Report**, click **Archived**, and click **Resume** on the chat. Each chat shows the exact command Resume runs, such as `claude --resume <session id>`. A new tab opens in its space and folder and runs it. The list warns when the command may reopen a different chat. This happens for Codex and Cursor, which resume their newest chat, and for a Claude Code chat whose session id was matched by its folder. **Resume** is dimmed while the chat is still running.
+To bring one back, open the **Report**, click **Archived**, and click **Resume** on the chat. Each chat shows the exact command Resume runs, such as `claude --resume <session id>`. A new tab opens in its space and folder and runs it. The list warns when the command may reopen a different chat. This happens for Codex and Cursor, which resume their newest chat, for a Claude Code chat whose session id was matched by its folder, and for one with no session id at all, which resumes with `claude --continue`. **Resume** is dimmed while the chat is still running.
 
 **Check it worked.** After **Archive**, the dialog says **Archived**, the agent leaves Squads, and **Report > Archived** lists the chat. After **Resume**, a new tab runs the command and the chat leaves the list.
 
