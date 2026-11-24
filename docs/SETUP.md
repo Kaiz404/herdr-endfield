@@ -473,7 +473,7 @@ Each pane's name plate works like an editor group's title bar in VS Code. The bu
 - **Middle-click** the plate to run its ✕: Hide on an agent, Close on anything else.
 - **Right-click** the plate for a menu with all of them and their keys.
 
-To put a popped-out or hidden chat back into a split, drag its row from Squads into the work area, or drag its tab down out of the tab strip. See [Arrange squads and chats in Squads](#arrange-squads-and-chats-in-squads).
+To put a popped-out chat back into a split, drag its row from Squads into the work area, or drag its tab down out of the tab strip. A hidden chat comes back by clicking its row in Squads: it opens right of the focused pane. See [Arrange squads and chats in Squads](#arrange-squads-and-chats-in-squads).
 
 A hidden agent has no pane, so Herdr turns its core keep off, as it does for a sub-agent. If herdr-core stops or the computer restarts while it is hidden, it ends instead of leaving a shell in its place. Its chat stays in Claude Code's history, and `claude --resume` in its folder finds it. Show it again before you restart. Endfield remembers which agents you hid when Herdr restarts.
 

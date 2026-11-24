@@ -12,7 +12,9 @@
 //   why (the menu greys it out and says why), on (the zoomed pane's icon and tip)}
 // Hidden: {terminal, created (its created_ms, so a reused address is not it), space, tab, at}.
 
-export const kindOf = (p) => (!p?.terminal ? "mod" : p.program?.agent ? "agent" : p.program?.shell ? "shell" : "program");
+// An agent if its program says so or Herdr lists its terminal as an agent (`listed`): a Claude pane
+// Herdr still reports as a shell must never get a closing ✕.
+export const kindOf = (p) => (!p?.terminal ? "mod" : p.program?.agent || p.listed ? "agent" : p.program?.shell ? "shell" : "program");
 
 const END = {
   agent: { id: "hide", icon: "close", tip: "Hide (keeps running)", keys: ["endfield.hidePane"], ask: "hide" },

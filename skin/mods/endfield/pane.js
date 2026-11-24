@@ -9,7 +9,10 @@
 
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { panes, props, run, layout, shared, focused, openOverlay, closeOverlay } from "herdr";
+import { panes, props, run, layout, shared, focused, openOverlay, closeOverlay, agents } from "herdr";
+
+// A pane as the plate rules read it, with whether Herdr lists its terminal as an agent (plate.js kindOf).
+const listed = (x) => (x ? { ...x, listed: agents().some((a) => a.address === x.terminal) } : x);
 import { palette, root, stop, midTrunc, statusMark, badge, chip, hazard, micro, spaced, wide, icon, basename, telling, growDisc, binding, Entrance, StatusFx, MOTION } from "./kit.js";
 import { roster } from "./roster.js";
 import { PANE_ROLES, paneRole } from "./fleet.js";
@@ -45,7 +48,7 @@ export function perform(a, p) {
 
 /** A key command (status.js): plate action `id` on the focused pane, or its last action for "end". */
 export function actOnFocused(id) {
-  const p = panes().find((x) => x.pane === focused()?.pane);
+  const p = listed(panes().find((x) => x.pane === focused()?.pane));
   if (!p) return;
   const a = id === "end" ? endAction(p) : plateActions(p, tabCount(p), "menu").find((x) => x.id === id && !x.why);
   if (a) perform(a, p);
@@ -64,7 +67,7 @@ export default class PaneHeader {
 
   render(cx) {
     const C = palette();
-    const p = panes().find((x) => x.pane === props()?.pane);
+    const p = listed(panes().find((x) => x.pane === props()?.pane));
     if (!p) return div();
     const frame = paneFrame(layout())?.header;
     const height = frame?.height ?? 34;
@@ -137,6 +140,8 @@ export default class PaneHeader {
             .tooltip(tipOf(a, binding))
             .on_hover((over, cx) => { if (over) this.hot = key; else if (this.hot === key) this.hot = null; cx.notify(); })
             .on_mouse_down("left", stop)
+            // A middle press on a button must not reach the plate, whose middle-click runs the ✕.
+            .on_mouse_down("middle", stop)
             .on_click((_e, cx) => { cx.stop_propagation(); if (open) perform(a, p); })
             .when(Boolean(a.danger), (el) => el.child(growDisc(`ph-disc-${key}`, BUTTON, BUTTON, BUTTON, hot, C.red)))
             .child(icon(a.icon, 12).relative());
@@ -154,7 +159,7 @@ export class PaneMenu {
   render() {
     const C = palette();
     const p = props();
-    const pane = panes().find((x) => x.pane === p.pane);
+    const pane = listed(panes().find((x) => x.pane === p.pane));
     if (!pane) return root(C, v_flex().w_full().p(MENU.pad).bg(C.raised).child(micro("Gone", C.muted)));
     return root(C, v_flex().w_full().p(MENU.pad).bg(C.raised)
       .child(div().h(MENU.title).px(8).flex().items_center().child(micro(pane.title || pane.program?.name || "Pane", C.muted).truncate()))

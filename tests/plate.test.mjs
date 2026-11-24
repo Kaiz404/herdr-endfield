@@ -92,3 +92,9 @@ test("the records are capped at the newest", () => {
   assert.equal(kept.length, HIDDEN_CAP);
   assert.equal(kept.at(-1).terminal, `t${HIDDEN_CAP + 4}`);
 });
+
+test("a pane Herdr lists as an agent hides on its ✕ even if its program reads as a shell", () => {
+  const p = { terminal: "t9", pane: "p9", program: { key: "pwsh", shell: true }, listed: true };
+  assert.equal(endAction(p).ask, "hide");
+  assert.notEqual(endAction({ ...p, listed: false }).ask, "hide");
+});

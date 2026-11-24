@@ -14,7 +14,7 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { agents, panes, focused, spaces, terminals, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, settings, checking } from "herdr";
+import { agents, panes, focused, spaces, terminals, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, settings, checking, notify } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, spaced, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE } from "./kit.js";
 import { roster, holdCrew, HIDDEN_KEY } from "./roster.js";
 import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, subLabel, siblingLabels, PANE_ROLES, opening, transcriptsIn, transcriptPlan, rowShape, rowMeta, tasksOf, railSpans } from "./fleet.js";
@@ -447,7 +447,7 @@ export class Agents {
 
   /** One move at a time: a second drop while one runs is refused. -> whether it landed. A throw out of the recovery itself still says where the chat is. */
   async moveNow(cx, chat, steps) {
-    if (this.moving) return false;
+    if (this.moving) { notify({ title: "One move at a time", body: "Another chat is still moving. Try again when it lands.", level: "info" }); return false; }
     this.moving = true;
     try { return await moveChat(cx, chat, steps); }
     catch {
@@ -485,9 +485,11 @@ export class Agents {
       const chat = chatOf(terminal) ?? paneChat(terminal);
       const plan = chat ? popOutPlan(chat, panes().filter((p) => p.tab === tab).length) : null;
       if (plan?.steps) cx.spawn(async (cx) => this.moveNow(cx, chat, plan.steps));
+      else notify({ title: "Can't pop it out", body: plan?.problem ?? "Herdr no longer lists that chat.", level: "info" });
     } else if (kind === "show") {
       const chat = chatOf(terminal);
-      if (!chat || chat.pane) return;
+      if (!chat) { notify({ title: "Can't show it", body: `Herdr no longer lists ${terminal}. If it ended, resume it with claude --resume.`, level: "info" }); return; }
+      if (chat.pane) return;
       const plan = showPlan(chat, anchorIn(spaces(), panes(), chat.space), anchorOf(focused()?.pane));
       cx.spawn(async (cx) => {
         await this.moveNow(cx, chat, plan.steps);
