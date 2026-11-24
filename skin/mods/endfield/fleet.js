@@ -50,7 +50,8 @@ export const PINNED = "pinned";
  * Member: { address, agent (AgentInfo, null for a child without a pane), program, status (memberStatus),
  *   herdrStatus (Herdr's own: what `hc send --if idle` and the typed actions gate on), title,
  *   space, spaceName, tab, tabIndex, pane, seq, pinned, focused, created, turn, parent (address | null),
- *   session (Claude Code session id | null), depth, kids (addresses), linked (address | null), helpers (addresses), urgency, model (id | null), ident: identity.resolve(...) + { callsign, drawn },
+ *   session (Claude Code session id | null), depth, kids (addresses), linked (address | null), helpers (addresses),
+ *   group (the lead's address while it shows in a linked group, else null), urgency, model (id | null), ident: identity.resolve(...) + { callsign, drawn },
  *   label: what its row calls it (programLabel, numbered among its siblings by siblingLabels) }
  * Pinned agents (and their trees) come first, in a squad of their own ahead of every space's, so
  * the list and agent.next start with them. `sort` orders siblings; children stay under their parent.
@@ -61,10 +62,10 @@ export const PINNED = "pinned";
  * hidden: Hides (archive.js) of chats the person archived and saw end. Their terminal stays out while
  * it lingers with no agent in it (a shell left behind), and shows again once an agent starts there.
  * sessions: { address: Claude Code session id } for the agents whose session is known (member.session).
- * links: Links (links.js). A linked helper shows under its lead, in the lead's squad (linked: the
- * lead's address; the lead's helpers: addresses). Its hc parent stays null: kids, the Report tree
- * and parent notes are hc's. A link that no longer stands (links.js stands), or one that would nest
- * an agent inside its own tree, is left out.
+ * links: Links (links.js). Linked agents are peers: each stays where it is in the tree, and siblings
+ * linked to each other show as one group (see grouped). linked: the lead's address; helpers: the
+ * lead's helpers. Neither sets an hc parent: kids, the Report tree and parent notes are hc's. A link
+ * that no longer stands (links.js stands), gives an hc child a lead, or closes a loop is left out.
  */
 export function buildRoster({ listed, terms, spaces, identity, models = {}, sessions = {}, prev = null, avoid = [], sort = BY.priority, hidden = [], waiting = [], links = [] }) {
   const wait = new Set(waiting);
@@ -111,8 +112,7 @@ export function buildRoster({ listed, terms, spaces, identity, models = {}, sess
     B.linked = A.address;
     A.helpers.push(B.address);
   }
-  const under = (m) => [...m.kids, ...m.helpers];
-  const urgency = (m) => (m.urgency ??= Math.max(rank(m.status), ...under(m).map((k) => urgency(all.get(k)))));
+  const urgency = (m) => (m.urgency ??= Math.max(rank(m.status), ...m.kids.map((k) => urgency(all.get(k)))));
   for (const m of all.values()) urgency(m);
 
   // Identity: an agent keeps its last draw while its pool stays the same (see castCrew), so one
@@ -129,10 +129,10 @@ export function buildRoster({ listed, terms, spaces, identity, models = {}, sess
   for (const m of order) m.ident = crew.get(m.address);
   const taken = new Set([...held([...crew.values()]), ...avoid]);
 
-  const place = (m, depth) => [{ ...m, depth }, ...under(m).map((k) => all.get(k)).sort(sort).flatMap((k) => place(k, depth + 1))];
-  const tops = [...all.values()].filter((m) => !m.parent && !m.linked);
+  const place = (m, depth) => [{ ...m, depth }, ...grouped(m.kids.map((k) => all.get(k)), sort).flatMap((k) => place(k, depth + 1))];
+  const tops = [...all.values()].filter((m) => !m.parent);
   const squad = (id, num, name, machine, members, extra = {}) => {
-    const placed = members.sort(sort).flatMap((m) => place(m, 0));
+    const placed = grouped(members, sort).flatMap((m) => place(m, 0));
     for (const m of placed) all.set(m.address, m);
     return { id, num, name, machine, members: placed, ...extra };
   };
@@ -147,6 +147,40 @@ export function buildRoster({ listed, terms, spaces, identity, models = {}, sess
   // spinner, a rename), so a number keyed on it would come and go. Their task line tells them apart.
   for (const m of [...all.values(), ...squads.flatMap((q) => q.members)]) m.label = programLabel(m.program);
   return { all, squads, flat: squads.flatMap((q) => q.members), cast: crew, taken };
+}
+
+/**
+ * Siblings in shown order, each linked group together: the lead, then each helper right after its
+ * lead's block (helpers in `sort` order). A group sorts by its lead, as urgent as its most urgent
+ * member, so in Tab order it sits at the lead's tab. Only links between these siblings group them
+ * (a pinned helper of an unpinned lead stays in Pinned). Sets each one's group: its lead's address
+ * in a group of two or more, else null.
+ */
+export function grouped(sibs, sort) {
+  const here = new Map(sibs.map((m) => [m.address, m]));
+  const tree = (m) => [m, ...m.helpers.filter((h) => here.has(h)).map((h) => here.get(h)).sort(sort).flatMap(tree)];
+  const groups = sibs.filter((m) => !here.has(m.linked)).map((lead) => {
+    const g = tree(lead);
+    for (const m of g) m.group = g.length > 1 ? lead.address : null;
+    return { g, key: { ...lead, urgency: Math.max(...g.map((m) => m.urgency ?? 0)) } };
+  });
+  return groups.sort((x, y) => sort(x.key, y.key)).flatMap((x) => x.g);
+}
+
+/**
+ * The link rails of one squad's rows: one per linked group, from the top of its first top-level row
+ * to the foot of the rows under its last. rows: [{depth, h, group?}] in shown order (group: the
+ * member's, on a top-level agent row). -> [{group, top, h, rows: [index]}]
+ */
+export function railSpans(rows) {
+  const spans = [];
+  let y = 0, open = null;
+  rows.forEach((r, i) => {
+    if (r.depth === 0) open = r.group ? (open?.group === r.group ? open : (spans.push({ group: r.group, top: y, h: 0, rows: [] }), spans.at(-1))) : null;
+    if (open) { open.h += r.h; open.rows.push(i); }
+    y += r.h;
+  });
+  return spans;
 }
 
 // Without a registry to say whether its process lives, a run counts as alive while its transcript

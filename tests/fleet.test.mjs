@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildRoster, BY, PINNED, subagentView, rowMeta, rowShape, subLabel, programLabel, siblingLabels } from "../skin/mods/endfield/fleet.js";
+import { buildRoster, BY, PINNED, subagentView, rowMeta, rowShape, subLabel, programLabel, siblingLabels, railSpans } from "../skin/mods/endfield/fleet.js";
 import { identityOf } from "./identity.mjs";
 
 // Every claude agent with no model is PERLICA; a repeat takes a spare, then a number.
@@ -175,4 +175,19 @@ test("an archived chat's leftover shell stays out; an agent started there, or a 
   assert.deepEqual(shown([agent("t1", "s1", "idle", { program: shell }), agent("t2", "s1", "idle")], [term("t1", 100, null, { program: shell }), term("t2", 200)]), ["t2"]);
   assert.deepEqual(shown([agent("t1", "s1", "idle", { program: live })], [term("t1", 100, null, { program: live })]), ["t1"], "a new agent in the same shell tab");
   assert.deepEqual(shown([agent("t1", "s1", "idle", { program: shell })], [term("t1", 900, null, { program: shell })]), ["t1"], "a new terminal at the address");
+});
+
+test("a link rail spans its group's rows and the rows under them, and ends where the group does", () => {
+  const rows = [
+    { depth: 0, h: 34 },
+    { depth: 0, h: 56, group: "a" }, { depth: 1, h: 50 }, { depth: 1, h: 26 },
+    { depth: 0, h: 56, group: "a" }, { depth: 1, h: 50 },
+    { depth: 0, h: 56, group: "c" }, { depth: 0, h: 34, group: "c" },
+    { depth: 0, h: 34 }, { depth: 1, h: 50 },
+  ];
+  assert.deepEqual(railSpans(rows), [
+    { group: "a", top: 34, h: 238, rows: [1, 2, 3, 4, 5] },
+    { group: "c", top: 272, h: 90, rows: [6, 7] },
+  ], "two groups back to back are two rails, and an ungrouped row's sub-agent joins none");
+  assert.deepEqual(railSpans([{ depth: 0, h: 34 }, { depth: 1, h: 50 }]), []);
 });

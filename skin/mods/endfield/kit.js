@@ -62,6 +62,8 @@ const PALETTE = {
     // Hues as glyphs: one shade on the row's ground, another on an inverted row.
     flow: "#1D8FD0",
     flowInv: "#31ACF0",
+    // Linked agents: flow at reduced strength, for the rail and the link glyph.
+    link: "#1D8FD0A6",
     error: "#C42126",
     errorInv: "#FF5A5E",
     glow: "#00000024",
@@ -91,6 +93,7 @@ const PALETTE = {
     barHatch: "#FFFFFF0B",
     flow: "#31ACF0",
     flowInv: "#0F6FA8",
+    link: "#31ACF099",
     error: "#FF5A5E",
     errorInv: "#C42126",
     glow: "#00000080",

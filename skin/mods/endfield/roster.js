@@ -3,7 +3,7 @@
 // per space, members in tree order (a parent, then its children). The rules are fleet.js; the
 // squad sidebar, the report, Dispatch, pane headers and the toast all read this. The shell an
 // archived chat leaves behind (shared "endfield.archived", set by actions.js) stays out. A linked
-// helper sits under its lead (shared "endfield.links", links.json as linkdialog.js last read it).
+// agent sits beside the one it is linked with (shared "endfield.links", links.json as linkdialog.js last read it).
 
 import { agents, terminals, spaces, shared } from "herdr";
 import { IDENTITY } from "./kit.js";
