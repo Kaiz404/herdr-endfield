@@ -379,6 +379,14 @@ export function elapsed(ms) {
   return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
 }
 
+/** 252000 ms -> "04m 12s"; hours as "2h 06m". */
+export function longDuration(ms) {
+  if (ms == null || ms < 0) return DASH;
+  const s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60);
+  const p = (n) => String(n).padStart(2, "0");
+  return h ? `${h}h ${p(m % 60)}m` : `${p(m)}m ${p(s % 60)}s`;
+}
+
 // The window is 1M for a "[1m]" model, else 200K; a context already past 200K must be in the larger one.
 export function contextWindow(id, used) {
   return /\[1m\]/i.test(id ?? "") || used > 200000 ? 1000000 : 200000;
@@ -388,6 +396,7 @@ export function contextWindow(id, used) {
 export const CTX_HOT = 0.75;
 
 const EFFORT = { low: "low", medium: "med", high: "high", xhigh: "xhigh", max: "max" };
+export const effortWord = (e) => EFFORT[e] ?? e ?? null;
 
 /**
  * What a Squads row says about a run. model (or, with no session, the program) and effort sit
@@ -404,7 +413,7 @@ export function rowMeta(run, now, segments) {
   const share = run.used ? run.used / total : null;
   return {
     model: run.model ?? run.program ?? null,
-    effort: EFFORT[run.effort] ?? run.effort ?? null,
+    effort: effortWord(run.effort),
     time: ms == null ? null : elapsed(ms),
     running: taskView(run.tasks ?? [], now).running.length,
     ticking: Boolean(run.live) && ms != null && ms < 60000,
