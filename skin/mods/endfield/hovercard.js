@@ -1,5 +1,55 @@
-// The session card's rules: whose card is up, and when a press takes it away. No Herdr import:
-// tests/ runs it under node.
+// The session card's rules: whose card is up, when a press takes it away, and where its window
+// goes and how tall it is. No Herdr import: tests/ runs it under node.
+
+import { taskView, tasksOf } from "./fleet.js";
+
+export const CARD = { width: 368, pad: 14, slide: 14 };
+
+// What the panel draws at, in px at zoom 1: the head and the ink footer never scroll, and `mid` is
+// the least the scrolling middle keeps (the machine panel).
+export const PANEL = { head: 110, foot: 104, mid: 120 };
+
+// The Tasks section: its frame, then one row per running task (or the "None running" line).
+const TASKS_H = { frame: 34, row: 22 };
+
+/** The question a blocked agent asks, shown under the panel. */
+export const questionOf = (s, status) => (status === "blocked" ? s?.question ?? null : null);
+
+/** How tall the panel draws, so the list can keep it inside the window before it exists. Finished tasks start folded. */
+export function cardHeight(s, status, now = Date.now()) {
+  const { running, finished } = taskView(tasksOf(s), now);
+  const tasks = running.length + finished.length ? TASKS_H.frame + TASKS_H.row * Math.max(1, running.length) : 0;
+  return 516 + (questionOf(s, status) ? 52 : 0) + tasks;
+}
+
+// The card's window keeps EDGE from the app window's top and foot, and LIFT past its row.
+const EDGE = 8;
+const LIFT = 12;
+
+/**
+ * The app window's height in the px a mod lays out in. Herdr draws a mod's px times the zoom, so
+ * the window's own px are divided by it. Null when the window can't be read.
+ */
+export const windowHeight = (px, zoom) => (px > 0 && zoom > 0 && Number.isFinite(px / zoom) ? Math.round(px / zoom) : null);
+
+/**
+ * The card's window beside `row` ({y, height}, the hovered row) in a window `winH` tall (null:
+ * unknown, nothing is capped), for a panel that wants `want`: its top `y`, its height `tall`, and
+ * `fit`, the panel's height cap. Its top sits 12px above the row's, or as far up as keeps it in the
+ * window. The panel draws at its own height up to the cap; past it (a short window, or a task
+ * list that grew or unfolded while open) the middle scrolls, down to PANEL.mid, and the head and
+ * the button row stay.
+ */
+export function cardPlace({ want, row, winH }) {
+  const least = PANEL.head + PANEL.mid + PANEL.foot + 2 * CARD.pad;
+  const tall = winH == null ? want + 2 * CARD.pad : Math.min(want + 2 * CARD.pad, Math.max(winH - 2 * EDGE, least));
+  const top = row.y - LIFT - CARD.pad;
+  const y = winH == null ? top : Math.min(top, winH - EDGE - tall);
+  return { y: Math.round(Math.max(0, y)), tall, fit: tall - 2 * CARD.pad };
+}
+
+/** Whether the open card ({winH: the window height it was placed for}) has to be placed again. */
+export const resized = (open, winH) => Boolean(open) && open.winH !== winH;
 
 /**
  * facts, read when the decision is made: `row` is the hovered agent row's address (null when the

@@ -34,6 +34,7 @@ The run-the-fleet release. Squads now tell you how each run is going: its model 
 
 - **Operators come back after a failed reread.** If one reread of the art pack or `operators.json` failed, every agent stayed drawn as its program (`CLAUDE CODE`, `CLAUDE CODE-2`) until the skin reloaded, and editing `operators.json` changed nothing. The next reread now runs as usual.
 - **The session panel no longer stays open after you move on.** It closes when you click anywhere outside it, such as on Files, Comms or Report, and when you fold the sidebar. Clicking the agent's own row keeps its panel. One case is not fixed: if the pointer leaves the row or the panel and Herdr does not report it, the panel stays until your next click.
+- **The session panel fits the window you have.** In a short window, the panel's middle (the machine panel, Context, Tasks and Chat) could shrink to a sliver between the head and the footer. The panel also measured the window without your zoom, so it was cut short when zoomed out and could run past the window's foot when zoomed in. It now measures the window at your zoom each time it opens, and places itself again when the window or the zoom changes while it is open. The middle keeps at least 120px and scrolls.
 
 ## 0.2.0
 

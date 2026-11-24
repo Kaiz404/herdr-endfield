@@ -250,6 +250,11 @@ rendered at 4x. It is a schematic, not a screenshot.
   keeps it; leaving both closes it after 160ms. A press outside the card
   closes it at once, except on its own row. A hover-out Herdr never reports
   closes nothing until the next press: the pointer's position is not read.
+  Its top sits 12px above its row's, or as far up as keeps it 8px inside the
+  window. In a window too short for it the head and the ink footer stay and
+  the middle scrolls, never under 120px. The window's height is its viewport
+  divided by the zoom; when it changes while the card is open, the card is
+  placed again 160ms later with no reveal.
   Answer/Focus runs
   `agent.focus`, Peek `terminal.peek`, Pin `terminal.pin`.
 - **Chat actions:** a Chat pill closes the card and opens its dialog; nothing
