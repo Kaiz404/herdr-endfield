@@ -1,6 +1,7 @@
 // sessions: what a Claude Code session behind an agent terminal is doing, one parsed shape
 // per terminal. Sources, first wins:
-//   1. a sidecar a Claude Code statusline writes: data/endfield/sessions/<session_id>.json
+//   1. a sidecar a Claude Code statusline writes: data/endfield/sessions/<session_id>.json in the
+//      Herdr home of the agent's machine (a statusline installed inside WSL writes its own)
 //      {session_id, terminal, cwd, transcript_path, model:{id, display_name}, effort, context:{used, total, pct}, rate_limits, account, updated_at}
 //      The statusline runs again right after /model or /effort; the transcript shows them only at the next turn.
 //   2. the transcript itself, ~/.claude/projects/<cwd slug>/<session>.jsonl, in the home of the agent's
@@ -25,8 +26,8 @@
 //   state: running | completed | failed | killed | stopped | timed-out | ended-with-session}
 
 import * as fs from "fs/promises";
-import { exec, appHome, watchFolder, checking } from "herdr";
-import { DASH, contextWindow, runStatus, inFlight, pollPace } from "./fleet.js";
+import { exec, hc, appHome, watchFolder, checking } from "herdr";
+import { DASH, contextWindow, runStatus, inFlight, pollPace, isWsl, askAgainAt } from "./fleet.js";
 import { machineOf } from "./dock.js";
 
 const DATA = () => `${appHome()}/data/endfield`;
@@ -81,7 +82,8 @@ function shape(t, raw, parentStatus) {
     sessionId: sidecar?.session_id ?? raw?.sessionId ?? null,
     terminal: t.terminal,
     cwd: sidecar?.cwd ?? t.cwd,
-    transcriptPath: sidecar?.transcript_path ?? raw?.transcript ?? null,
+    // The probe's path: a sidecar from another machine names the transcript by that machine's path.
+    transcriptPath: raw?.transcript ?? sidecar?.transcript_path ?? null,
     approx: !sidecar && Boolean(raw?.approx),
     // The login it runs on (tools/account.mjs): a name, "" for the default login, null with no sidecar to say.
     account: sidecar ? sidecar.account ?? "" : null,
@@ -116,28 +118,32 @@ export class Sessions {
     this.limits = null;
     this.accountLimits = {};
     this.dirty = true;
-    this.busy = false;
     this.key = "";
-    // Folder -> its pending watch; the folders are the ones the last probe said its answer reads.
+    // Machines ("" for this computer) whose probe is running. Each machine has a probe of its own,
+    // so a cold read or a hung \\wsl.localhost share on one never holds up or blanks another.
+    this.busy = new Set();
+    // Machine -> the folders its last answer reads: {watch, missing} (probe.mjs).
+    this.reads = new Map();
+    // Folder -> its pending watch.
     this.watches = new Map();
     // Folders whose watch was refused: polled every SLOW_EVERY ticks instead, and watched again then.
     // A project folder that doesn't exist yet (no session has run there), or one on another machine, is polled the same way.
     this.blind = new Set();
-    this.missing = false;
     // Machine -> its home as a path this computer reads, or null when it has none (not WSL).
-    // Absent until asked; a machine that couldn't be asked is asked again at a later poll.
+    // Absent until known. A machine that couldn't be asked is in `retry`: {failures, at}, asked again at `at`.
     this.homes = new Map();
+    this.retry = new Map();
     this.asking = new Set();
     this.ticks = 0;
-    this.failed = false;
   }
 
   get(terminal) { return this.map.get(terminal) ?? null; }
 
   /**
    * Polls at most every 3s, and only when something changed: a watched transcript or sidecar
-   * folder was written, the targets changed, a working sub-agent may have gone quiet, or, every
-   * SLOW_EVERY ticks, a wait may have ended unseen (fleet.js pollPace) or a folder can't be watched.
+   * folder was written, the targets changed, a working sub-agent may have gone quiet, a machine
+   * is due to be asked for its home again, or, every SLOW_EVERY ticks, a wait may have ended
+   * unseen (fleet.js pollPace) or a folder can't be watched.
    */
   start(cx, targets) {
     if (checking()) return;
@@ -148,9 +154,12 @@ export class Sessions {
       const slowTurn = ++this.ticks % SLOW_EVERY === 0;
       const pace = pollPace([...this.map.values()]);
       const aging = pace === "fast" || (pace === "slow" && slowTurn);
-      const blindTurn = (this.blind.size > 0 || this.missing) && slowTurn;
+      const missing = [...this.reads.values()].some((r) => r.missing.length > 0);
+      const blindTurn = (this.blind.size > 0 || missing) && slowTurn;
       if (blindTurn) { const again = [...this.blind]; this.blind.clear(); for (const dir of again) this.watch(cx, dir); }
-      if (!(this.dirty || aging || blindTurn || key !== this.key)) return;
+      const now = Date.now();
+      const askTurn = [...this.retry].some(([machine, r]) => r.at <= now && !this.asking.has(machine));
+      if (!(this.dirty || aging || blindTurn || askTurn || key !== this.key)) return;
       this.poll(cx, ts, key);
     });
     this.poll(cx, targets(), JSON.stringify(targets()));
@@ -175,18 +184,30 @@ export class Sessions {
     });
   }
 
-  /** Asks `machine` for its home once, beside the polls, so a slow machine never holds up local agents. */
+  /**
+   * Finds `machine`'s home beside the polls, so a slow machine never holds up local agents. Only a
+   * WSL machine has one this computer reads; any other is known at once to have none. A failed ask
+   * (hc couldn't reach it) is tried again at askAgainAt.
+   */
   ask(cx, machine) {
-    if (this.homes.has(machine) || this.asking.has(machine)) return;
+    if (this.homes.has(machine) || this.asking.has(machine) || (this.retry.get(machine)?.at ?? 0) > Date.now()) return;
     this.asking.add(machine);
     cx.spawn(async () => {
+      let home;
       try {
-        const r = await exec("hc", ["exec", "--on", machine, 'wslpath -w "$HOME"'], { timeout: 10000 });
-        // 127: the machine's shell has no wslpath, so it isn't WSL. Any other failure (hc couldn't
-        // reach it) is asked again at the next poll, which this doesn't bring forward.
-        const home = r.code === 0 && r.stdout.trim() ? r.stdout.trim() : r.code === 127 ? null : undefined;
-        if (home !== undefined) { this.homes.set(machine, home); this.dirty = true; }
+        const ls = await hc(["machine", "ls", "--json"]);
+        const m = ls.code === 0 ? JSON.parse(ls.stdout).machines?.find((x) => x.name === machine) : null;
+        if (m && !isWsl(m.target)) home = null;
+        else if (m) {
+          const r = await exec("hc", ["exec", "--on", machine, 'wslpath -w "$HOME"'], { timeout: 10000 });
+          if (r.code === 0 && r.stdout.trim()) home = r.stdout.trim();
+        }
       } catch {}
+      if (home !== undefined) { this.homes.set(machine, home); this.retry.delete(machine); this.dirty = true; }
+      else {
+        const failures = (this.retry.get(machine)?.failures ?? 0) + 1;
+        this.retry.set(machine, { failures, at: askAgainAt(failures, Date.now()) });
+      }
       this.asking.delete(machine);
     });
   }
@@ -198,43 +219,64 @@ export class Sessions {
   }
 
   poll(cx, targets, key) {
-    if (this.busy || !targets.length) { if (!targets.length) { this.map.clear(); this.limits = null; this.accountLimits = {}; this.follow(cx, []); } return; }
-    this.busy = true;
     this.dirty = false;
     this.key = key;
+    if (!targets.length) { this.map.clear(); this.limits = null; this.accountLimits = {}; this.reads.clear(); this.follow(cx, []); return; }
+    const shown = new Set(targets.map((t) => t.terminal));
+    for (const terminal of this.map.keys()) if (!shown.has(terminal)) this.map.delete(terminal);
+    // This computer is always read: its sidecars carry the usage limits, even with no agent here.
+    const byMachine = new Map([["", []]]);
+    for (const t of targets) {
+      const machine = machineOf(t.terminal) ?? "";
+      if (machine) this.ask(cx, machine);
+      // An agent on a machine whose home this computer can't read gets no session: its cwd would
+      // otherwise be matched against this computer's projects folder.
+      if (machine && !this.homes.get(machine)) { this.map.set(t.terminal, shape(t, null, t.status)); continue; }
+      if (!byMachine.has(machine)) byMachine.set(machine, []);
+      byMachine.get(machine).push(t);
+    }
+    for (const machine of this.reads.keys()) if (!byMachine.has(machine)) this.reads.delete(machine);
+    for (const [machine, ts] of byMachine) this.probe(cx, machine, ts);
+  }
+
+  probe(cx, machine, targets) {
+    if (this.busy.has(machine)) { this.dirty = true; return; }
+    this.busy.add(machine);
+    const home = machine ? this.homes.get(machine) : null;
+    const suffix = machine ? `-${machine.replace(/[^\w.-]/g, "_")}` : "";
+    // The probe names an agent by the id its own machine gives it ("box/t2" is t2 there).
+    const local = (terminal) => (machine ? terminal.slice(machine.length + 1) : terminal);
     cx.spawn(async (cx) => {
       try {
-        const req = `${DATA()}/probe-${this.name}.json`;
+        const req = `${DATA()}/probe-${this.name}${suffix}.json`;
         await fs.mkdir(DATA(), { recursive: true });
         await fs.writeFile(req, JSON.stringify({
           cmd: "sessions",
-          cache: `${DATA()}/probe-cache.json`,
-          sidecars: SIDECARS(),
-          // An agent on a machine whose home this computer can't read is left out: its cwd would
-          // otherwise be matched against this computer's projects folder.
-          targets: targets.flatMap((t) => {
-            const machine = machineOf(t.terminal);
-            if (!machine) return [{ terminal: t.terminal, cwd: t.cwd }];
-            this.ask(cx, machine);
-            const home = this.homes.get(machine);
-            return home ? [{ terminal: t.terminal, cwd: t.cwd, home }] : [];
-          }),
+          cache: `${DATA()}/probe-cache${suffix}.json`,
+          home: home ?? undefined,
+          // Where that machine's statusline writes: its own Herdr home's data folder.
+          sidecars: home ? `${home}/.config/herdr-app/data/endfield/sessions` : SIDECARS(),
+          targets: targets.map((t) => ({ terminal: local(t.terminal), cwd: t.cwd })),
         }));
         const r = await exec("node", [PROBE(), req], { timeout: 20000 });
         const out = r.code === 0 ? JSON.parse(r.stdout) : {};
-        this.failed = r.code !== 0;
-        const next = new Map();
-        for (const t of targets) next.set(t.terminal, shape(t, out.sessions?.[t.terminal], t.status));
-        this.map = next;
-        this.limits = out.limits ?? null;
-        this.accountLimits = out.accountLimits ?? {};
-        this.email = out.email ?? null;
-        this.missing = (out.missing ?? []).length > 0;
-        if (!this.stopped && out.watch) this.follow(cx, out.watch);
-      } catch {
-        this.failed = true;
-      }
-      this.busy = false;
+        for (const t of targets) {
+          const raw = out.sessions?.[local(t.terminal)];
+          // A transcript the probe had no time for keeps what it showed until a later run reads it.
+          if (raw || !out.partial || !this.map.has(t.terminal)) this.map.set(t.terminal, shape(t, raw, t.status));
+        }
+        if (out.partial) this.dirty = true;
+        if (!machine) {
+          this.limits = out.limits ?? null;
+          this.accountLimits = out.accountLimits ?? {};
+          this.email = out.email ?? null;
+        }
+        if (out.watch) {
+          this.reads.set(machine, { watch: out.watch, missing: out.missing ?? [] });
+          if (!this.stopped) this.follow(cx, [...this.reads.values()].flatMap((x) => x.watch));
+        }
+      } catch {}
+      this.busy.delete(machine);
       cx.notify();
     });
   }
