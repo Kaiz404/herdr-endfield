@@ -8,8 +8,9 @@
 
 import { div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { props, closeOverlay, openOverlay, run, agents, spaces } from "herdr";
+import { props, closeOverlay, openOverlay, run, agents, spaces, settings } from "herdr";
 import { palette, root, micro, spaced, wide, chip, cue, MOTION, FONT, modPx } from "./kit.js";
+import { cornerAt } from "./units.js";
 import { roster } from "./roster.js";
 import { showWork } from "./report.js";
 
@@ -37,10 +38,10 @@ function origin(p) {
 
 /** The skill caption, bottom right of the window, for an agent that needs input. */
 export function openCutIn(terminal, news = null) {
-  let w = 1440, h = 900;
-  try { const b = window.bounds(); w = b.width; h = b.height; } catch {}
+  let view = { width: 1440, height: 900 };
+  try { view = window.bounds(); } catch {}
   return openOverlay({ mod: "endfield", kind: "window", frame: "none", key: "endfield-cutin", width: CUT.width, height: CUT.height,
-    at: { x: Math.round(w - CUT.width - CUT.margin), y: Math.round(h - CUT.slot - CUT.height - CUT.margin) }, props: { role: "cutin", terminal, news } });
+    at: cornerAt(view, CUT, { x: CUT.margin, y: CUT.slot + CUT.margin }, settings().zoom), props: { role: "cutin", terminal, news } });
 }
 
 export class Toast {
