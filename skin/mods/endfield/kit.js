@@ -196,8 +196,13 @@ async function present(paths) {
   try { return (await Promise.all(paths.map((p) => fs.exists(`${appHome()}/${p}`)))).every(Boolean); } catch { return false; }
 }
 
+const avatarOf = (op) => Object.fromEntries(Object.entries(AVATAR).map(([size, file]) => [size, op.files?.[file] ?? ""]));
+
 export const IDENTITY = {
-  /** Rereads both files; rebuilds the table, and redraws every copy, only when their text changed. */
+  /**
+   * Rereads both files; rebuilds the table, and redraws every copy, only when their text changed or
+   * an operator's files have arrived since (a pack still being copied in). Never rejects.
+   */
   refresh() {
     // try/finally: one failed read must not leave `reading` set, or no refresh would ever run again.
     reading ??= (async () => { try {
@@ -205,17 +210,20 @@ export const IDENTITY = {
       prefs = { sounds: { ...prefs.sounds, ...(own?.sounds ?? {}) } };
       await baseFor(own);
       const text = JSON.stringify([mText, oText]);
-      if (text !== cast.text) {
-        const operators = {};
-        for (const op of manifest?.operators ?? []) {
-          const avatar = Object.fromEntries(Object.entries(AVATAR).map(([size, file]) => [size, op.files?.[file] ?? ""]));
-          if (await present(Object.values(avatar))) operators[op.slug] = { operator: op.slug, name: op.name, accent: op.accent ?? null, avatar };
-        }
+      const known = text === cast.text ? cast.operators : {};
+      const ops = manifest?.operators ?? [];
+      const found = new Set();
+      for (const op of ops) if (known[op.slug] || await present(Object.values(avatarOf(op)))) found.add(op.slug);
+      if (text !== cast.text || found.size > Object.keys(known).length) {
+        const operators = Object.fromEntries(ops.filter((op) => found.has(op.slug))
+          .map((op) => [op.slug, { operator: op.slug, name: op.name, accent: op.accent ?? null, avatar: avatarOf(op) }]));
         const defaults = Object.fromEntries(Object.entries(manifest?.default_assignment ?? {}).map(([k, v]) => [k, v?.operator ?? null]));
         const spares = (overrides?.spares ?? manifest?.unassigned ?? []).filter((slug) => operators[slug]);
         cast = { text, operators, spares, defaults, overrides: { ...(overrides?.programs ?? {}) }, terminals: { ...(overrides?.terminals ?? {}) } };
         if (!checking()) setShared("endfield.identity", Date.now());
       }
+    } catch (e) {
+      console.log(`endfield: reading the art pack and operators.json failed: ${e?.stack ?? e}`);
     } finally { reading = null; } })();
     return reading;
   },

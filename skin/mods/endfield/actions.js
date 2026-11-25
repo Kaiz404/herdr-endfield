@@ -25,7 +25,7 @@ import { palette, root, micro, pill, barcode, growDisc, cue, MOTION, FONT, STRIP
 import { roster } from "./roster.js";
 import { append } from "./comms.js";
 import { ACTIONS, MODE_WORD, gate, valuesProblem, actionSteps, stepLine, modeOnScreen, deliver, timeoutFor, shQuote, switchArgv, switchPlan } from "./orders.js";
-import { archiveRecord, parseArchive, withoutChat, withEnded, updateFile, recordThenEnd, exitState, exitSeen, hideOf, keptHides, withoutHide, resumePlan, resumeState, programBin, PICK_NOTE } from "./archive.js";
+import { archiveRecord, parseArchive, withoutChat, withEnded, updateFile, recordThenEnd, exitState, exitSeen, exitsSeen, hideOf, keptHides, withoutHide, resumePlan, resumeState, programBin, PICK_NOTE } from "./archive.js";
 import { ago } from "./sessions.js";
 
 const ARCHIVE = () => `${appHome()}/data/endfield/archive.json`;
@@ -311,6 +311,7 @@ export class Archived {
     if (checking()) return;
     cx.spawn(async (cx) => {
       await this.load();
+      await this.settle(cx);
       try { this.runs = Object.fromEntries((await knownAgents()).map((g) => [g.key, g.run])); } catch { this.runs = {}; }
       cx.notify();
     });
@@ -318,6 +319,15 @@ export class Archived {
 
   async load() {
     this.chats = parseArchive(await readArchive());
+  }
+
+  // An Archive dialog closed while its chat was Ending stopped watching, so the chat was never marked
+  // ended and its leftover shell still shows in Squads. A second read follows only for a missing one.
+  async settle(cx, prev = null) {
+    const { ended, reads } = exitsSeen(this.chats, prev ?? new Map(), agents(), terminals());
+    for (const c of ended) await markEnded(c);
+    if (ended.length) { await this.load(); cx.notify(); }
+    if (!prev && [...reads.values()].includes("gone")) cx.timer.after(READ_EVERY_MS, (cx) => cx.spawn((cx) => this.settle(cx, reads)));
   }
 
   hover(id) { return (over, cx) => { if (over) this.hot = id; else if (this.hot === id) this.hot = null; cx.notify(); }; }

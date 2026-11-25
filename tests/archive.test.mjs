@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   archiveRecord, parseArchive, withChat, withoutChat, withEnded, updateFile, resumeArgv, resumePlan, resumeState,
   canArchive, lifeKey, exitState, hideOf, withoutHide, isLeftover, keptHides, recordThenEnd, PICK_NOTE, squadPlan, squadEnd,
-  spaceTerminals, unconfirmed, confirmedOf, killPhrase, exitSeen,
+  spaceTerminals, unconfirmed, confirmedOf, killPhrase, exitSeen, exitsSeen,
 } from "../skin/mods/endfield/archive.js";
 
 const ID = "session-a";
@@ -299,6 +299,20 @@ test("hc send exiting 0 is not the end: the chat is running until Herdr shows it
   assert.equal(exitState(chat, [{ address: "t3", program: claude }], [{ address: "t3", created_ms: 900, state: "live", program: claude }]), "ended", "a new terminal took the address");
   assert.equal(exitState(chat, [], []), "gone", "missing from one read is not an end");
   assert.equal(exitState(chat, [], [{ address: "t3", created_ms: 100, state: "live" }]), "gone", "listed with no program yet says nothing");
+});
+
+test("Archived settles a chat whose dialog closed while it was Ending, by the watcher's own rule", () => {
+  const at = (n, created, ended = null) => ({ ...archiveRecord({ sessionId: ID, program: "claude", terminal: `t${n}`, created, now: n }), ended });
+  const chats = [at(1, 10), at(2, 20), at(3, 30), at(4, 40, 99)];
+  const terms = [
+    { address: "t1", created_ms: 10, state: "live", program: shell },
+    { address: "t2", created_ms: 20, state: "live", program: claude },
+    { address: "t4", created_ms: 40, state: "live", program: shell },
+  ];
+  const first = exitsSeen(chats, new Map(), [], terms);
+  assert.deepEqual(first.ended.map((c) => c.terminal), ["t1"], "t1's shell is back; t2 still runs; t3 is missing once; t4 was marked already");
+  const second = exitsSeen(chats, first.reads, [], terms);
+  assert.deepEqual(second.ended.map((c) => c.terminal), ["t1", "t3"], "t3 is missing from a second read too");
 });
 
 test("a watcher calls it ended on a positive sign, or once it is missing from two reads in a row", () => {
