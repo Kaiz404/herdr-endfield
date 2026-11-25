@@ -1,22 +1,25 @@
 // Reads Claude Code transcripts for the endfield mods, which can't: readTextFile stops at
 // 1 MiB and transcripts run to tens of MB. Run as `node probe.mjs <request.json>`; prints JSON.
 //
-//   {cmd: "sessions", cache, sidecars, registry?, targets: [{terminal, cwd, home?}]}
-//     home: the home of the machine the agent runs on, as a path this computer reads (a WSL
-//     distro's \\wsl.localhost share); absent for this computer.
+//   {cmd: "sessions", cache, sidecars, home?, registry?, budget?, targets: [{terminal, cwd}]}
+//     One request reads one machine. home: that machine's home as a path this computer reads (a
+//     WSL distro's \\wsl.localhost share); absent for this computer. `sidecars` is the folder its
+//     statusline writes, and `terminal` the id that machine gives the agent.
+//     budget: ms this run may spend reading (default BUDGET); a transcript it had no time to
+//     read is left out and the answer says `partial`, so the next run carries on from the cache.
 //     -> {sessions: {terminal: Parsed & {sidecar, live, subagents: Parsed[]}}, watch: [the folders whose writes
 //         change this answer], missing: [project folders that can't be watched, so are polled: not made
 //         yet, or on another machine, whose folders Herdr can't watch],
 //         limits: the newest rate_limits any sidecar carries, {five_hour, seven_day, updated_at} | null,
 //         accountLimits: the same per account name, "" for the default login,
-//         email: the normal login's email (~/.claude.json oauthAccount) | null}
+//         email: the normal login's email (~/.claude.json oauthAccount) | null, partial: boolean}
 //     Parsed carries `final` (the turn has ended: a last message, a handback or an interrupt), `pending`
 //     (a tool call with no result yet; `wait` when it only waits) and `tasks`, the background work the
 //     transcript started: [{id, kind: shell | agent | monitor, description, startedAt, expiresAt, endedAt,
 //     state: running | completed | failed | killed | stopped | timed-out | ended-with-session}],
 //     `counts` ({tool name: calls}) and `recent`, its last 5 tool calls oldest first: [{at, tool, arg}].
 //     live: whether a Claude Code process still runs the session, from `registry` (default
-//     ~/.claude/sessions/<pid>.json); null when there is no registry to ask, as for an agent with a home.
+//     ~/.claude/sessions/<pid>.json); null when there is no registry to ask, as on another machine.
 //   {cmd: "render", path, from}  -> {to, size, entries: [{kind, text, tool?, arg?}]}
 //
 // Each transcript is folded once: the fold (a small summary) and the byte offset it reached
@@ -47,6 +50,9 @@ const RECENT_KEPT = 5;
 // was the one its registry file names when last asked (null: it couldn't be asked).
 const PROCS = "<procs>";
 const PROC_TTL = 60000;
+// Under the poller's 20s exec timeout with room for the registry's PowerShell: a cold read of a
+// gigabyte of transcripts takes longer, and a killed run would save nothing.
+const BUDGET = 12000;
 
 const slug = (cwd) => cwd.replace(/[^A-Za-z0-9]/g, "-");
 
@@ -226,21 +232,28 @@ function fold(f, j) {
   }
 }
 
-/** Brings one transcript's summary up to date, reading only what was appended. */
-function summary(cache, p) {
+/**
+ * Brings one transcript's summary up to date, reading only what was appended. Once the run's
+ * budget is spent it stops at the next chunk (each run reads at least one), keeps the offset it
+ * reached and returns null: a summary cut short would show the transcript as it was.
+ */
+function summary(cache, p, run) {
   const s = stat(p);
   if (!s) return null;
   let c = cache[p];
   if (!c || s.size < c.to || c.v !== FOLD) c = cache[p] = { to: 0, v: FOLD, fold: fresh() };
+  let cut = false;
   if (s.size > c.to) for (const { line, to } of lines(p, c.to, s.size)) {
+    if (to !== c.to && run.read && Date.now() >= run.deadline) { cut = true; run.cut++; break; }
     const j = parse(line);
     if (j) fold(c.fold, j);
     c.to = to;
+    run.read = true;
   }
   c.mtime = s.mtime;
   c.size = s.size;
   c.used = Date.now();
-  return { ...c.fold, mtime: s.mtime };
+  return cut ? null : { ...c.fold, mtime: s.mtime };
 }
 
 const alive = (pid) => {
@@ -311,14 +324,14 @@ function settle(f, owner, now) {
   }) };
 }
 
-function subagents(cache, transcript) {
+function subagents(cache, transcript, run) {
   const dir = path.join(transcript.replace(/\.jsonl$/, ""), "subagents");
   let names;
   try { names = fs.readdirSync(dir); } catch { return []; }
   return names.filter((n) => /^agent-.+\.jsonl$/.test(n)).map((n) => {
     const p = path.join(dir, n);
     const meta = readJson(p.replace(/\.jsonl$/, ".meta.json")) ?? {};
-    const s = summary(cache, p);
+    const s = summary(cache, p, run);
     return s && { id: n.slice(6, -6), path: p, description: meta.description ?? null, agentType: meta.agentType ?? null, ...s };
   }).filter(Boolean);
 }
@@ -349,21 +362,34 @@ function sidecars(dir) {
   return { byTerminal, limits, byAccount };
 }
 
+// A sidecar written on another machine names the transcript by that machine's path; the part
+// under .claude/ is the same in the home this computer reads.
+function transcriptOf(sidecar, home) {
+  const p = sidecar?.transcript_path;
+  if (!p || !home) return p ?? null;
+  const rel = /[\\/]\.claude[\\/](.+)$/.exec(p)?.[1];
+  return rel ? path.join(home, ".claude", rel) : null;
+}
+
 function sessions(req) {
+  const run = { deadline: Date.now() + (req.budget ?? BUDGET), read: false, cut: 0 };
   const cache = readJson(req.cache) ?? {};
   const { byTerminal: side, limits, byAccount } = req.sidecars ? sidecars(req.sidecars) : { byTerminal: new Map(), limits: null, byAccount: {} };
+  const home = req.home ?? null;
   const out = {};
-  const watch = new Set(req.sidecars ? [req.sidecars] : []);
+  const watch = new Set();
   const missing = new Set();
+  if (req.sidecars) (home ? missing : watch).add(req.sidecars);
   const now = Date.now();
-  const owners = registry(req.registry ?? REGISTRY, cache[PROCS] ??= {});
+  // The registry's pids are this computer's, so it can't speak for an agent on another machine.
+  const owners = home ? null : registry(req.registry ?? REGISTRY, cache[PROCS] ??= {});
   if (owners) watch.add(req.registry ?? REGISTRY);
   for (const t of req.targets) {
     const sidecar = side.get(t.terminal) ?? null;
-    let transcript = sidecar?.transcript_path ?? null, approx = false;
-    const project = t.cwd ? path.join(t.home ?? os.homedir(), ".claude", "projects", slug(t.cwd)) : null;
-    if (project) (stat(project) && !t.home ? watch : missing).add(project);
-    if (transcript && !t.home) watch.add(path.dirname(transcript));
+    let transcript = transcriptOf(sidecar, home), approx = false;
+    const project = t.cwd ? path.join(home ?? os.homedir(), ".claude", "projects", slug(t.cwd)) : null;
+    if (project) (stat(project) && !home ? watch : missing).add(project);
+    if (transcript && !home) watch.add(path.dirname(transcript));
     if (!transcript && project) {
       // No sidecar names the session: take the project's most recently written transcript.
       let best = null;
@@ -377,16 +403,15 @@ function sessions(req) {
       transcript = best?.p;
       approx = true;
     }
-    const main = transcript ? summary(cache, transcript) : null;
-    if (!main) continue;
+    const cut = run.cut;
+    const main = transcript ? summary(cache, transcript, run) : null;
+    const subs = main ? subagents(cache, transcript, run) : [];
+    if (!main || run.cut > cut) continue;
     const sessionId = path.basename(transcript, ".jsonl");
-    const subs = subagents(cache, transcript);
     rehome([main, ...subs]);
     // No registry at all: nothing says the session died, so its open tasks still count as running.
-    // The registry's pids are this computer's, so it can't speak for an agent on another machine.
-    const asked = t.home ? null : owners;
-    const owner = asked ? asked.get(sessionId) : { since: 0 };
-    out[t.terminal] = { transcript, approx, sessionId, live: asked ? asked.has(sessionId) : null, ...settle(main, owner, now),
+    const owner = owners ? owners.get(sessionId) : { since: 0 };
+    out[t.terminal] = { transcript, approx, sessionId, live: owners ? owners.has(sessionId) : null, ...settle(main, owner, now),
       subagents: subs.map((s) => settle(s, owner, now)), sidecar };
   }
   for (const [p, c] of Object.entries(cache)) if (p !== PROCS && (now - (c.used ?? 0) > CACHE_DAYS * DAY || !stat(p))) delete cache[p];
@@ -395,7 +420,7 @@ function sessions(req) {
   try { fs.writeFileSync(tmp, JSON.stringify(cache)); fs.renameSync(tmp, req.cache); } catch { try { fs.unlinkSync(tmp); } catch {} }
   // The normal login's email, from Claude Code's own config: what an agent on no saved token runs as.
   const email = readJson(path.join(os.homedir(), ".claude.json"))?.oauthAccount?.emailAddress ?? null;
-  return { sessions: out, watch: [...watch], missing: [...missing], limits, accountLimits: byAccount, email };
+  return { sessions: out, watch: [...watch], missing: [...missing], limits, accountLimits: byAccount, email, partial: run.cut > 0 };
 }
 
 // ---- render: a transcript as a tidy list for the transcript pane

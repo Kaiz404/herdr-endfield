@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { isWsl, askAgainAt } from "../skin/mods/endfield/fleet.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROBE = path.join(HERE, "..", "skin", "mods", "endfield", "tools", "probe.mjs");
@@ -33,16 +34,16 @@ before(() => {
 });
 after(() => fs.rmSync(dir, { recursive: true, force: true }));
 
-function probe(targets) {
+function probe(targets, more = {}) {
   const req = path.join(dir, "req.json");
-  fs.writeFileSync(req, JSON.stringify({ cmd: "sessions", cache: path.join(dir, "cache.json"), registry: path.join(dir, "registry"), targets }));
+  fs.writeFileSync(req, JSON.stringify({ cmd: "sessions", cache: path.join(dir, "cache.json"), registry: path.join(dir, "registry"), targets, ...more }));
   const env = { ...process.env, HOME: local, USERPROFILE: local };
   return JSON.parse(execFileSync("node", [PROBE, req], { encoding: "utf8", env }));
 }
 
 test("an agent on another machine is read from that machine's home, with no word on whether it runs", () => {
-  const out = probe([{ terminal: "wsl/t2", cwd: CWD, home: remote }]);
-  const s = out.sessions["wsl/t2"];
+  const out = probe([{ terminal: "t2", cwd: CWD }], { home: remote });
+  const s = out.sessions.t2;
   assert.equal(s?.sessionId, "session-remote");
   assert.equal(s.model, "claude-opus-5-5");
   assert.equal(s.turns, 1);
@@ -55,4 +56,40 @@ test("an agent on another machine is read from that machine's home, with no word
 test("an agent with no home is read from this computer's home only", () => {
   const out = probe([{ terminal: "t9", cwd: CWD }]);
   assert.equal(out.sessions.t9, undefined);
+});
+
+test("a statusline on the other machine names its agent's exact session, by that machine's path", () => {
+  const project = path.join(remote, ".claude", "projects", "-srv-two");
+  fs.mkdirSync(project, { recursive: true });
+  const text = LINES.map((l) => JSON.stringify(l)).join("\n") + "\n";
+  fs.writeFileSync(path.join(project, "session-named.jsonl"), text);
+  fs.writeFileSync(path.join(project, "session-newer.jsonl"), text);
+  const before = new Date(Date.now() - 60000);
+  fs.utimesSync(path.join(project, "session-named.jsonl"), before, before);
+  const sidecars = path.join(remote, ".config", "herdr-app", "data", "endfield", "sessions");
+  fs.mkdirSync(sidecars, { recursive: true });
+  fs.writeFileSync(path.join(sidecars, "session-named.json"), JSON.stringify({ session_id: "session-named", terminal: "t4", cwd: "/srv/two",
+    transcript_path: "/opt/agent/.claude/projects/-srv-two/session-named.jsonl", updated_at: new Date().toISOString() }));
+  const out = probe([{ terminal: "t4", cwd: "/srv/two" }], { home: remote, sidecars });
+  const s = out.sessions.t4;
+  assert.equal(s?.sessionId, "session-named", "the sidecar's session, not the folder's newest transcript");
+  assert.equal(s.approx, false);
+  assert.equal(s.transcript, path.join(project, "session-named.jsonl"));
+  assert.ok(out.missing.includes(sidecars) && !out.watch.includes(sidecars), "the other machine's sidecar folder is polled, never watched");
+});
+
+test("a machine is read through its home only when Herdr reaches it through wsl.exe", () => {
+  assert.equal(isWsl("wsl.exe -d Ubuntu -e sh -c"), true);
+  assert.equal(isWsl("C:\\Windows\\System32\\wsl.exe -d Debian -e sh -c"), true);
+  assert.equal(isWsl("ssh vps"), false, "an ssh machine with wslpath on it is still another computer");
+  assert.equal(isWsl("C:\\Program Files\\WSL\\wsl.exe -d Ubuntu -e sh -c"), true, "a path with a space, unquoted");
+  assert.equal(isWsl("\"C:\\Program Files\\WSL\\wsl.exe\" -d Ubuntu -e sh -c"), true, "a path with a space, quoted");
+  assert.equal(isWsl("\"C:\\Program Files\\OpenSSH\\ssh.exe\" box"), false);
+  assert.equal(isWsl("ssh wsl.exe-box"), false);
+  assert.equal(isWsl("ssh wsl"), false);
+  assert.equal(isWsl(undefined), false);
+});
+
+test("a machine that couldn't be asked is asked again later, less often each time, never more than five minutes apart", () => {
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 12].map((n) => askAgainAt(n, 0)), [15000, 30000, 60000, 120000, 240000, 300000, 300000]);
 });

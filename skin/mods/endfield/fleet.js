@@ -238,6 +238,20 @@ export function pollPace(sessions) {
   return sessions.some((s) => s.waiting) || subs.some((k) => k.status === "waiting") ? "slow" : null;
 }
 
+// Another machine's files are readable here only for WSL, through its \\wsl.localhost share. Herdr
+// reaches a WSL machine through wsl.exe (`hc machine ls` target), and every other machine over ssh.
+// The program may be a path with spaces, quoted or not ("C:\Program Files\WSL\wsl.exe -d X").
+export function isWsl(target) {
+  const t = String(target ?? "").trim();
+  const program = t.startsWith('"') ? t.slice(1, t.indexOf('"', 1))
+    : /^(?:(?:[A-Za-z]:)?[\\/].*?[\\/])?wsl(?:\.exe)?(?=\s|$)/i.exec(t)?.[0] ?? "";
+  return /(^|[\\/])wsl(\.exe)?$/i.test(program);
+}
+
+// When to ask a machine for its home again after `failures` failed asks: 15s, then twice as long
+// each time, at most 5 minutes apart.
+export const askAgainAt = (failures, now) => now + Math.min(15000 * 2 ** (failures - 1), 300000);
+
 // A Claude Code session's own sub-agents under its row: the ones in flight (working or waiting),
 // then a toggle row offering the ones that are over, then (while `open`) those. Each list is newest
 // started first (by start, not last write, so a busy one doesn't hop past a newer one).

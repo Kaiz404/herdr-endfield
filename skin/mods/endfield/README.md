@@ -205,7 +205,11 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   five tool calls, pending question, sub-agents). Sources, first wins: a statusline sidecar in
   `data/endfield/sessions/<session_id>.json` (matched by its `terminal`), else the
   newest transcript in `~/.claude/projects/<cwd slug>/` (approximate: two sessions
-  in one folder can't be told apart; the card marks it `≈`).
+  in one folder can't be told apart; the card marks it `≈`). Each machine gets a
+  probe run of its own, with its own cache: this computer, and each WSL machine
+  (one `hc machine ls` reaches through `wsl.exe`), read through its
+  `\\wsl.localhost` home, sidecars included. An SSH machine's agents get none.
+  A probe run stops reading after 12s and says `partial`; the next run goes on.
 - `tools/account.mjs` keeps Claude logins by name and runs a program on one: the
   token goes in as `CLAUDE_CODE_OAUTH_TOKEN` (DPAPI on Windows, the Keychain on
   macOS, a user-only file elsewhere), with `ENDFIELD_ACCOUNT` set so the statusline
