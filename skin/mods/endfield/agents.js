@@ -17,12 +17,12 @@ import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { agents, panes, focused, spaces, terminals, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, settings, checking, notify } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, spaced, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE, modPx } from "./kit.js";
 import { roster, holdCrew, HIDDEN_KEY } from "./roster.js";
-import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, subLabel, siblingLabels, PANE_ROLES, opening, transcriptsIn, transcriptPlan, rowShape, rowMeta, tasksOf, railSpans, railStreaks } from "./fleet.js";
+import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, subLabel, siblingLabels, PANE_ROLES, opening, transcriptsIn, transcriptPlan, rowShape, rowMeta, tasksOf, railSpans, railStreaks, unplayed } from "./fleet.js";
 import { toggleReport, goTo, showWork } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
 import { CARD, cardKind, wantedCard, dismissed, cardHeight, cardPlace, windowHeight, resized } from "./hovercard.js";
-import { holding, slotTops, chatBlocks } from "./squads.js";
+import { holding, slotTops, chatBlocks, releaseClicks } from "./squads.js";
 import { openSquadMenu } from "./squadmenu.js";
 import { openLink, loadLinks } from "./linkdialog.js";
 import { linkProblem, linkedWith } from "./links.js";
@@ -433,11 +433,8 @@ export class Agents {
     else if (commit && d.move) { run(d.kind === "squad" ? "space.move" : "tab.move", d.move); d.wait = true; }
     else d.to = null;
     if (d.back && this.keys.is_focused()) run("pane.focus", { pane: d.back });
-    // A row let go on itself, having moved nothing, was a click on it: the row's own click never
-    // fires, since it runs while the drag is live. A squad header stays unfolded.
-    const b = d.terminal ? this.bounds[`ag-${d.terminal}`] : null;
-    const home = b && d.pt && d.pt.x >= b.x && d.pt.x < b.x + b.width && d.pt.y >= b.y && d.pt.y < b.y + b.height;
-    if (commit && home && !d.squad && !d.wait && !d.target) { const m = roster().all.get(d.terminal); if (m) this.focus(m); }
+    // The row's own click never fires after a drag: it runs while the drag is still live.
+    if (releaseClicks(d, commit, d.terminal ? this.bounds[`ag-${d.terminal}`] : null)) { const m = roster().all.get(d.terminal); if (m) this.focus(m); }
     // A move waits for Herdr's new order (arrange sets moved), so the list never snaps back first.
     cx.timer.after(d.wait ? MOVE_WAIT_MS : MOTION.drag.slide.duration + MOTION.settle.delay, (cx) => { if (this.drag === d) { this.drag = null; cx.notify(); } });
     cx.notify();
@@ -953,7 +950,7 @@ export class Agents {
           .map((x) => ({ s: this.sessions.get(x.m.address), y: x.top - r.top + x.h / 2 })).filter((a) => a.s);
         const streaks = railStreaks(agents.map((a) => ({ session: a.s.sessionId, y: a.y })), agents.flatMap((a) => a.s.messages), Date.now(), MOTION.link.burst)
           .map((k) => ({ ...k, key: `rail-${sp.group}-${k.id}` }));
-        for (const k of streaks) if (this.played && !this.played.has(k.id)) { this.played.add(k.id); this.fresh.add(k.key); }
+        for (const k of unplayed(this.played, streaks)) this.fresh.add(k.key);
         return { key: `rail-${sp.group}`, y: r.y, h: sp.h, travel: r.travel, lifted: r.lifted, streaks };
       });
     });

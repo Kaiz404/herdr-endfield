@@ -38,8 +38,11 @@ test("an area with no listed agent keeps Herdr's status", () => {
 });
 
 test("a done agent waiting on background work gets no Finished slip", () => {
-  assert.equal(finishedSlip("waiting", { claude: true, landed: false }), "waiting");
   assert.equal(finishedSlip("waiting", { claude: true, landed: true }), "waiting");
+});
+
+test("a waiting read before this turn's poll lands holds: it may be the previous turn's", () => {
+  assert.equal(finishedSlip("waiting", { claude: true, landed: false }), null);
 });
 
 test("a done Claude Code agent's slip holds until a session poll lands; other agents get it at once", () => {

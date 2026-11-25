@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { moveOnto, slotTops, holding, chatBlocks, stepSquad, squadMenu } from "../skin/mods/endfield/squads.js";
+import { moveOnto, slotTops, holding, chatBlocks, stepSquad, squadMenu, releaseClicks } from "../skin/mods/endfield/squads.js";
 
 // Herdr's space.move {id, index}: the space ends at `index` (1 = first), as the real command does.
 const applyMove = (order, { id, index }) => {
@@ -122,4 +122,17 @@ test("a squad header's menu: rename always, a move only where there is somewhere
   assert.deepEqual(applyMove(ORDER, menu[2].move), ["b", "c", "a", "d", "r1", "r2"]);
   assert.deepEqual(squadMenu(ORDER, SQUADS, "pinned"), []);
   assert.deepEqual(squadMenu(ORDER, SQUADS, "b"), [], "a space with no agents has no header to click");
+});
+
+test("a row let go on itself, having moved nothing, is a click; any drop, move, link, cancel or a squad header is not", () => {
+  const row = { x: 0, y: 100, width: 248, height: 34 };
+  const drag = { terminal: "t1", pt: { x: 120, y: 110 }, squad: null, wait: false, target: null };
+  assert.equal(releaseClicks(drag, true, row), true);
+  assert.equal(releaseClicks(drag, false, row), false, "Esc or the pointer leaving the list cancels");
+  assert.equal(releaseClicks({ ...drag, pt: { x: 120, y: 140 } }, true, row), false, "let go on another row");
+  assert.equal(releaseClicks({ ...drag, wait: true }, true, row), false, "a move ran");
+  assert.equal(releaseClicks({ ...drag, squad: { id: "s2" } }, true, row), false, "dropped on a squad");
+  assert.equal(releaseClicks({ ...drag, target: { address: "t2" } }, true, row), false, "over a row to link");
+  assert.equal(releaseClicks({ ...drag, terminal: null }, true, row), false, "a squad header never folds after a drag");
+  assert.equal(releaseClicks(drag, true, null), false, "no bounds measured");
 });

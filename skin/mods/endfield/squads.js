@@ -51,6 +51,18 @@ export function holding({ ids, heights, order, from, y }) {
 }
 
 /**
+ * Whether letting go of a drag is a click on its row: released (commit, not a cancel) on the held
+ * row itself, having dropped on no squad, moved nothing and linked nothing. A squad header (no
+ * terminal) never clicks, so a drag never folds it. d: the drag (agents.js), pt in window px;
+ * bounds: the held row's, in window px.
+ */
+export function releaseClicks(d, commit, bounds) {
+  const p = d.pt, b = bounds;
+  const home = Boolean(b && p) && p.x >= b.x && p.x < b.x + b.width && p.y >= b.y && p.y < b.y + b.height;
+  return Boolean(commit && d.terminal && home && !d.squad && !d.wait && !d.target);
+}
+
+/**
  * A squad's rows as the chats that drag: a chat is a tab, so a block starts at every top-level row
  * of a tab other than the last block's, and takes the rows under it (its children, sub-agents and
  * "+N earlier"). A linked group (fleet.js grouped) is one block, its lead's tab: it sits at the

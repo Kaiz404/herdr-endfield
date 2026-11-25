@@ -41,3 +41,29 @@ test("a machine that couldn't be asked stops being asked once its agents are gon
   for (let i = 0; i < 10; i++) { clock += 60000; cx.tick(); await cx.settle(); }
   assert.equal(probes - before, 0, "nothing changed, and a retry for a machine with no agent left polls nothing");
 });
+
+test("a machine that couldn't be asked is asked again by the timer once its retry is due, and not before", async (t) => {
+  let asks = 0;
+  globalThis.herdrStub = { home: dir, exec: async (command) => {
+    if (command === "node") return { code: 0, stdout: JSON.stringify({ sessions: {}, watch: [], missing: [] }) };
+    asks++;
+    return { code: 1, stdout: "" };
+  } };
+  let clock = Date.now();
+  t.mock.method(Date, "now", () => clock);
+  const targets = [{ terminal: "box/t2", cwd: "/b", status: "idle" }];
+  const s = new Sessions("test-retry");
+  const cx = context();
+  s.start(cx, () => targets);
+  await cx.settle();
+  assert.equal(asks, 1);
+  const due = s.retry.get("box").at;
+  clock = due - 1000;
+  cx.tick();
+  await cx.settle();
+  assert.equal(asks, 1, "not due yet: the tick asks nothing");
+  clock = due;
+  cx.tick();
+  await cx.settle();
+  assert.equal(asks, 2, "due: the tick polls and asks the machine again");
+});
