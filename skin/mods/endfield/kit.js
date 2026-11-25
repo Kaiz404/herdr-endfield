@@ -2,7 +2,7 @@
 // plus the few shapes they share (chips, pills, hatch, status marks, the geometric layer).
 
 import { div, svg, image, PathBuilder, Background } from "gpui-kit";
-import { h_flex } from "gpui-base";
+import { h_flex, v_flex } from "gpui-base";
 import { settings, layout, shared, setShared, run, keys, home, appHome, readTextFile, fonts, checking, playSound, spaces, exec, window as appWindow } from "herdr";
 import * as fs from "fs/promises";
 import { statusOf, choose } from "./fleet.js";
