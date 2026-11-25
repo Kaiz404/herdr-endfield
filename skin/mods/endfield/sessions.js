@@ -19,7 +19,8 @@
 //   toolCounts: {tool name: calls}, recent: [{at, tool, arg}] (its last 5 tool calls, oldest first),
 //   lastAt, startedAt, question, live: boolean | null, tasks: Task[],
 //   waiting (its turn ended with background work or a sub-agent still in flight), subagents: Sub[],
-//   messages: Message[]}
+//   messages: Message[],
+//   polledAs (the agent's Herdr status when the poll that read it started)}
 // Message = a cross-session message this session received: {id, at, from, to}, from and to session ids
 //   (from null when the sender's session is unknown), its last 8, oldest first
 // Sub = {id, path, title, type (its Claude Code agent type, "pstack:poteto-agent", or null), model, effort, ctx, status: working | waiting | done | idle (fleet.js runStatus),
@@ -108,6 +109,7 @@ function shape(t, raw, parentStatus) {
     waiting: Boolean(raw) && runStatus({ ...raw, tasks: held, now }, parentStatus) === "waiting",
     subagents: subs,
     messages: (raw?.messages ?? []).map((m) => ({ ...m, to: sessionId })),
+    polledAs: parentStatus,
   };
 }
 

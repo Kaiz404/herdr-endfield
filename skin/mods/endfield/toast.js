@@ -14,7 +14,7 @@ import { palette, root, micro, spaced, wide, chip, cue, MOTION, FONT, modPx } fr
 import { cornerAt } from "./units.js";
 import { roster } from "./roster.js";
 import { showWork } from "./report.js";
-import { finishedSlip } from "./fleet.js";
+import { finishedSlip, pollLanded } from "./fleet.js";
 import { isClaude } from "./sessions.js";
 
 const LEVEL = {
@@ -29,8 +29,6 @@ const CUT = { width: 440, height: 214, margin: 16, slot: 112 };
 
 // Herdr's title for an agent that needs the person.
 const NEEDS = /needs you$/i;
-// The longest a done Claude Code agent's slip waits for the session poll to say whether it waits on background work.
-const HOLD_MS = 4000;
 
 // Where the news comes from: the agent its action goes to, else a space, else Herdr itself.
 function origin(p) {
@@ -68,20 +66,18 @@ export class Toast {
       if (!a.focused) { cue("needs"); openCutIn(a.address, { title: p.title ?? null, body: p.body ?? null }); }
       closeOverlay(p.overlay);
     } else if (a?.status === "done") {
-      const kind = finishedSlip(roster().all.get(a.address)?.status ?? "done", { claude: isClaude(a), landed: this.landed(a.address) });
+      const landed = this.late || pollLanded(shared("endfield.sessions")?.[a.address]);
+      const kind = finishedSlip(roster().all.get(a.address)?.status ?? "done", { claude: isClaude(a), landed });
       this.held = !kind;
       if (kind === "finished") { this.kind = kind; cue("finished"); }
       else if (kind === "waiting") { this.kind = kind; closeOverlay(p.overlay); }
+    } else if (this.held) {
+      // Done no longer: looked at, or a new turn, while the slip held. Nothing is left to tell.
+      this.kind = "gone";
+      closeOverlay(p.overlay);
     } else if (!a || a.status === "blocked") {
       this.kind = "plain";
     }
-  }
-
-  // Whether the session poll has published this agent's session again since the toast came, or the hold ran out.
-  landed(address) {
-    const now = JSON.stringify(shared("endfield.sessions")?.[address] ?? null);
-    this.polled ??= now;
-    return Boolean(this.late) || now !== this.polled;
   }
 
   // Slide out, then run the action and close (the host's own timeout closes without it).
@@ -108,7 +104,7 @@ export class Toast {
     }
     if (this.held && !this.holding) {
       this.holding = true;
-      cx.timer.after(HOLD_MS, (cx) => { this.late = true; this.decide(p); cx.notify(); });
+      cx.timer.after(MOTION.toast.hold.delay, (cx) => { this.late = true; this.decide(p); cx.notify(); });
     }
     if (this.kind !== "plain" && this.kind !== "finished") return div();
     const C = palette();

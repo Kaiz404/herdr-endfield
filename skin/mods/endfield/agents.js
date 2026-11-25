@@ -805,7 +805,7 @@ export class Agents {
     const all = Object.fromEntries(R.flat.flatMap((m) => {
       const x = this.sessions.get(m.address);
       return x ? [[m.address, { ctx: x.ctx ?? null, tokens: x.tokens?.total ?? null, turns: x.turns ?? null, model: x.model?.short ?? null, effort: x.effort, mode: x.mode, account: x.account,
-        sessionId: x.sessionId ?? null, cwd: x.cwd ?? null, approx: Boolean(x.approx) }]] : [];
+        sessionId: x.sessionId ?? null, cwd: x.cwd ?? null, approx: Boolean(x.approx), polledAs: x.polledAs ?? null }]] : [];
     }));
     // The open card's whole session: the card draws it and runs no poller of its own.
     const card = this.card.open ? this.sessions.get(this.card.open.address) : null;

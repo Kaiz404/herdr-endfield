@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { areaStatus, finishedSlip, buildRoster } from "../skin/mods/endfield/fleet.js";
+import { areaStatus, finishedSlip, pollLanded, buildRoster } from "../skin/mods/endfield/fleet.js";
 import { identityOf } from "./identity.mjs";
 
 const claude = { key: "claude", name: "Claude Code", agent: true };
@@ -46,4 +46,15 @@ test("a done Claude Code agent's slip holds until a session poll lands; other ag
   assert.equal(finishedSlip("done", { claude: true, landed: false }), null);
   assert.equal(finishedSlip("done", { claude: true, landed: true }), "finished");
   assert.equal(finishedSlip("done", { claude: false, landed: false }), "finished");
+});
+
+test("a poll that started before Herdr said done doesn't release the slip, though it changes the session", () => {
+  const slip = (status, session) => finishedSlip(status, { claude: true, landed: pollLanded(session) });
+  const before = { tokens: 100, turns: 3, polledAs: "working" };
+  const stale = { tokens: 180, turns: 4, polledAs: "working" };
+  assert.equal(slip("done", before), null);
+  assert.equal(slip("done", stale), null, "read before the turn ended: its waiting isn't the turn's");
+  assert.equal(slip("done", { ...stale, polledAs: "done" }), "finished");
+  assert.equal(slip("waiting", { ...stale, polledAs: "done" }), "waiting");
+  assert.equal(slip("done", null), null);
 });

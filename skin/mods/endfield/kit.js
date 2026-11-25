@@ -463,7 +463,8 @@ export const MOTION = {
   pane: { bar: ease(300), brackets: ease(300), fade: ease(200), actions: { delay: 40 }, pulse: { from: 0, to: 0.42, period: 1400, easing: "ease-in-out" } },
   status: { march: { period: 300 } },
   done: { flash: ease(300), check: ease(200), clear: { delay: 300 } },
-  toast: { enter: ease(300), fade: ease(200), countdown: { duration: 6000, easing: "linear" } },
+  // hold: the longest a done Claude Code agent's slip waits for a session poll (3s apart) and its probe.
+  toast: { enter: ease(300), fade: ease(200), countdown: { duration: 6000, easing: "linear" }, hold: { delay: 6000 } },
   // The skill caption (trailer pattern 5): block grows, holds, retracts to its edge, revealing text.
   cut: { portrait: ease(100, "linear", 83), late: ease(100, "linear", 166), grow: ease(330), retract: ease(350, "ease-in", 630), text: ease(100, "linear", 630) },
   count: { roll: ease(300), needs: ease(300) },
