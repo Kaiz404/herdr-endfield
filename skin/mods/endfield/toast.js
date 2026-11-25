@@ -2,17 +2,20 @@
 // props {title, body, level, icon, action, timeout, overlay} and no role; main.js routes it here.
 // An agent that needs input gets the skill caption instead (cutin.js, an overlay window: Herdr's
 // toast slot is too small for it), unless its pane has focus: you are looking at it, so its pane
-// header pulses and no toast is made. A finished agent gets the Finished slip. Anything else is the
+// header pulses and no toast is made. A finished agent gets the Finished slip, unless it waits on
+// background work it started (fleet.js finishedSlip): that one gets none. Anything else is the
 // plain slab, ported from the shipped `toast`: click runs the action and closes, the host owns the
 // timeout, and a machine-login body gets a Copy button.
 
 import { div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { props, closeOverlay, openOverlay, run, agents, spaces, settings } from "herdr";
+import { props, closeOverlay, openOverlay, run, agents, spaces, shared, settings } from "herdr";
 import { palette, root, micro, spaced, wide, chip, cue, MOTION, FONT, modPx } from "./kit.js";
 import { cornerAt } from "./units.js";
 import { roster } from "./roster.js";
 import { showWork } from "./report.js";
+import { finishedSlip, pollLanded } from "./fleet.js";
+import { isClaude } from "./sessions.js";
 
 const LEVEL = {
   info: { edge: "flow", glyph: "i" },
@@ -48,6 +51,7 @@ export class Toast {
   init() {
     this.phase = "new";
     this.width = 0;
+    this.at = Date.now();
   }
 
   // The one decision, made once the agent's new status has reached agents() (Herdr can post the
@@ -63,10 +67,17 @@ export class Toast {
       if (!a.focused) { cue("needs"); openCutIn(a.address, { title: p.title ?? null, body: p.body ?? null }); }
       closeOverlay(p.overlay);
     } else if (a?.status === "done") {
-      this.kind = "finished";
-      cue("finished");
+      const landed = this.late || pollLanded(shared("endfield.sessions")?.[a.address], this.at);
+      const kind = finishedSlip(roster().all.get(a.address)?.status ?? "done", { claude: isClaude(a), landed });
+      this.held = !kind;
+      if (kind === "finished") { this.kind = kind; cue("finished"); }
+      else if (kind === "waiting") { this.kind = kind; closeOverlay(p.overlay); }
     } else if (!a || a.status === "blocked") {
       this.kind = "plain";
+    } else if (this.held) {
+      // Done no longer: looked at, or a new turn, while the slip held. Nothing is left to tell.
+      this.kind = "gone";
+      closeOverlay(p.overlay);
     }
   }
 
@@ -90,7 +101,11 @@ export class Toast {
     if (!this.kind && !this.waiting) {
       // An agent's news whose status hasn't landed yet: wait one beat, then show it plain.
       this.waiting = true;
-      cx.timer.after(MOTION.toast.enter.duration, (cx) => { this.decide(p); this.kind ??= "plain"; cx.notify(); });
+      cx.timer.after(MOTION.toast.enter.duration, (cx) => { this.decide(p); if (!this.held) this.kind ??= "plain"; cx.notify(); });
+    }
+    if (this.held && !this.holding) {
+      this.holding = true;
+      cx.timer.after(MOTION.toast.hold.delay, (cx) => { this.late = true; this.decide(p); cx.notify(); });
     }
     if (this.kind !== "plain" && this.kind !== "finished") return div();
     const C = palette();

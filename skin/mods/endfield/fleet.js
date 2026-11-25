@@ -31,6 +31,31 @@ const childStatus = (s) => (s === "error" ? "blocked" : s === "done" ? "idle" : 
  */
 export const memberStatus = (status, waiting) => (waiting && (status === "idle" || status === "done") ? "waiting" : status);
 
+/**
+ * A tab's or a space's status: the most urgent of its listed agents' (memberStatus), as Herdr ranks
+ * its own, so a lead waiting on background work reads waiting there too. `own`, Herdr's, when none is listed.
+ * members: the roster members in that tab or space.
+ */
+export function areaStatus(own, members) {
+  const listed = members.filter((m) => m.agent);
+  return listed.length ? listed.reduce((s, m) => (rank(m.status) > rank(s) ? m.status : s), null) : own;
+}
+
+/**
+ * What a toast for an agent Herdr calls done becomes: "finished" (the Finished slip), "waiting"
+ * (none: it waits on background work it started), or null to hold. Herdr's done can land a session
+ * poll before Session.waiting does, so a Claude Code agent's slip holds until a poll has `landed` since.
+ */
+export const finishedSlip = (status, { claude, landed }) => (status === "waiting" ? "waiting" : !claude || landed ? "finished" : null);
+
+/**
+ * Whether the published session (shared "endfield.sessions") comes from a poll that started once
+ * Herdr said done, at or after `since` (the toast's arrival): only that poll read the transcript
+ * after this turn ended, so only its waiting is the turn's. One started earlier can still finish
+ * later and change the entry, and an earlier turn's done poll says nothing of this one.
+ */
+export const pollLanded = (session, since) => session?.polledAs === "done" && session.polledAt >= since;
+
 // Creation order (the core's created_ms, else the address number): stable while agents come and
 // go, so a callsign never hops from one agent to another.
 const byCreation = (x, y) => x.created - y.created || x.address.localeCompare(y.address, undefined, { numeric: true });

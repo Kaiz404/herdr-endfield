@@ -10,7 +10,8 @@ import { div, svg, image } from "gpui-kit";
 import { h_flex, v_flex, ScrollHandle } from "gpui-base";
 import { spaces, focused, run, openOverlay, closeOverlay, props, window as appWindow, shared, layout, settings } from "herdr";
 import { palette, root, find, stop, glyph, freshDot, micro, icon, pad2, telling, growDisc, pill, cue, binding, Entrance, MOTION } from "./kit.js";
-import { statusOf } from "./fleet.js";
+import { statusOf, areaStatus } from "./fleet.js";
+import { roster } from "./roster.js";
 import { REPORT, toggleReport } from "./report.js";
 import { commsPane, openComms } from "./comms.js";
 import { underStrip } from "./dock.js";
@@ -165,7 +166,7 @@ export default class Tabs {
     return st.fresh ? freshDot(C, 7) : glyph(C, s, { size: 10 });
   }
 
-  item(C, space, shown, active, c, i, w) {
+  item(C, space, shown, active, c, i, w, members) {
     const ps = w.panes;
     const lead = leadOf(c.id, ps);
     const name = label(c, lead);
@@ -218,7 +219,7 @@ export default class Tabs {
       .when(Boolean(program?.icon) && Boolean(program?.agent), (el) => el.child(program.tint ? svg(program.icon).relative().size(13).flex_none().text_color(on ? C.ink : C.muted) : image(program.icon).relative().size(13).flex_none()))
       .child(div().relative().max_w(180).truncate().text_size(12.5).font_medium().child(name))
       .when(c.zoomed, (el) => el.child(micro("Zoom", on ? C.ink : C.muted, 9).relative()))
-      .child(div().relative().flex_none().child(this.signal(K, c.status) ?? div()))
+      .child(div().relative().flex_none().child(this.signal(K, areaStatus(c.status, members.filter((m) => m.tab === c.id))) ?? div()))
       .child(div().id(`close-${c.id}`).relative().size(18).flex().items_center().justify_center().opacity(shut ? 1 : 0)
         .text_color(on || this.hot === `close-${c.id}` ? C.ink : C.text).on_hover(hover(`close-${c.id}`))
         .tooltip(tipOf(close, binding)).on_mouse_down("left", stop).on_mouse_down("middle", stop)
@@ -273,7 +274,7 @@ export default class Tabs {
       .on_scroll_wheel((e) => this.wheel(e))
       .child(h_flex().id("tab-scroll").flex_shrink(1).min_w(0).h_full().items_center().overflow_x_scrollbar().track_scroll(this.scroll)
         .on_size_change((_size, cx) => { if (active >= 0) this.scroll.scroll_to_item(active); cx.notify(); })
-        .children((() => { const w = world(); return shown.map((c, i) => this.item(C, space, shown, active, c, i, w)); })())
+        .children((() => { const w = world(), members = [...roster().all.values()]; return shown.map((c, i) => this.item(C, space, shown, active, c, i, w, members)); })())
         .child(mark))
       .child(h_flex().h_full().px(10).flex_none().items_center()
         .child(pill(C, "tab-new", "New tab", { knob: "+", hot: this.hot === "tab-new", on_hover: this.hover("tab-new"),

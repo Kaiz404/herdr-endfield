@@ -10,7 +10,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { run, shared, layout } from "herdr";
 import { palette, root, statusMark, chip, micro, spaced, wide, pad2, barcode, growDisc, find, Entrance, FONT, modPx } from "./kit.js";
 import { roster } from "./roster.js";
-import { DENSE_AT, fmtTokens } from "./fleet.js";
+import { DENSE_AT, fmtTokens, rank } from "./fleet.js";
 import { openArchived } from "./actions.js";
 import { askPane } from "./docking.js";
 
@@ -27,8 +27,6 @@ export function goTo(m) {
 
 const WINDOW_MS = 10 * 60000;
 const BARS = 16;
-// Status order: Needs input, then Finished, Generating, Idle.
-const ORDER = { blocked: 0, error: 0, done: 1, waiting: 1.5, working: 2, idle: 3 };
 const COLS = [
   { k: "name", label: "Agent", grow: 2.3, key: (r) => r.m.label },
   { k: null, label: ["Session", "link"], grow: 1.25 },
@@ -36,7 +34,7 @@ const COLS = [
   { k: "rate", label: "Rate", grow: 0.8, key: (r) => -r.rate },
   { k: "ctx", label: "Reserves", grow: 0.9, key: (r) => -(r.ctx?.pct ?? -1) },
   { k: "turn", label: "Turn", grow: 0.45, key: (r) => -(r.m.turn ?? -1) },
-  { k: "status", label: "Status", grow: 1, key: (r) => ORDER[r.m.status] ?? 4 },
+  { k: "status", label: "Status", grow: 1, key: (r) => -rank(r.m.status) },
 ];
 const LETTER = { claude: "Claude Code", codex: "Codex", cursor: "Cursor", opencode: "OpenCode", gemini: "Gemini" };
 
