@@ -114,6 +114,9 @@ export class Agents {
     this.scrollY = 0;
     this.fx = new StatusFx();
     this.fresh = new Set();
+    // Message ids whose streak has played (or was already there at the first sessions load), so a
+    // reload or a poll that blanked a session never plays one again.
+    this.played = null;
     this.seen = null;
     this.entrance = new Entrance(2);
     this.entrance.start(cx);
@@ -923,6 +926,8 @@ export class Agents {
     // Where each squad and row is drawn: stacked, or opened around a held squad or chat.
     const order = spaces().map((sp) => ({ id: sp.id, machine: sp.machine ?? null }));
     const squadsAt = this.arrange("squad", null, sections.map((s) => s.q.id), sections.map((s) => D.head + (s.folded ? 0 : s.inner)), order);
+    // At the first sessions answer, the messages already there have happened: none of them plays.
+    if (!this.played && this.sessions.loaded) this.played = new Set([...this.sessions.map.values()].flatMap((s) => s.messages.map((m) => m.id)));
     sections.forEach((s, i) => {
       s.y = squadsAt.tops[i];
       s.lifted = i === squadsAt.held;
@@ -946,12 +951,13 @@ export class Agents {
         const r = s.rows[sp.rows[0]];
         const agents = sp.rows.map((k) => s.rows[k]).filter((x) => x.depth === 0 && x.m?.agent)
           .map((x) => ({ s: this.sessions.get(x.m.address), y: x.top - r.top + x.h / 2 })).filter((a) => a.s);
-        const streaks = railStreaks(agents.map((a) => ({ session: a.s.sessionId, y: a.y })), agents.flatMap((a) => a.s.messages), Date.now(), MOTION.link.burst);
-        return { key: `rail-${sp.group}`, y: r.y, h: sp.h, travel: r.travel, lifted: r.lifted, streaks: streaks.map((k) => ({ ...k, key: `rail-${sp.group}-${k.id}` })) };
+        const streaks = railStreaks(agents.map((a) => ({ session: a.s.sessionId, y: a.y })), agents.flatMap((a) => a.s.messages), Date.now(), MOTION.link.burst)
+          .map((k) => ({ ...k, key: `rail-${sp.group}-${k.id}` }));
+        for (const k of streaks) if (this.played && !this.played.has(k.id)) { this.played.add(k.id); this.fresh.add(k.key); }
+        return { key: `rail-${sp.group}`, y: r.y, h: sp.h, travel: r.travel, lifted: r.lifted, streaks };
       });
     });
-    this.arrive([...sections.flatMap((s) => [...s.rows.map((r) => r.key), ...(s.folded ? [`sq-${s.q.id}-stack`] : []), ...s.rails.flatMap((x) => x.streaks.map((k) => k.key))]),
-      ...blocked.map((m) => `pin-${m.address}`)], cx);
+    this.arrive([...sections.flatMap((s) => [...s.rows.map((r) => r.key), ...(s.folded ? [`sq-${s.q.id}-stack`] : [])]), ...blocked.map((m) => `pin-${m.address}`)], cx);
 
     // A held agent row: over another squad's header, a drop moves it there (dock.js movePlan); in
     // Priority, over another row, a drop links it (links.js linkProblem). An agent held in Priority

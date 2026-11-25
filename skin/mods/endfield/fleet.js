@@ -209,10 +209,11 @@ export function railStreaks(members, messages, now, { recent, gap }) {
   const yOf = new Map(members.filter((m) => m.session).map((m) => [m.session, m.y]));
   const out = [];
   let last = -Infinity;
+  // A message too old to play still holds back the burst behind it, so that burst never plays late.
   for (const m of [...messages].sort((a, b) => a.at - b.at)) {
-    if (now - m.at > recent || m.from === m.to || !yOf.has(m.from) || !yOf.has(m.to) || m.at - last < gap) continue;
+    if (m.from === m.to || !yOf.has(m.from) || !yOf.has(m.to) || m.at - last < gap) continue;
     last = m.at;
-    out.push({ id: m.id, from: yOf.get(m.from), to: yOf.get(m.to) });
+    if (now - m.at <= recent) out.push({ id: m.id, from: yOf.get(m.from), to: yOf.get(m.to) });
   }
   return out;
 }

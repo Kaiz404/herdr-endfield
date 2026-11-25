@@ -275,6 +275,8 @@ export class Sessions {
         }
         if (out.partial) this.dirty = true;
         if (!machine) {
+          // This computer's first answer is in: what it shows from now on is news.
+          this.loaded ||= r.code === 0;
           this.limits = out.limits ?? null;
           this.accountLimits = out.accountLimits ?? {};
           this.email = out.email ?? null;

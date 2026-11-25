@@ -67,6 +67,15 @@ test("a burst of messages plays as one streak, and the next one after the gap pl
   assert.deepEqual(railStreaks([upper, lower], burst, NOW, TIMING).map((s) => s.id), ["m1", "m4"]);
 });
 
+test("a burst held back never plays late, once the streak that played for it is too old", () => {
+  const at = (s) => NOW + s * 1000;
+  const burst = [msg("m1", at(0), "A", "B"), msg("m2", at(1), "B", "A"), msg("m3", at(2), "A", "B"), msg("m4", at(3), "B", "A")];
+  const played = (s) => railStreaks([upper, lower], burst, at(s), TIMING).map((k) => k.id);
+  assert.deepEqual(played(3), ["m1", "m3"]);
+  assert.deepEqual(played(20.5), ["m3"], "m1 is too old, and m2 and m4 stay held back");
+  assert.deepEqual(played(23.5), [], "past `recent` after the last message, nothing plays");
+});
+
 test("a quiet rail stays still: old messages, unknown senders and agents outside the rail play nothing", () => {
   const messages = [msg("old", NOW - 30000, "A", "B"), msg("anon", NOW - 1000, null, "B"), msg("outside", NOW - 1000, "C", "B")];
   assert.deepEqual(railStreaks([upper, lower], messages, NOW, TIMING), []);
