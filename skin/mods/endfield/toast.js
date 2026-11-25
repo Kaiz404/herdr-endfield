@@ -3,7 +3,9 @@
 // An agent that needs input gets the skill caption instead (cutin.js, an overlay window: Herdr's
 // toast slot is too small for it), unless its pane has focus: you are looking at it, so its pane
 // header pulses and no toast is made. A finished agent gets the Finished slip, unless it waits on
-// background work it started (fleet.js finishedSlip): that one gets none. Anything else is the
+// background work it started (fleet.js finishedSlip): that one gets none. A Claude Code agent's
+// slip is held until a session read that started after this turn lands, since Herdr's done
+// arrives one read before the waiting flag. Anything else is the
 // plain slab, ported from the shipped `toast`: click runs the action and closes, the host owns the
 // timeout, and a machine-login body gets a Copy button.
 

@@ -524,7 +524,8 @@ rendered at 4x. It is a schematic, not a screenshot.
   Finished nor Idle in the HUD footer and the Report, and sorts below
   Finished and above Generating (`STATUS.waiting.rank`), as agent.next does. One
   place decides it (`fleet.js memberStatus`, fed by the session poller's
-  `endfield.waiting`). The Finished slip still follows Herdr's done.
+  `endfield.waiting`). A Claude Code agent's Finished slip waits for a session
+  read that started after Herdr's done, and is dropped if that read says waiting.
 - **Claude Code sub-agent row:** read from its transcript, not from how long
   ago it wrote. Working while a tool call has no result or its turn has not
   ended. Waiting when that tool call only waits (a shell that sleeps, loops
