@@ -49,6 +49,8 @@ const RAIL = { left: 6, w: 3, inset: 4 };
 const LINE_PX = 20;
 // How far a held squad header or chat must move before it counts as a drag.
 const DRAG_START_PX = 4;
+// The longest a dropped squad or chat waits for Herdr's new order before it lets go.
+const MOVE_WAIT_MS = 2000;
 const LINKS_POLL_MS = 5000;
 // The squad name field takes the keyboard again once the menu that asked for it has closed.
 const NAME_FOCUS_MS = 300;
@@ -386,6 +388,8 @@ export class Agents {
   follow(e, cx) {
     const d = this.drag;
     if (!d || d.done) return;
+    // No button: the release was missed, so nothing is held.
+    if (e.pressed_button !== "left") { this.release(cx, false); return; }
     const y = e.position?.y ?? d.y;
     d.pt = e.position ?? d.pt;
     d.list = e.bounds ?? d.list;
@@ -423,10 +427,16 @@ export class Agents {
       if (plan?.steps) cx.spawn(async (cx) => this.moveNow(cx, chat, plan.steps));
       else d.squad = null;
     } else if (d.kind === "link") { if (commit && d.target && !d.target.problem) openLink({ lead: d.target.address, helper: d.from }); }
-    else if (commit && d.move) run(d.kind === "squad" ? "space.move" : "tab.move", d.move);
+    else if (commit && d.move) { run(d.kind === "squad" ? "space.move" : "tab.move", d.move); d.wait = true; }
     else d.to = null;
     if (d.back && this.keys.is_focused()) run("pane.focus", { pane: d.back });
-    cx.timer.after(MOTION.drag.slide.duration + MOTION.settle.delay, (cx) => { if (this.drag === d) { this.drag = null; cx.notify(); } });
+    // A row let go on itself, having moved nothing, was a click on it: the row's own click never
+    // fires, since it runs while the drag is live. A squad header stays unfolded.
+    const b = d.terminal ? this.bounds[`ag-${d.terminal}`] : null;
+    const home = b && d.pt && d.pt.x >= b.x && d.pt.x < b.x + b.width && d.pt.y >= b.y && d.pt.y < b.y + b.height;
+    if (commit && home && !d.squad && !d.wait && !d.target) { const m = roster().all.get(d.terminal); if (m) this.focus(m); }
+    // A move waits for Herdr's new order (arrange sets moved), so the list never snaps back first.
+    cx.timer.after(d.wait ? MOVE_WAIT_MS : MOTION.drag.slide.duration + MOTION.settle.delay, (cx) => { if (this.drag === d) { this.drag = null; cx.notify(); } });
     cx.notify();
   }
 
@@ -935,6 +945,10 @@ export class Agents {
     // stays in place, dimmed, and a ghost carries it; a chat held in Tab order slides in its squad
     // and shows the ghost only over a header. Dropped on a header, the ghost shrinks into it.
     const d = this.drag;
+    if (d?.wait && d.moved && !d.settling) {
+      d.settling = true;
+      cx.timer.after(MOTION.drag.slide.duration + MOTION.settle.delay, (cx) => { if (this.drag === d) { this.drag = null; cx.notify(); } });
+    }
     let ghost = null;
     if ((d?.kind === "link" || d?.kind === "chat") && d.live && d.done && d.squad) {
       const head = sections.find((s) => s.q.id === d.squad.id);
@@ -1029,8 +1043,9 @@ export class Agents {
         .on_mouse_down("left", () => { this.swallow = false; })
         .on_mouse_up("left", (_e, cx) => this.release(cx, true))
         .on_hover((over, cx) => { if (!over) this.leave(cx); })
-        .when(this.dragging(), (el) => el.child(div().id("ag-drag-keys").track_focus(this.keys)
-          .on_key_down((e, cx) => { if (e.key === "escape") this.release(cx, false); })))
+        // Always mounted: follow() moves the keyboard here the frame a drag goes live, before dragging() would draw it.
+        .child(div().id("ag-drag-keys").track_focus(this.keys)
+          .on_key_down((e, cx) => { if (e.key === "escape" && this.dragging()) this.release(cx, false); }))
         // The squads are drawn at their tops, so this holds the list's height for the scroll.
         .child(div().h(y).flex_none())
         // The held squad last, so it is drawn over the ones it passes.
