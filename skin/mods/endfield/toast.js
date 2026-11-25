@@ -51,6 +51,7 @@ export class Toast {
   init() {
     this.phase = "new";
     this.width = 0;
+    this.at = Date.now();
   }
 
   // The one decision, made once the agent's new status has reached agents() (Herdr can post the
@@ -66,17 +67,17 @@ export class Toast {
       if (!a.focused) { cue("needs"); openCutIn(a.address, { title: p.title ?? null, body: p.body ?? null }); }
       closeOverlay(p.overlay);
     } else if (a?.status === "done") {
-      const landed = this.late || pollLanded(shared("endfield.sessions")?.[a.address]);
+      const landed = this.late || pollLanded(shared("endfield.sessions")?.[a.address], this.at);
       const kind = finishedSlip(roster().all.get(a.address)?.status ?? "done", { claude: isClaude(a), landed });
       this.held = !kind;
       if (kind === "finished") { this.kind = kind; cue("finished"); }
       else if (kind === "waiting") { this.kind = kind; closeOverlay(p.overlay); }
+    } else if (!a || a.status === "blocked") {
+      this.kind = "plain";
     } else if (this.held) {
       // Done no longer: looked at, or a new turn, while the slip held. Nothing is left to tell.
       this.kind = "gone";
       closeOverlay(p.overlay);
-    } else if (!a || a.status === "blocked") {
-      this.kind = "plain";
     }
   }
 

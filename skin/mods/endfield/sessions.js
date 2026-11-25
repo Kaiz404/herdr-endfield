@@ -20,7 +20,7 @@
 //   lastAt, startedAt, question, live: boolean | null, tasks: Task[],
 //   waiting (its turn ended with background work or a sub-agent still in flight), subagents: Sub[],
 //   messages: Message[],
-//   polledAs (the agent's Herdr status when the poll that read it started)}
+//   polledAs and polledAt (the agent's Herdr status, and the time, when the poll that read it started)}
 // Message = a cross-session message this session received: {id, at, from, to}, from and to session ids
 //   (from null when the sender's session is unknown), its last 8, oldest first
 // Sub = {id, path, title, type (its Claude Code agent type, "pstack:poteto-agent", or null), model, effort, ctx, status: working | waiting | done | idle (fleet.js runStatus),
@@ -57,7 +57,7 @@ function contextOf(id, used, side = null) {
   return { used, total, pct: side?.pct ?? Math.round((used / total) * 100) };
 }
 
-function shape(t, raw, parentStatus) {
+function shape(t, raw, parentStatus, at) {
   const sidecar = raw?.sidecar ?? null;
   const id = sidecar?.model?.id ?? raw?.model ?? null;
   const model = id ? modelName(id, sidecar?.model?.display_name ?? null) : null;
@@ -110,6 +110,7 @@ function shape(t, raw, parentStatus) {
     subagents: subs,
     messages: (raw?.messages ?? []).map((m) => ({ ...m, to: sessionId })),
     polledAs: parentStatus,
+    polledAt: at,
   };
 }
 
@@ -241,7 +242,7 @@ export class Sessions {
       if (machine) this.ask(cx, machine);
       // An agent on a machine whose home this computer can't read gets no session: its cwd would
       // otherwise be matched against this computer's projects folder.
-      if (machine && !this.homes.get(machine)) { this.map.set(t.terminal, shape(t, null, t.status)); continue; }
+      if (machine && !this.homes.get(machine)) { this.map.set(t.terminal, shape(t, null, t.status, Date.now())); continue; }
       if (!byMachine.has(machine)) byMachine.set(machine, []);
       byMachine.get(machine).push(t);
     }
@@ -258,6 +259,7 @@ export class Sessions {
     const local = (terminal) => (machine ? terminal.slice(machine.length + 1) : terminal);
     cx.spawn(async (cx) => {
       try {
+        const at = Date.now();
         const req = `${DATA()}/probe-${this.name}${suffix}.json`;
         await fs.mkdir(DATA(), { recursive: true });
         await fs.writeFile(req, JSON.stringify({
@@ -273,7 +275,7 @@ export class Sessions {
         for (const t of targets) {
           const raw = out.sessions?.[local(t.terminal)];
           // A transcript the probe had no time for keeps what it showed until a later run reads it.
-          if (raw || !out.partial || !this.map.has(t.terminal)) this.map.set(t.terminal, shape(t, raw, t.status));
+          if (raw || !out.partial || !this.map.has(t.terminal)) this.map.set(t.terminal, shape(t, raw, t.status, at));
         }
         if (out.partial) this.dirty = true;
         if (!machine) {

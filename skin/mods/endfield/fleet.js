@@ -50,10 +50,11 @@ export const finishedSlip = (status, { claude, landed }) => (status === "waiting
 
 /**
  * Whether the published session (shared "endfield.sessions") comes from a poll that started once
- * Herdr said done: only that poll read the transcript after the turn ended, so only its waiting is
- * the turn's. One started earlier can still finish later and change the entry.
+ * Herdr said done, at or after `since` (the toast's arrival): only that poll read the transcript
+ * after this turn ended, so only its waiting is the turn's. One started earlier can still finish
+ * later and change the entry, and an earlier turn's done poll says nothing of this one.
  */
-export const pollLanded = (session) => session?.polledAs === "done";
+export const pollLanded = (session, since) => session?.polledAs === "done" && session.polledAt >= since;
 
 // Creation order (the core's created_ms, else the address number): stable while agents come and
 // go, so a callsign never hops from one agent to another.

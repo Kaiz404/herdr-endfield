@@ -49,12 +49,20 @@ test("a done Claude Code agent's slip holds until a session poll lands; other ag
 });
 
 test("a poll that started before Herdr said done doesn't release the slip, though it changes the session", () => {
-  const slip = (status, session) => finishedSlip(status, { claude: true, landed: pollLanded(session) });
-  const before = { tokens: 100, turns: 3, polledAs: "working" };
-  const stale = { tokens: 180, turns: 4, polledAs: "working" };
+  const ARRIVED = 50000;
+  const slip = (status, session) => finishedSlip(status, { claude: true, landed: pollLanded(session, ARRIVED) });
+  const before = { tokens: 100, turns: 3, polledAs: "working", polledAt: ARRIVED - 4000 };
+  const stale = { tokens: 180, turns: 4, polledAs: "working", polledAt: ARRIVED - 500 };
   assert.equal(slip("done", before), null);
   assert.equal(slip("done", stale), null, "read before the turn ended: its waiting isn't the turn's");
-  assert.equal(slip("done", { ...stale, polledAs: "done" }), "finished");
-  assert.equal(slip("waiting", { ...stale, polledAs: "done" }), "waiting");
+  assert.equal(slip("done", { ...stale, polledAs: "done", polledAt: ARRIVED + 1200 }), "finished");
+  assert.equal(slip("waiting", { ...stale, polledAs: "done", polledAt: ARRIVED + 1200 }), "waiting");
   assert.equal(slip("done", null), null);
+});
+
+test("an earlier turn's done poll doesn't release the slip of a turn too short to be polled", () => {
+  const ARRIVED = 50000;
+  const earlier = { tokens: 180, turns: 4, polledAs: "done", polledAt: ARRIVED - 2500 };
+  assert.equal(finishedSlip("done", { claude: true, landed: pollLanded(earlier, ARRIVED) }), null);
+  assert.equal(finishedSlip("done", { claude: true, landed: pollLanded({ ...earlier, polledAt: ARRIVED }, ARRIVED) }), "finished");
 });
