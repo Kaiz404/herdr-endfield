@@ -62,6 +62,11 @@ for (const f of sources) {
     fail(`${f.rel}: looks like it starts an agent session via hc run; skins must never spawn agents`);
 }
 ok(`scanned ${sources.length} skin sources for banned timers and agent spawns`);
+const BUILDERS = ["v_flex", "h_flex", "div", "svg", "image"];
+const unbound = (src) => BUILDERS.filter((b) => new RegExp(String.raw`(^|[^.\w])${b}\(`, "m").test(src)
+  && !new RegExp(String.raw`import\s*\{[^}]*\b${b}\b[^}]*\}|\b(const|let|function)\s+${b}\b`).test(src));
+check("every gpui builder a source calls is imported (Herdr only reports a missing one when the view renders)",
+  ...sources.flatMap((f) => unbound(text(f)).map((b) => `${f.rel}: calls ${b}() without importing it`)));
 check("no dots between data in skin code (CONTRIBUTING: design rules)",
   ...sources.filter((f) => !f.rel.includes("/tools/")).flatMap((f) => dividers(text(f)).map((d) => `${f.rel}:${d.line}: a glyph separates data (${d.text.slice(0, 80)}); use a gap, tone or a hairline, or a comma in a tooltip`)));
 
