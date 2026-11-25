@@ -45,8 +45,9 @@ export function areaStatus(own, members) {
  * What a toast for an agent Herdr calls done becomes: "finished" (the Finished slip), "waiting"
  * (none: it waits on background work it started), or null to hold. Herdr's done can land a session
  * poll before Session.waiting does, so a Claude Code agent's slip holds until a poll has `landed` since.
+ * Its waiting holds too: until then it may be the previous turn's (a turn shorter than a poll).
  */
-export const finishedSlip = (status, { claude, landed }) => (status === "waiting" ? "waiting" : !claude || landed ? "finished" : null);
+export const finishedSlip = (status, { claude, landed }) => (claude && !landed ? null : status === "waiting" ? "waiting" : "finished");
 
 /**
  * Whether the published session (shared "endfield.sessions") comes from a poll that started once
@@ -240,6 +241,18 @@ export function railStreaks(members, messages, now, { recent, gap }) {
     last = m.at;
     if (now - m.at <= recent) out.push({ id: m.id, from: yOf.get(m.from), to: yOf.get(m.to) });
   }
+  return out;
+}
+
+/**
+ * The streaks that play now, each message once: none before `played` is seeded (with the messages
+ * already there at the first sessions answer), so a reload or a poll that blanked a session never
+ * plays one again. Adds what it returns to `played`.
+ */
+export function unplayed(played, streaks) {
+  if (!played) return [];
+  const out = streaks.filter((k) => !played.has(k.id));
+  for (const k of out) played.add(k.id);
   return out;
 }
 

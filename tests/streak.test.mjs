@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { railStreaks } from "../skin/mods/endfield/fleet.js";
+import { railStreaks, unplayed } from "../skin/mods/endfield/fleet.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROBE = path.join(HERE, "..", "skin", "mods", "endfield", "tools", "probe.mjs");
@@ -80,4 +80,13 @@ test("a quiet rail stays still: old messages, unknown senders and agents outside
   const messages = [msg("old", NOW - 30000, "A", "B"), msg("anon", NOW - 1000, null, "B"), msg("outside", NOW - 1000, "C", "B")];
   assert.deepEqual(railStreaks([upper, lower], messages, NOW, TIMING), []);
   assert.deepEqual(railStreaks([upper, lower], [], NOW, TIMING), []);
+});
+
+test("a streak plays once per message, and none plays before the first sessions answer seeds what already happened", () => {
+  const k = (id) => ({ id, from: 0, to: 40 });
+  assert.deepEqual(unplayed(null, [k("m1")]), [], "not seeded yet: nothing plays");
+  const played = new Set(["m1"]);
+  assert.deepEqual(unplayed(played, [k("m1"), k("m2")]).map((x) => x.id), ["m2"], "m1 was there at the first answer");
+  assert.deepEqual(unplayed(played, [k("m1"), k("m2")]), [], "a later render, or a poll that blanked and refilled a session, plays nothing again");
+  assert.deepEqual(unplayed(played, [k("m3")]).map((x) => x.id), ["m3"]);
 });
