@@ -139,6 +139,16 @@ export function exitState(chat, listed, terms) {
 /** Whether a watcher may call the chat ended: a positive sign, or its terminal missing from two reads in a row. */
 export const exitSeen = (prev, read) => read === "ended" || (read === "gone" && prev === "gone");
 
+/**
+ * The chats still marked archiving (ended null) that this read of Herdr's lists shows ended, by
+ * exitSeen after `prev` (archivedAt -> the last read). reads: this read, the next call's `prev`.
+ */
+export function exitsSeen(chats, prev, listed, terms) {
+  const open = chats.filter((c) => c.ended == null);
+  const reads = new Map(open.map((c) => [c.archivedAt, exitState(c, listed, terms)]));
+  return { ended: open.filter((c) => exitSeen(prev.get(c.archivedAt) ?? null, reads.get(c.archivedAt))), reads };
+}
+
 /** The hide for an ended chat's terminal. */
 export const hideOf = (chat) => ({ life: lifeKey(chat.terminal, chat.created), program: chat.program });
 
