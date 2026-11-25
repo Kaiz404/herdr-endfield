@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildRoster, BY, PINNED, subagentView, rowMeta, rowShape, subLabel, programLabel, siblingLabels, railSpans } from "../skin/mods/endfield/fleet.js";
 import { identityOf } from "./identity.mjs";
+import { deliverPlan } from "../skin/mods/endfield/orders.js";
 
 // Every claude agent with no model is PERLICA; a repeat takes a spare, then a number.
 const identity = (spares = []) => identityOf({ defaults: { claude: "perlica" }, operators: ["perlica", "ember"], spares });
@@ -46,6 +47,16 @@ test("priority ranks a parent by its most urgent child", () => {
   const listed = [agent("t1", "s1", "idle"), agent("t2", "s1", "working")];
   const R = build(listed, [term("t1", 1), term("t2", 2), term("t5", 5, "t1", { status: "error" })]);
   assert.deepEqual(R.flat.map((m) => m.address), ["t1", "t5", "t2"], "t1's child is blocked (error), so t1 outranks a working t2");
+});
+
+test("a finished child without a pane rows as idle, but Dispatch plans for done, which hc --if idle refuses", () => {
+  const R = build([agent("t1", "s1", "idle")], [term("t1", 1), term("t5", 5, "t1", { status: "done" })]);
+  const child = R.all.get("t5");
+  assert.equal(child.status, "idle");
+  assert.equal(child.herdrStatus, "done");
+  const plan = deliverPlan(child.herdrStatus, true);
+  assert.equal(plan.gate, "now", "a plain send, since --if idle would refuse it");
+  assert.doesNotMatch(plan.preview, /^Idle/);
 });
 
 test("tab order ignores urgency but still keeps trees whole", () => {

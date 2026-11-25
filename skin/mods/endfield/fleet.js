@@ -89,7 +89,7 @@ export function buildRoster({ listed, terms, spaces, identity, models = {}, sess
     const t = termOf.get(r.terminal);
     if (!t || all.has(t.address) || t.state !== "live" || (t.created_ms ?? 0) !== r.created || (t.parent && termOf.get(t.parent)?.state === "live")) continue;
     all.set(t.address, {
-      address: t.address, agent: null, program: t.program, status: childStatus(t.status), herdrStatus: childStatus(t.status), title: t.title || t.name || t.program?.name || t.address,
+      address: t.address, agent: null, program: t.program, status: childStatus(t.status), herdrStatus: t.status ?? "idle", title: t.title || t.name || t.program?.name || t.address,
       space: r.space, spaceName: spaces.find((s) => s.id === r.space)?.name ?? null, tab: null, tabIndex: null, pane: null,
       seq: 0, pinned: false, focused: false, parent: null, created: t.created_ms ?? 0, turn: t.turn ?? null, hidden: true,
     });
@@ -102,7 +102,7 @@ export function buildRoster({ listed, terms, spaces, identity, models = {}, sess
       if (all.has(t.address) || t.state !== "live" || !t.parent || !all.has(t.parent) || isLeftover(hidden, t.address, t.created_ms, t.program)) continue;
       const up = all.get(t.parent);
       all.set(t.address, {
-        address: t.address, agent: null, program: t.program, status: childStatus(t.status), herdrStatus: childStatus(t.status), title: t.title || t.name || t.template || t.program?.name || t.address,
+        address: t.address, agent: null, program: t.program, status: childStatus(t.status), herdrStatus: t.status ?? "idle", title: t.title || t.name || t.template || t.program?.name || t.address,
         space: up.space, spaceName: up.spaceName, tab: up.tab, tabIndex: up.tabIndex, pane: null,
         seq: up.seq, pinned: false, focused: false, parent: t.parent, created: t.created_ms ?? 0, turn: t.turn ?? null,
       });
