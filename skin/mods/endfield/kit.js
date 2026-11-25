@@ -469,6 +469,8 @@ export const MOTION = {
   cut: { portrait: ease(100, "linear", 83), late: ease(100, "linear", 166), grow: ease(330), retract: ease(350, "ease-in", 630), text: ease(100, "linear", 630) },
   count: { roll: ease(300), needs: ease(300) },
   squad: { fold: ease(300), stack: ease(120, "linear", 180) },
+  // Spaces folding to its header and back: the block's height slides, and the blocks below follow it.
+  spaces: { fold: ease(300) },
   // A held squad or chat: it tracks the pointer (follow, so it never trails far), the others slide
   // to open its gap, and on release (or Esc) it slides into the gap or home.
   drag: { follow: ease(60, "linear"), slide: ease(200) },

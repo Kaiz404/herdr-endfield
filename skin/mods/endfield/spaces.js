@@ -6,7 +6,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 import { spaces, machines, panes, run, openOverlay, exec, hc, watchFolder, layout, shared, setShared, window as appWindow } from "herdr";
-import { palette, root, narrow, find, midTrunc, glyph, freshDot, micro, spaced, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT, basename, homeBase, newSpace, modPx } from "./kit.js";
+import { palette, root, narrow, find, midTrunc, glyph, freshDot, micro, spaced, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT, basename, homeBase, newSpace, modPx, MOTION } from "./kit.js";
 import { roster } from "./roster.js";
 import { DENSE_AT, statusOf, areaStatus } from "./fleet.js";
 import { HEAD, spacesSize, openSize } from "./spacesize.js";
@@ -65,6 +65,10 @@ export default class Spaces {
     this.hover = null;
     this.headHover = false;
     this.headWidth = 0;
+    this.blockPx = 0;
+    this.slide = null;
+    this.wasFolded = shared(FOLD.folded) === true;
+    try { this.openPx = Number(localStorage.getItem("spaces.openPx")) || null; } catch { this.openPx = null; }
     this.entrance = new Entrance(1);
     this.entrance.start(cx);
     try {
@@ -510,21 +514,43 @@ export default class Spaces {
 
   // Folded, the spaces block shrinks to its header. While the fleet is compact it shrinks to its list
   // (scrolling past H.denseRows rows). Otherwise it has its share back.
-  fit(dense, rail) {
-    const node = find(layout(), "spaces");
-    if (!node) return;
-    const want = spacesSize({
+  want(dense, rail) {
+    return spacesSize({
       folded: shared(FOLD.folded) === true,
       rail,
       fitted: dense ? H.top + Math.min(this.listPx ?? 0, H.denseRows * H.dense + 2 * H.head) + 12 : null,
       open: shared(FOLD.open) ?? null,
     });
+  }
+
+  fit(want) {
+    const node = find(layout(), "spaces");
+    if (!node || this.slide) return;
     const have = node.size ?? {};
     if (have.px === want.px && (want.px || have.weight === want.weight)) return;
     const key = JSON.stringify(want);
     if (this.fitted === key) return;
     this.fitted = key;
     run("layout.resize", { id: "spaces", ...want });
+  }
+
+  // Herdr resizes a layout block at once, so a fold slides by steering it: a sizer's height
+  // transitions natively from the block's height to the target, and each step it reports becomes the
+  // block's px. Once it lands, fit() gives the block its real size (a share, on unfold).
+  slideTo(to, cx) {
+    const from = this.blockPx;
+    if (!from || !to || Math.abs(from - to) < 1) return;
+    try { localStorage.setItem("spaces.openPx", String(this.openPx)); } catch {}
+    const slide = { at: from };
+    this.slide = slide;
+    cx.timer.after(MOTION.settle.delay, (cx) => { slide.at = to; cx.notify(); });
+    cx.timer.after(2 * MOTION.settle.delay + MOTION.spaces.fold.duration, (cx) => {
+      if (this.slide !== slide) return;
+      this.slide = null;
+      this.fitted = null;
+      if (this.activeAt >= 0) this.scroll.scroll_to_item(this.activeAt + 1);
+      cx.notify();
+    });
   }
 
   // Ported from the shipped spaces mod: each space's avatar colour (a theme name) in shared
@@ -544,7 +570,7 @@ export default class Spaces {
     if (changed) setShared("space.colors", kept);
   }
 
-  render() {
+  render(cx) {
     const C = palette();
     const collapsed = narrow();
     const sp = spaces();
@@ -553,17 +579,25 @@ export default class Spaces {
     this.rh = dense ? H.dense : H.row;
     this.keepColors(sp);
     const list = this.grouped(C, collapsed);
-    this.fit(dense, collapsed);
-    const folded = !collapsed && shared(FOLD.folded) === true;
+    const fold = shared(FOLD.folded) === true;
+    const folded = !collapsed && fold;
+    const want = this.want(dense, collapsed);
+    if (fold !== this.wasFolded && !collapsed) this.slideTo(want.px ?? this.openPx, cx);
+    this.wasFolded = fold;
+    this.fit(want);
     const active = sp.find((p) => p.active)?.id;
     const onRemote = Boolean(sp.find((p) => p.active)?.machine);
     const base = homeBase();
-    if (active !== this.revealed || this.activeAt !== this.revealedAt) {
+    if (!folded && !this.slide && (active !== this.revealed || this.activeAt !== this.revealedAt)) {
       this.revealed = active;
       this.revealedAt = this.activeAt;
       if (this.activeAt >= 0) this.scroll.scroll_to_item(this.activeAt + 1);
     }
     return root(C, this.entrance.apply(v_flex().size_full().min_h(0).bg(C.ground)
+      .on_size_change((size) => {
+        this.blockPx = modPx(size.height);
+        if (!this.slide && !folded && this.blockPx > HEAD) this.openPx = this.blockPx;
+      })
       .child(h_flex().id("spaces-head").relative().flex_none().items_center().when(collapsed, (el) => el.h(36).justify_center())
         .when(!collapsed, (el) => el.h(38).pt(6).pl(16).pr(12).gap(8).cursor_pointer()
           .on_size_change((size) => { this.headWidth = modPx(size.width); })
@@ -582,8 +616,11 @@ export default class Spaces {
           .on_click((_e, cx) => { cx.stop_propagation(); newSpace(); }).child(icon("plus", 12)))
         .when(!collapsed, (el) => el.child(div().relative().size(22).flex_none().flex().items_center().justify_center()
           .child(micro(folded ? "▸" : "▾", C.muted)))))
-      .when(!folded, (el) => el.child(v_flex().flex_1().min_h(0).pb(12).overflow_y_scrollbar().track_scroll(this.scroll)
-        .on_size_change((size, cx) => { this.width = modPx(size.width); if (this.activeAt >= 0) this.scroll.scroll_to_item(this.activeAt + 1); cx.notify(); })
+      .when(Boolean(this.slide), (el) => el.child(div().id("spaces-sizer").absolute().top(0).left(0).w(1).h(this.slide.at)
+        .transition("height", MOTION.spaces.fold)
+        .on_size_change((size) => { if (this.slide) run("layout.resize", { id: "spaces", px: Math.round(modPx(size.height)) }); })))
+      .when(!folded || Boolean(this.slide), (el) => el.child(v_flex().flex_1().min_h(0).pb(12).overflow_y_scrollbar().track_scroll(this.scroll)
+        .on_size_change((size, cx) => { this.width = modPx(size.width); if (this.activeAt >= 0 && !this.slide) this.scroll.scroll_to_item(this.activeAt + 1); cx.notify(); })
         .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })
         // Child 0 is the selection block (scroll indexes above are +1 for it); hidden when the selected space is folded away.
         .child(plate(C, Math.max(0, this.activeTop), this.rh).when(collapsed || this.activeTop < 0, (el) => el.opacity(0)))
