@@ -10,11 +10,11 @@ const WANT = cardHeight({
 }, "working", "agent", 1000);
 const ZOOMS = [0.5, 0.8, 0.9, 1, 1.25, 1.5, 2, 3];
 const VIEWPORTS = [240, 300, 360, 480, 600, 800, 1080, 1440];
-const row = (y) => ({ y, height: 44 });
+const row = (y) => ({ x: 0, y, width: 340, height: 44 });
 const middle = (fit) => fit - PANEL.head - PANEL.foot;
 
 test("a card that fits opens at its own height, its top 12px above the row's", () => {
-  const { y, tall, fit } = cardPlace({ want: WANT, row: row(200), winH: 900 });
+  const { at: { y }, tall, fit } = cardPlace({ want: WANT, row: row(200), winH: 900 });
   assert.equal(fit, WANT);
   assert.equal(tall, WANT + 2 * CARD.pad);
   assert.equal(y, 200 - 12 - CARD.pad);
@@ -34,9 +34,9 @@ test("zoomed out, the window is taller in the card's px, so a tall card is not c
 
 test("zoomed in, the window is shorter in the card's px, so the card is capped inside it", () => {
   const winH = windowHeight(800, 1.25);
-  const { y, tall } = cardPlace({ want: 900, row: row(20), winH });
+  const { at: { y }, tall } = cardPlace({ want: 900, row: row(20 * 1.25), winH, zoom: 1.25 });
   assert.equal(winH, 640);
-  assert.ok(y + tall <= winH, `the card ends at ${y + tall} in a window ${winH} tall`);
+  assert.ok(y + tall * 1.25 <= 800, `the card ends at ${y + tall * 1.25} in a window 800 tall`);
 });
 
 test("a window height that can't be read caps nothing", () => {
@@ -49,8 +49,8 @@ test("a window height that can't be read caps nothing", () => {
 
 test("a card no taller than the window stays inside it, wherever its row is", () => {
   for (const winH of [600, 800, 1080]) for (let y = 0; y + 44 <= winH; y += 4) {
-    const at = cardPlace({ want: WANT, row: row(y), winH });
-    assert.ok(at.y >= 0 && at.y + at.tall <= winH, `row at ${y} in ${winH}: the card spans ${at.y} to ${at.y + at.tall}`);
+    const { at: { y: top }, tall } = cardPlace({ want: WANT, row: row(y), winH });
+    assert.ok(top >= 0 && top + tall <= winH, `row at ${y} in ${winH}: the card spans ${top} to ${top + tall}`);
   }
 });
 

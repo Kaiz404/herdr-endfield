@@ -276,10 +276,9 @@ export class Agents {
     if (!b || !a) return null;
     const s = sub ? sub.k : this.sessions.get(address);
     const winH = this.winH();
-    const { y, tall, fit } = cardPlace({ want: cardHeight(s, sub ? sub.k.status : a.status, cardKind(key)), row: b, winH });
+    const { at, tall, fit } = cardPlace({ want: cardHeight(s, sub ? sub.k.status : a.status, cardKind(key)), row: b, winH, zoom: settings().zoom });
     const id = openOverlay({
-      mod: "endfield", kind: held ? "popup" : "window", frame: "none",
-      at: { x: Math.round(b.x + b.width - 12 - CARD.pad), y },
+      mod: "endfield", kind: held ? "popup" : "window", frame: "none", at,
       width: CARD.width + CARD.slide + 2 * CARD.pad,
       height: tall,
       props: { role: "card", terminal: address, sub: sub?.k.id ?? null, ...this.info[key], snap: s ?? null, fit, shown, held },

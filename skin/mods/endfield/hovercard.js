@@ -3,6 +3,7 @@
 // goes and how tall it is. No Herdr import: tests/ runs it under node.
 
 import { taskView, tasksOf, statusOf, inFlight, longDuration, elapsed, effortWord, DASH } from "./fleet.js";
+import { toModPx, toWindowPx } from "./units.js";
 
 export const CARD = { width: 368, pad: 14, slide: 14 };
 
@@ -90,19 +91,21 @@ const LIFT = 12;
 export const windowHeight = (px, zoom) => (px > 0 && zoom > 0 && Number.isFinite(px / zoom) ? Math.round(px / zoom) : null);
 
 /**
- * The card's window beside `row` ({y, height}, the hovered row) in a window `winH` tall (null:
- * unknown, nothing is capped), for a panel that wants `want`: its top `y`, its height `tall`, and
- * `fit`, the panel's height cap. Its top sits 12px above the row's, or as far up as keeps it in the
- * window. The panel draws at its own height up to the cap; past it (a short window, or a task
- * list that grew or unfolded while open) the middle scrolls, down to PANEL.mid, and the head and
- * the button row stay.
+ * The card's window beside `row` ({x, y, width}, the hovered row's bounds, in window px) in a window
+ * `winH` tall (mod px; null: unknown, nothing is capped), for a panel that wants `want`: `at`, where
+ * openOverlay puts it (window px), its height `tall` and `fit`, the panel's height cap. Its panel
+ * starts 12px into the row, its top 12px above the row's, or as far up as keeps it in the window.
+ * The panel draws at its own height up to the cap; past it (a short window, or a task list that
+ * grew or unfolded while open) the middle scrolls, down to PANEL.mid, and the head and the button
+ * row stay.
  */
-export function cardPlace({ want, row, winH }) {
+export function cardPlace({ want, row, winH, zoom }) {
   const least = PANEL.head + PANEL.mid + PANEL.foot + 2 * CARD.pad;
   const tall = winH == null ? want + 2 * CARD.pad : Math.min(want + 2 * CARD.pad, Math.max(winH - 2 * EDGE, least));
-  const top = row.y - LIFT - CARD.pad;
+  const top = toModPx(row.y, zoom) - LIFT - CARD.pad;
   const y = winH == null ? top : Math.min(top, winH - EDGE - tall);
-  return { y: Math.round(Math.max(0, y)), tall, fit: tall - 2 * CARD.pad };
+  const at = { x: Math.round(row.x + row.width - toWindowPx(LIFT + CARD.pad, zoom)), y: Math.round(toWindowPx(Math.max(0, y), zoom)) };
+  return { at, tall, fit: tall - 2 * CARD.pad };
 }
 
 /** Whether the open card ({winH: the window height it was placed for}) has to be placed again. */
