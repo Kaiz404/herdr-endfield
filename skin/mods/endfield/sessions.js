@@ -18,7 +18,10 @@
 //   ctx:{used, total, pct} | null, tokens:{total, delta} | null, tools, turns, effort, mode,
 //   toolCounts: {tool name: calls}, recent: [{at, tool, arg}] (its last 5 tool calls, oldest first),
 //   lastAt, startedAt, question, live: boolean | null, tasks: Task[],
-//   waiting (its turn ended with background work or a sub-agent still in flight), subagents: Sub[]}
+//   waiting (its turn ended with background work or a sub-agent still in flight), subagents: Sub[],
+//   messages: Message[]}
+// Message = a cross-session message this session received: {id, at, from, to}, from and to session ids
+//   (from null when the sender's session is unknown), its last 8, oldest first
 // Sub = {id, path, title, type (its Claude Code agent type, "pstack:poteto-agent", or null), model, effort, ctx, status: working | waiting | done | idle (fleet.js runStatus),
 //   tools, turns, toolCounts, recent, lastAt, startedAt, tasks: Task[]}, in no order (fleet.js subagentView orders them)
 // Task = background work a transcript started: {id, kind: shell | agent | monitor, description, startedAt,
@@ -76,10 +79,11 @@ function shape(t, raw, parentStatus) {
     startedAt: s.firstAt ?? null,
     tasks: s.tasks ?? [],
   }));
+  const sessionId = sidecar?.session_id ?? raw?.sessionId ?? null;
   // A sub-agent in flight holds its session up as a running task does, whatever the session was last told of it.
   const held = [...(raw?.tasks ?? []), ...subs.filter((k) => inFlight(k.status)).map(() => ({ state: "running" }))];
   return {
-    sessionId: sidecar?.session_id ?? raw?.sessionId ?? null,
+    sessionId,
     terminal: t.terminal,
     cwd: sidecar?.cwd ?? t.cwd,
     // The probe's path: a sidecar from another machine names the transcript by that machine's path.
@@ -103,6 +107,7 @@ function shape(t, raw, parentStatus) {
     tasks: raw?.tasks ?? [],
     waiting: Boolean(raw) && runStatus({ ...raw, tasks: held, now }, parentStatus) === "waiting",
     subagents: subs,
+    messages: (raw?.messages ?? []).map((m) => ({ ...m, to: sessionId })),
   };
 }
 
@@ -270,6 +275,8 @@ export class Sessions {
         }
         if (out.partial) this.dirty = true;
         if (!machine) {
+          // This computer's first answer is in: what it shows from now on is news.
+          this.loaded ||= r.code === 0;
           this.limits = out.limits ?? null;
           this.accountLimits = out.accountLimits ?? {};
           this.email = out.email ?? null;

@@ -210,6 +210,9 @@ routes to `toast`. Paper chrome, ink terminal cards, one acid yellow that means
   (one `hc machine ls` reaches through `wsl.exe`), read through its
   `\\wsl.localhost` home, sidecars included. An SSH machine's agents get none.
   A probe run stops reading after 12s and says `partial`; the next run goes on.
+  Each session lists the cross-session messages it received (`messages`), the
+  sender found by its inbox socket in that machine's `~/.claude/sessions`
+  registry; a linked group's rail plays them as streaks (`fleet.js railStreaks`).
 - `tools/account.mjs` keeps Claude logins by name and runs a program on one: the
   token goes in as `CLAUDE_CODE_OAUTH_TOKEN` (DPAPI on Windows, the Keychain on
   macOS, a user-only file elsewhere), with `ENDFIELD_ACCOUNT` set so the statusline

@@ -199,6 +199,25 @@ export function railSpans(rows) {
   return spans;
 }
 
+/**
+ * The streaks one link rail plays: the messages its agents sent each other in the last `recent`
+ * ms, at most one per `gap` ms so a burst plays once. members: [{session, y}] (y: where the agent's
+ * row centre sits on the rail), messages: [{id, at, from, to}] (session ids, sessions.js).
+ * -> [{id, from, to}]: the y each streak starts and ends at, oldest first.
+ */
+export function railStreaks(members, messages, now, { recent, gap }) {
+  const yOf = new Map(members.filter((m) => m.session).map((m) => [m.session, m.y]));
+  const out = [];
+  let last = -Infinity;
+  // A message too old to play still holds back the burst behind it, so that burst never plays late.
+  for (const m of [...messages].sort((a, b) => a.at - b.at)) {
+    if (m.from === m.to || !yOf.has(m.from) || !yOf.has(m.to) || m.at - last < gap) continue;
+    last = m.at;
+    if (now - m.at <= recent) out.push({ id: m.id, from: yOf.get(m.from), to: yOf.get(m.to) });
+  }
+  return out;
+}
+
 // Without a registry to say whether its process lives, a run counts as alive while its transcript
 // was written this recently.
 const FRESH_MS = 20000;
