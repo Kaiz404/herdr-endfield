@@ -50,7 +50,8 @@ function probe(name, owners) {
 const exited = () => spawnSync(process.execPath, ["-e", ""]).pid;
 const owned = () => probe("owned", [
   { sessionId: "session-live", pid: process.pid, startedAt: BEFORE_FIXTURES },
-  { sessionId: "session-dead", pid: exited(), startedAt: BEFORE_FIXTURES },
+  // A pid that has just exited can be handed to a new process under load; procStart "1" matches no real process, so a reused pid still counts as dead.
+  { sessionId: "session-dead", pid: exited(), startedAt: BEFORE_FIXTURES, procStart: "1" },
   // The registry has one file per pid, so the second live session borrows the test runner's.
   { sessionId: "session-batch", pid: process.ppid, startedAt: BEFORE_FIXTURES },
 ]);

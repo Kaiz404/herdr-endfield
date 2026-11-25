@@ -90,22 +90,22 @@ BEGIN { RS = "\001"; E = "\033["; R = E "0m"; B = E "1m"; D = E "90m"; Y = E "33
 
   base = cwd; gsub(/\\/, "/", base); sub(/\/+$/, "", base); sub(/.*\//, "", base)
   br = branch(cwd)
-  dot = " " D "\302\267" R " "
+  gap = "   "
 
   s = D "//" R " " B base R
   if (br != "") s = s " " D "\356\202\240" R " " br
-  s = s dot model
+  s = s gap model
   if (effort != "") s = s " " D toupper(substr(effort, 1, 1)) substr(effort, 2) R
   if (pct != "") {
     f = int(pct / 10 + 0.5); if (f > 10) f = 10
     hot = pct >= 75
     g = (hot ? E "31m" : E "34m"); for (i = 0; i < f; i++) g = g "\342\226\260"
     g = g R D; for (i = f; i < 10; i++) g = g "\342\226\261"
-    s = s dot D "ctx" R " " g R " " (hot ? Y : "") B sprintf("%.0f", pct) R D "%" R
-  } else s = s dot D "ctx n/a" R
-  s = s dot D "in" R " " toks(intok)
-  q5 = quota("5h", obj(rl, "five_hour")); if (q5 != "") s = s dot q5
-  q7 = quota("7d", obj(rl, "seven_day")); if (q7 != "") s = s dot q7
+    s = s gap D "ctx" R " " g R " " (hot ? Y : "") B sprintf("%.0f", pct) R D "%" R
+  } else s = s gap D "ctx n/a" R
+  s = s gap D "in" R " " toks(intok)
+  q5 = quota("5h", obj(rl, "five_hour")); if (q5 != "") s = s gap q5
+  q7 = quota("7d", obj(rl, "seven_day")); if (q7 != "") s = s gap q7
 
   if (sid != "") {
     printf "{\"session_id\":\"%s\",\"terminal\":%s,\"cwd\":%s,\"transcript_path\":%s,", sid, jstr(term), jstr(cwd_raw), jstr(str(j, "transcript_path")) > tmp

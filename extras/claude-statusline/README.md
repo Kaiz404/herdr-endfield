@@ -3,7 +3,7 @@
 A Claude Code statusline in the skin's style. It also feeds the skin exact session data.
 
 ```
-// herdr-endfield  main · Opus · ctx ▰▰▰▱▱▱▱▱▱▱ 31% · in 1.2m · 5h 40% 2h10m left
+// herdr-endfield  main   Opus   ctx ▰▰▰▱▱▱▱▱▱▱ 31%   in 1.2m   5h 40% 2h10m left
 ```
 
 ## What it changes
