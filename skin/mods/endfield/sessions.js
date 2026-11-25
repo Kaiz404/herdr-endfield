@@ -26,7 +26,7 @@
 //   state: running | completed | failed | killed | stopped | timed-out | ended-with-session}
 
 import * as fs from "fs/promises";
-import { exec, hc, appHome, watchFolder, checking } from "herdr";
+import { exec, appHome, watchFolder, checking } from "herdr";
 import { DASH, contextWindow, runStatus, inFlight, pollPace, isWsl, askAgainAt } from "./fleet.js";
 import { machineOf } from "./dock.js";
 
@@ -195,7 +195,7 @@ export class Sessions {
     cx.spawn(async () => {
       let home;
       try {
-        const ls = await hc(["machine", "ls", "--json"]);
+        const ls = await exec("hc", ["machine", "ls", "--json"], { timeout: 10000 });
         const m = ls.code === 0 ? JSON.parse(ls.stdout).machines?.find((x) => x.name === machine) : null;
         if (m && !isWsl(m.target)) home = null;
         else if (m) {
@@ -221,6 +221,9 @@ export class Sessions {
   poll(cx, targets, key) {
     this.dirty = false;
     this.key = key;
+    // A machine none of the targets runs on is not asked again: a due retry would poll every tick.
+    const machines = new Set(targets.map((t) => machineOf(t.terminal)));
+    for (const machine of this.retry.keys()) if (!machines.has(machine)) this.retry.delete(machine);
     if (!targets.length) { this.map.clear(); this.limits = null; this.accountLimits = {}; this.reads.clear(); this.follow(cx, []); return; }
     const shown = new Set(targets.map((t) => t.terminal));
     for (const terminal of this.map.keys()) if (!shown.has(terminal)) this.map.delete(terminal);

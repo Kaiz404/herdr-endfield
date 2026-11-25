@@ -82,7 +82,11 @@ test("a machine is read through its home only when Herdr reaches it through wsl.
   assert.equal(isWsl("wsl.exe -d Ubuntu -e sh -c"), true);
   assert.equal(isWsl("C:\\Windows\\System32\\wsl.exe -d Debian -e sh -c"), true);
   assert.equal(isWsl("ssh vps"), false, "an ssh machine with wslpath on it is still another computer");
+  assert.equal(isWsl("C:\\Program Files\\WSL\\wsl.exe -d Ubuntu -e sh -c"), true, "a path with a space, unquoted");
+  assert.equal(isWsl("\"C:\\Program Files\\WSL\\wsl.exe\" -d Ubuntu -e sh -c"), true, "a path with a space, quoted");
+  assert.equal(isWsl("\"C:\\Program Files\\OpenSSH\\ssh.exe\" box"), false);
   assert.equal(isWsl("ssh wsl.exe-box"), false);
+  assert.equal(isWsl("ssh wsl"), false);
   assert.equal(isWsl(undefined), false);
 });
 

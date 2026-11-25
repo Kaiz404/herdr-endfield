@@ -240,7 +240,13 @@ export function pollPace(sessions) {
 
 // Another machine's files are readable here only for WSL, through its \\wsl.localhost share. Herdr
 // reaches a WSL machine through wsl.exe (`hc machine ls` target), and every other machine over ssh.
-export const isWsl = (target) => /(^|[\\/])wsl(\.exe)?$/i.test(String(target ?? "").trim().split(/\s+/)[0]);
+// The program may be a path with spaces, quoted or not ("C:\Program Files\WSL\wsl.exe -d X").
+export function isWsl(target) {
+  const t = String(target ?? "").trim();
+  const program = t.startsWith('"') ? t.slice(1, t.indexOf('"', 1))
+    : /^(?:(?:[A-Za-z]:)?[\\/].*?[\\/])?wsl(?:\.exe)?(?=\s|$)/i.exec(t)?.[0] ?? "";
+  return /(^|[\\/])wsl(\.exe)?$/i.test(program);
+}
 
 // When to ask a machine for its home again after `failures` failed asks: 15s, then twice as long
 // each time, at most 5 minutes apart.
