@@ -1,8 +1,8 @@
 // squadactions: the confirm dialog behind a squad header's Archive squad and Close squad (squads.js
 // squadMenu). props {role: "squad", id (the space), mode: "archive" | "close", overlay}. Like every
-// card action it shows the exact commands and runs them once, on Confirm only. Both list every
-// terminal that ends with the space (archive.js spaceTerminals: agents, sub-agents, shells and
-// servers, archived chats' hidden shells), and space.close runs only if a fresh read of the space
+// card action it keeps the exact commands one click away (Show commands) and runs them once, on
+// Confirm only. Both list every terminal that ends with the space (archive.js spaceTerminals:
+// agents, sub-agents, shells and servers, archived chats' hidden shells), and space.close runs only if a fresh read of the space
 // finds nothing the person wasn't shown (unconfirmed); else the dialog says what appeared and keeps it.
 //   archive  every chat in the space (archive.js squadPlan, pinned ones too) goes through the card's
 //            Archive (actions.js archiveChat, markEnded), one at a time in tree order; the first
@@ -16,7 +16,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, closeOverlay, openOverlay, run, shared, spaces, panes, agents, terminals, window as appWindow } from "herdr";
-import { palette, root, micro, pill, cue, MOTION, FONT, strip, stripCode, stripCancel } from "./kit.js";
+import { palette, root, micro, pill, cue, MOTION, FONT, strip, commandToggle, stripCancel } from "./kit.js";
 import { roster } from "./roster.js";
 import { ACTIONS, actionSteps, stepLine } from "./orders.js";
 import { spaceTerminals, squadPlan, squadEnd, unconfirmed, confirmedOf, killPhrase, exitState, exitSeen } from "./archive.js";
@@ -55,6 +55,7 @@ export class SquadDialog {
     this.closed = false;
     // What appeared in the space after Confirm, so space.close didn't run: Who[].
     this.kept = null;
+    this.showCommand = false;
   }
 
   hover(id) { return (over, cx) => { if (over) this.hot = id; else if (this.hot === id) this.hot = null; cx.notify(); }; }
@@ -193,10 +194,9 @@ export class SquadDialog {
             .child(line("Does", "hairStrong", does + recheck))
             .when(Boolean(outcome), (el) => el.child(h_flex().px(10).py(7).gap(8).items_center().border_l(2).border_color(outcome[1] === C.error ? C.red : C.lime).bg(C.ground)
               .child(micro(outcome[0], outcome[1]).flex_none()).child(div().flex_1().min_w(0).font_family(FONT.mono).text_size(11).child(outcome[2])))),
-          // The exact commands, one per line: Confirm runs these and nothing else.
+          // Confirm runs these lines and nothing else, shown or not.
           strip: strip()
-            .child(stripCode(v_flex().id("sq-cmd").flex_1().min_w(0).max_h(72).overflow_y_scrollbar().gap(4))
-              .children(steps.map((s) => div().child(stepLine(s, platform)))))
+            .child(commandToggle("sq-cmd", { open: this.showCommand, flip: (_e, cx) => { this.showCommand = !this.showCommand; cx.notify(); }, lines: steps.map((s) => stepLine(s, platform)) }).flex_1())
             .when(Boolean(done), (el) => el.child(pill(C, "sq-done", "Close", { kind: "dark", knob: "×", h: 30, hot: this.hot === "sq-done", on_hover: this.hover("sq-done"), action: () => closeOverlay(p.overlay) })))
             .when(!done && !job, (el) => el.child(stripCancel("sq-cancel", () => closeOverlay(p.overlay))))
             .when(!done && !job && !archiving, (el) => el.child(pill(C, "sq-instead", "Archive squad instead", { kind: "dark", h: 30, hot: this.hot === "sq-instead", on_hover: this.hover("sq-instead"),
