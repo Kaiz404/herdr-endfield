@@ -429,7 +429,13 @@ rendered at 4x. It is a schematic, not a screenshot.
   list's left, between the selection marker and the chips, from the top of
   the group's first row to the foot of the rows under its last, inset 4px
   at each end so two groups back to back read as two (`fleet.js railSpans`).
-  It is drawn over the rows and changes no row height. Each member's row
+  It is drawn over the rows and changes no row height. When one member
+  sends another a cross-session message, a 14px streak in full `flow` runs
+  once along the rail from the sender's row centre to the receiver's
+  (`MOTION.link.streak`, 450ms) and fades as it lands (`MOTION.link.fade`).
+  It plays for a message under 20s old, keyed by the message's id, and a
+  message under 1.5s after the last one that played adds none
+  (`fleet.js railStreaks`). A quiet rail is still. Each member's row
   carries the `link` glyph (tinted `link`) after its label, with the
   tooltip `Linked with CLAUDE: <task>`, one line per agent it is linked
   with. A link between a pinned and an unpinned agent groups nothing:

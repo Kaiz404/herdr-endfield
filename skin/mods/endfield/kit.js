@@ -482,7 +482,10 @@ export const MOTION = {
     pop: ease(120), gone: ease(200, "ease-in", 80), shrink: ease(200, "ease-in"), zones: ease(160), slab: ease(220), beat: { delay: 160 }, out: ease(180), wait: { delay: 20000 }, idle: { delay: 10000 } },
   pin: { content: ease(100, "linear", 83) },
   dispatch: { enter: ease(200) },
-  link: { draw: ease(240), land: ease(120, "linear", 240) },
+  // A message between linked agents: a streak runs along their rail from the sender's row to the
+  // receiver's (streak) and fades as it lands (fade). A message counts while it is newer than
+  // `recent` ms, and messages under `gap` ms after the last one that played add no streak.
+  link: { draw: ease(240), land: ease(120, "linear", 240), streak: ease(450, "ease-in-out"), fade: ease(150, "linear", 380), burst: { recent: 20000, gap: 1500 } },
   comms: { enter: ease(200) },
   boot: { total: 1500, bar: ease(650, "ease-out", 100), type: ease(1, "linear", 200), glyph: { delay: 50 }, rule: ease(150, "ease-in", 760), sub: ease(100, "linear", 760), exit: ease(225, "linear", 1275) },
   // Placeholder-first build: regions draw their plates, then their content fades in, 100ms apart.

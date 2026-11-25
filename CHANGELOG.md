@@ -16,6 +16,8 @@
 - **Fold Spaces.** The Spaces header has a chevron, like a squad's. Click it to fold Spaces to its header, and Squads takes the freed height. The header, its count and its `+` stay. Click it again to unfold Spaces to the size it had. Endfield remembers the fold when Herdr restarts. The key command `endfield.toggleSpaces` does the same. See [Fold Spaces](docs/SETUP.md#9-choose-where-new-spaces-open).
 - **Agents on a WSL machine show their session.** A Claude Code agent in a space on a WSL machine now shows its model, effort, context, sub-agents, background tasks and transcript, like an agent on this computer. Endfield reads the machine's Claude Code folder through `\\wsl.localhost`. Herdr can't watch that folder, so these details refresh about every 15 seconds instead of at once, and the transcript pane every 3 seconds. A background task can show as running after its Claude Code process has ended, because Endfield can't see the machine's processes. Agents on an SSH machine still show none of these.
 
+- **A linked pair's rail shows their messages.** When one linked agent sends the other a message with Claude Code's cross-session messaging, a short bright streak runs once along the blue rail, from the sender's row to the receiver's, and fades. Down means the upper agent sent it, up means the lower one did. Several messages in a moment play as one streak, and a quiet rail stays still.
+
 ### Changed
 
 - **Dispatch's task field wraps.** Long tasks wrap instead of scrolling sideways, and the field grows from two to six lines. **Enter** adds a line, as in Herdr's own multi-line fields. **Ctrl+Enter** (**Cmd+Enter** on macOS) dispatches.

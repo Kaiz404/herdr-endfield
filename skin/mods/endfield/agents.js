@@ -17,7 +17,7 @@ import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { agents, panes, focused, spaces, terminals, run, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, settings, checking, notify } from "herdr";
 import { palette, root, narrow, toggleSidebar, statusMark, glyph, hazard, chip, micro, spaced, wide, icon, pad2, telling, wipe, marker, nudge, rings, cross, ticks, pill, gauge, Entrance, StatusFx, MOTION, IDENTITY, FONT, GAUGE, modPx } from "./kit.js";
 import { roster, holdCrew, HIDDEN_KEY } from "./roster.js";
-import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, subLabel, siblingLabels, PANE_ROLES, opening, transcriptsIn, transcriptPlan, rowShape, rowMeta, tasksOf, railSpans } from "./fleet.js";
+import { BY, DENSE_AT, statusOf, castCrew, held, inFlight, subagentView, subLabel, siblingLabels, PANE_ROLES, opening, transcriptsIn, transcriptPlan, rowShape, rowMeta, tasksOf, railSpans, railStreaks } from "./fleet.js";
 import { toggleReport, goTo, showWork } from "./report.js";
 import { openDispatch } from "./dispatch.js";
 import { Sessions, isClaude } from "./sessions.js";
@@ -44,7 +44,7 @@ const H = {
 const PIN = { max: 3, row: 34, more: 22 };
 // A linked group's rail: in the gutter between the selection marker (2px) and the chip, inset at
 // each end so two groups back to back read as two.
-const RAIL = { left: 6, w: 3, inset: 4 };
+const RAIL = { left: 6, w: 3, inset: 4, streak: 14 };
 // A wheel notch in lines, as pixels, for the "N below" estimate (the scroll area reports no offset).
 const LINE_PX = 20;
 // How far a held squad header or chat must move before it counts as a drag.
@@ -732,18 +732,24 @@ export class Agents {
   squad(C, D, s) {
     const row = (r) => (r.more ? this.more(C, D, r) : this.row(C, D, r));
     // Drawn over the rows it spans, at a fixed left, so no row's height or marker changes.
-    const rail = (x) => div().id(x.key).absolute().left(RAIL.left).top(x.y + RAIL.inset).w(RAIL.w).h(Math.max(0, x.h - 2 * RAIL.inset)).bg(C.link)
-      .when(Boolean(x.travel), (e) => e.transition("top", x.travel));
+    // A message between its agents: a streak drawn first at the sender's row, then run to the receiver's as it fades.
+    const streak = (x, k) => {
+      const fresh = this.fresh.has(k.key);
+      return div().id(k.key).absolute().left(RAIL.left).top(x.y + (fresh ? k.from : k.to) - RAIL.streak / 2).w(RAIL.w).h(RAIL.streak).bg(C.flow)
+        .opacity(fresh ? 1 : 0).transition("top", MOTION.link.streak).transition("opacity", MOTION.link.fade);
+    };
+    const rail = (x) => [div().id(x.key).absolute().left(RAIL.left).top(x.y + RAIL.inset).w(RAIL.w).h(Math.max(0, x.h - 2 * RAIL.inset)).bg(C.link)
+      .when(Boolean(x.travel), (e) => e.transition("top", x.travel)), ...x.streaks.map((k) => streak(x, k))];
     return at(v_flex().id(`sq-${s.q.id}-block`), s)
       .when(s.lifted, (el) => el.bg(C.raised).shadow_lg())
       .child(this.head(C, D, s))
       .child(v_flex().id(`sq-${s.q.id}-rows`).relative().flex_none().overflow_hidden().h(s.folded ? 0 : s.inner)
         .transition("height", MOTION.squad.fold)
         .children(s.rows.filter((r) => !r.lifted).map(row))
-        .children(s.rails.filter((x) => !x.lifted).map(rail))
+        .children(s.rails.filter((x) => !x.lifted).flatMap(rail))
         .when(Boolean(s.lift), (el) => el.child(at(div().id(`sq-${s.q.id}-lift`), s.lift).h(s.lift.h).bg(C.raised).shadow_lg()))
         .children(s.rows.filter((r) => r.lifted).map(row))
-        .children(s.rails.filter((x) => x.lifted).map(rail)));
+        .children(s.rails.filter((x) => x.lifted).flatMap(rail)));
   }
 
   /** Past 12 agents: the agents that need input, pinned above every squad (three, then "+N more"). */
@@ -913,7 +919,6 @@ export class Agents {
     const titles = JSON.stringify(Object.fromEntries(sections.flatMap((s) => s.rows.filter((r) => r.m?.agent && !r.native && !r.more).map((r) => [r.m.address, r.title]))));
     if (titles !== this.published?.titles) { (this.published ??= {}).titles = titles; setShared("endfield.rowTitles", JSON.parse(titles)); }
     holdCrew(held([...nextNums.values()].flatMap((c) => [...c.values()])));
-    this.arrive([...sections.flatMap((s) => [...s.rows.map((r) => r.key), ...(s.folded ? [`sq-${s.q.id}-stack`] : [])]), ...blocked.map((m) => `pin-${m.address}`)], cx);
 
     // Where each squad and row is drawn: stacked, or opened around a held squad or chat.
     const order = spaces().map((sp) => ({ id: sp.id, machine: sp.machine ?? null }));
@@ -937,8 +942,16 @@ export class Agents {
       }));
       s.lift = rowsAt.held >= 0 ? { y: rowsAt.tops[rowsAt.held], h: chats[rowsAt.held].h, travel: rowsAt.travel } : null;
       // A group is one chat block, so its rows move together and the rail rides with its first.
-      s.rails = railSpans(shape).map((sp) => { const r = s.rows[sp.rows[0]]; return { key: `rail-${sp.group}`, y: r.y, h: sp.h, travel: r.travel, lifted: r.lifted }; });
+      s.rails = railSpans(shape).map((sp) => {
+        const r = s.rows[sp.rows[0]];
+        const agents = sp.rows.map((k) => s.rows[k]).filter((x) => x.depth === 0 && x.m?.agent)
+          .map((x) => ({ s: this.sessions.get(x.m.address), y: x.top - r.top + x.h / 2 })).filter((a) => a.s);
+        const streaks = railStreaks(agents.map((a) => ({ session: a.s.sessionId, y: a.y })), agents.flatMap((a) => a.s.messages), Date.now(), MOTION.link.burst);
+        return { key: `rail-${sp.group}`, y: r.y, h: sp.h, travel: r.travel, lifted: r.lifted, streaks: streaks.map((k) => ({ ...k, key: `rail-${sp.group}-${k.id}` })) };
+      });
     });
+    this.arrive([...sections.flatMap((s) => [...s.rows.map((r) => r.key), ...(s.folded ? [`sq-${s.q.id}-stack`] : []), ...s.rails.flatMap((x) => x.streaks.map((k) => k.key))]),
+      ...blocked.map((m) => `pin-${m.address}`)], cx);
 
     // A held agent row: over another squad's header, a drop moves it there (dock.js movePlan); in
     // Priority, over another row, a drop links it (links.js linkProblem). An agent held in Priority

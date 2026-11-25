@@ -18,6 +18,8 @@
 //     transcript started: [{id, kind: shell | agent | monitor, description, startedAt, expiresAt, endedAt,
 //     state: running | completed | failed | killed | stopped | timed-out | ended-with-session}],
 //     `counts` ({tool name: calls}) and `recent`, its last 5 tool calls oldest first: [{at, tool, arg}].
+//     `messages`: the last cross-session messages it received, oldest first: [{id, at, from}], `from` the
+//     sending session's id, null when no session in that machine's registry has the sender's socket.
 //     live: whether a Claude Code process still runs the session, from `registry` (default
 //     ~/.claude/sessions/<pid>.json); null when there is no registry to ask, as on another machine.
 //   {cmd: "render", path, from}  -> {to, size, entries: [{kind, text, tool?, arg?}]}
@@ -43,9 +45,10 @@ const SKIP = /"type":"(api-request|api-request-blob|data-flow-records|file-histo
 const QUEUED = /"type":"(queue-operation|attachment)"/;
 const NOTICE = "<task-notification>";
 // A fold made by an older probe lacks fields this one reads, so it is folded again.
-const FOLD = 4;
+const FOLD = 5;
 const TASKS_KEPT = 200;
 const RECENT_KEPT = 5;
+const MESSAGES_KEPT = 8;
 // The cache's one key that is not a transcript: pid -> {procStart, same, at}, whether the process
 // was the one its registry file names when last asked (null: it couldn't be asked).
 const PROCS = "<procs>";
@@ -104,7 +107,7 @@ function argOf(name, input = {}) {
 
 function fresh() {
   return { msg: null, model: null, used: 0, tokens: 0, delta: 0, tools: 0, turns: 0, prompt: null, effort: null, mode: null,
-    counts: {}, recent: [], final: false, pending: null, firstAt: null, lastAt: null, uses: {}, tasks: {}, ends: {} };
+    counts: {}, recent: [], messages: [], final: false, pending: null, firstAt: null, lastAt: null, uses: {}, tasks: {}, ends: {} };
 }
 
 // A tool call that only waits: a shell whose every command pauses or looks (a sleep, a loop's test,
@@ -214,6 +217,11 @@ function fold(f, j) {
       }
     }
   } else if (j.type === "user" && j.message) {
+    // A message another session sent: origin names the sender by its inbox socket.
+    if (j.origin?.kind === "peer" && j.origin.msg_id) {
+      f.messages.push({ id: j.origin.msg_id, at, from: j.origin.from ?? null });
+      if (f.messages.length > MESSAGES_KEPT) f.messages.shift();
+    }
     const content = j.message.content;
     const results = Array.isArray(content) ? content.filter((c) => c.type === "tool_result") : [];
     if (results.some((r) => r.tool_use_id === f.pending?.id)) f.pending = null;
@@ -300,6 +308,18 @@ function registry(dir, seen) {
   return live;
 }
 
+// Inbox socket ("uds:" and its path) -> the session that holds it, from a machine's registry.
+function sockets(dir) {
+  const map = new Map();
+  let names = [];
+  try { names = fs.readdirSync(dir); } catch {}
+  for (const n of names) {
+    const s = /^\d+\.json$/.test(n) ? readJson(path.join(dir, n)) : null;
+    if (s?.sessionId && s.messagingSocketPath) map.set(`uds:${s.messagingSocketPath}`, s.sessionId);
+  }
+  return map;
+}
+
 // A task's end may be written to another transcript of its session than the one that started it (a
 // sub-agent's monitor that outlives it reports to the main one). Such an end moves to the fold that
 // holds its task, so no fold keeps an end it has no task for.
@@ -314,9 +334,9 @@ function rehome(folds) {
 
 // A task with no end is running only if the process that started it still is and, for a monitor
 // with a timeout, only until then.
-function settle(f, owner, now) {
+function settle(f, owner, now, senders) {
   const { uses, ends, tasks, ...rest } = f;
-  return { ...rest, tasks: Object.values(tasks).map((t) => {
+  return { ...rest, messages: f.messages.map((m) => ({ ...m, from: senders().get(m.from) ?? null })), tasks: Object.values(tasks).map((t) => {
     const from = t.resumedAt ?? t.startedAt;
     const end = ends[t.id]?.at >= from ? ends[t.id] : t.expiresAt && t.expiresAt <= now ? { state: "timed-out", at: t.expiresAt } : null;
     const gone = !owner || from < owner.since;
@@ -383,6 +403,8 @@ function sessions(req) {
   const now = Date.now();
   // The registry's pids are this computer's, so it can't speak for an agent on another machine.
   const owners = home ? null : registry(req.registry ?? REGISTRY, cache[PROCS] ??= {});
+  let socketMap = null;
+  const senders = () => (socketMap ??= sockets(home ? path.join(home, ".claude", "sessions") : req.registry ?? REGISTRY));
   if (owners) watch.add(req.registry ?? REGISTRY);
   for (const t of req.targets) {
     const sidecar = side.get(t.terminal) ?? null;
@@ -411,8 +433,8 @@ function sessions(req) {
     rehome([main, ...subs]);
     // No registry at all: nothing says the session died, so its open tasks still count as running.
     const owner = owners ? owners.get(sessionId) : { since: 0 };
-    out[t.terminal] = { transcript, approx, sessionId, live: owners ? owners.has(sessionId) : null, ...settle(main, owner, now),
-      subagents: subs.map((s) => settle(s, owner, now)), sidecar };
+    out[t.terminal] = { transcript, approx, sessionId, live: owners ? owners.has(sessionId) : null, ...settle(main, owner, now, senders),
+      subagents: subs.map((s) => settle(s, owner, now, senders)), sidecar };
   }
   for (const [p, c] of Object.entries(cache)) if (p !== PROCS && (now - (c.used ?? 0) > CACHE_DAYS * DAY || !stat(p))) delete cache[p];
   // Atomic replace: several mod copies may probe at once; the loser's work is only redone later.
