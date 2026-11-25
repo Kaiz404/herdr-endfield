@@ -287,8 +287,10 @@ rendered at 4x. It is a schematic, not a screenshot.
   opens the space menu; the machine header folds its group. Clicking the
   header (or the `endfield.toggleSpaces` key) folds Spaces to its 38px
   header with `layout.resize`, and Squads takes the height; unfolding
-  restores the share it had. The fold is shared state, so it survives a
-  restart.
+  restores the share it had. Both slide (`MOTION.spaces.fold`, 300ms): the
+  block's height eases to its target and Squads moves with its edge, the
+  rows staying put under the header as the edge covers or uncovers them. The
+  fold is shared state, so it survives a restart.
 - **Squads:** click focuses the pane (the plate snaps, the yellow marker
   travels, 300ms); a child without a pane opens as a peek; a Hidden agent
   (its row carries a muted `Hidden` tag) gets a pane again right of the
