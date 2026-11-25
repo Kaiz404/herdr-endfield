@@ -2,17 +2,20 @@
 // props {title, body, level, icon, action, timeout, overlay} and no role; main.js routes it here.
 // An agent that needs input gets the skill caption instead (cutin.js, an overlay window: Herdr's
 // toast slot is too small for it), unless its pane has focus: you are looking at it, so its pane
-// header pulses and no toast is made. A finished agent gets the Finished slip. Anything else is the
+// header pulses and no toast is made. A finished agent gets the Finished slip, unless it waits on
+// background work it started (fleet.js finishedSlip): that one gets none. Anything else is the
 // plain slab, ported from the shipped `toast`: click runs the action and closes, the host owns the
 // timeout, and a machine-login body gets a Copy button.
 
 import { div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { props, closeOverlay, openOverlay, run, agents, spaces, settings } from "herdr";
+import { props, closeOverlay, openOverlay, run, agents, spaces, shared, settings } from "herdr";
 import { palette, root, micro, spaced, wide, chip, cue, MOTION, FONT, modPx } from "./kit.js";
 import { cornerAt } from "./units.js";
 import { roster } from "./roster.js";
 import { showWork } from "./report.js";
+import { finishedSlip } from "./fleet.js";
+import { isClaude } from "./sessions.js";
 
 const LEVEL = {
   info: { edge: "flow", glyph: "i" },
@@ -26,6 +29,8 @@ const CUT = { width: 440, height: 214, margin: 16, slot: 112 };
 
 // Herdr's title for an agent that needs the person.
 const NEEDS = /needs you$/i;
+// The longest a done Claude Code agent's slip waits for the session poll to say whether it waits on background work.
+const HOLD_MS = 4000;
 
 // Where the news comes from: the agent its action goes to, else a space, else Herdr itself.
 function origin(p) {
@@ -63,11 +68,20 @@ export class Toast {
       if (!a.focused) { cue("needs"); openCutIn(a.address, { title: p.title ?? null, body: p.body ?? null }); }
       closeOverlay(p.overlay);
     } else if (a?.status === "done") {
-      this.kind = "finished";
-      cue("finished");
+      const kind = finishedSlip(roster().all.get(a.address)?.status ?? "done", { claude: isClaude(a), landed: this.landed(a.address) });
+      this.held = !kind;
+      if (kind === "finished") { this.kind = kind; cue("finished"); }
+      else if (kind === "waiting") { this.kind = kind; closeOverlay(p.overlay); }
     } else if (!a || a.status === "blocked") {
       this.kind = "plain";
     }
+  }
+
+  // Whether the session poll has published this agent's session again since the toast came, or the hold ran out.
+  landed(address) {
+    const now = JSON.stringify(shared("endfield.sessions")?.[address] ?? null);
+    this.polled ??= now;
+    return Boolean(this.late) || now !== this.polled;
   }
 
   // Slide out, then run the action and close (the host's own timeout closes without it).
@@ -90,7 +104,11 @@ export class Toast {
     if (!this.kind && !this.waiting) {
       // An agent's news whose status hasn't landed yet: wait one beat, then show it plain.
       this.waiting = true;
-      cx.timer.after(MOTION.toast.enter.duration, (cx) => { this.decide(p); this.kind ??= "plain"; cx.notify(); });
+      cx.timer.after(MOTION.toast.enter.duration, (cx) => { this.decide(p); if (!this.held) this.kind ??= "plain"; cx.notify(); });
+    }
+    if (this.held && !this.holding) {
+      this.holding = true;
+      cx.timer.after(HOLD_MS, (cx) => { this.late = true; this.decide(p); cx.notify(); });
     }
     if (this.kind !== "plain" && this.kind !== "finished") return div();
     const C = palette();

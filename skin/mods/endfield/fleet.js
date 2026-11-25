@@ -31,6 +31,23 @@ const childStatus = (s) => (s === "error" ? "blocked" : s === "done" ? "idle" : 
  */
 export const memberStatus = (status, waiting) => (waiting && (status === "idle" || status === "done") ? "waiting" : status);
 
+/**
+ * A tab's or a space's status: the most urgent of its listed agents' (memberStatus), as Herdr ranks
+ * its own, so a lead waiting on background work reads waiting there too. `own`, Herdr's, when none is listed.
+ * members: the roster members in that tab or space.
+ */
+export function areaStatus(own, members) {
+  const listed = members.filter((m) => m.agent);
+  return listed.length ? listed.reduce((s, m) => (rank(m.status) > rank(s) ? m.status : s), null) : own;
+}
+
+/**
+ * What a toast for an agent Herdr calls done becomes: "finished" (the Finished slip), "waiting"
+ * (none: it waits on background work it started), or null to hold. Herdr's done can land a session
+ * poll before Session.waiting does, so a Claude Code agent's slip holds until a poll has `landed` since.
+ */
+export const finishedSlip = (status, { claude, landed }) => (status === "waiting" ? "waiting" : !claude || landed ? "finished" : null);
+
 // Creation order (the core's created_ms, else the address number): stable while agents come and
 // go, so a callsign never hops from one agent to another.
 const byCreation = (x, y) => x.created - y.created || x.address.localeCompare(y.address, undefined, { numeric: true });

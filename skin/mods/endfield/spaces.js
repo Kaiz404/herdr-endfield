@@ -8,7 +8,7 @@ import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 import { spaces, machines, panes, run, openOverlay, exec, hc, watchFolder, layout, shared, setShared, window as appWindow } from "herdr";
 import { palette, root, narrow, find, midTrunc, glyph, freshDot, micro, spaced, wide, icon, pad2, path, wipe, plate, marker, nudge, Entrance, FONT, basename, homeBase, newSpace, modPx } from "./kit.js";
 import { roster } from "./roster.js";
-import { DENSE_AT, statusOf } from "./fleet.js";
+import { DENSE_AT, statusOf, areaStatus } from "./fleet.js";
 import { HEAD, spacesSize, openSize } from "./spacesize.js";
 
 function place(s, ps) {
@@ -414,6 +414,8 @@ export default class Spaces {
     return parts;
   }
 
+  status(w) { return areaStatus(w.status, this.members.filter((m) => m.space === w.id)); }
+
   // What a space says at its right, read from the status table: unseen gets the new-dot too.
   signal(C, s, inv) {
     const st = statusOf(s);
@@ -482,11 +484,11 @@ export default class Spaces {
       .when(!dense, (el) => el.child(nudge(v_flex(), `sp-label-${w.id}`, this.hover === w.id).flex_1().min_w(0).gap(4)
         .child(path(w.name, fg, sub))
         .when(tail.length > 0, (el) => el.child(spaced(tail, sub, { gap: 8 })))))
-      .child(div().relative().flex_none().child(this.signal(C, w.status, on) ?? div()));
+      .child(div().relative().flex_none().child(this.signal(C, this.status(w), on) ?? div()));
   }
 
   compact({ w, i }, C) {
-    const st = statusOf(w.status);
+    const st = statusOf(this.status(w));
     const on = w.active;
     return h_flex().flex_none().justify_center().py(2).child(h_flex()
       .id(`space-${w.id}`)
@@ -546,7 +548,8 @@ export default class Spaces {
     const C = palette();
     const collapsed = narrow();
     const sp = spaces();
-    const dense = !collapsed && roster().all.size >= DENSE_AT;
+    this.members = [...roster().all.values()];
+    const dense = !collapsed && this.members.length >= DENSE_AT;
     this.rh = dense ? H.dense : H.row;
     this.keepColors(sp);
     const list = this.grouped(C, collapsed);
