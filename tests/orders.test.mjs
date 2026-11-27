@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { sendArgs, runArgs, taskProblem, psQuote, shQuote, commandLine, deliver, timeoutFor, accountArgv, switchArgv } from "../skin/mods/endfield/orders.js";
 
 test("a send whose log write fails is still sent, and hc runs once", async () => {
@@ -65,4 +68,27 @@ test("a launch command that programs.json already wraps in the account tool is w
   assert.deepEqual(accountArgv({ tool, account: "work", argv: ["claude"] }), ["node", tool, "run", "work", "--", "claude"]);
   assert.deepEqual(switchArgv({ tool, terminal: "t4", account: "work", sessionId: "s1", now: false, argv: fromPrograms }),
     ["node", tool, "switch", "t4", "work", "--session", "s1", "--", "claude"]);
+});
+
+test("hc run on another machine starts the program through the login shell, so its PATH and each argument arrive", { skip: !has("sh") && "no sh here" }, () => {
+  const home = mkdtempSync(join(tmpdir(), "login-"));
+  mkdirSync(join(home, "bin"));
+  writeFileSync(join(home, ".profile"), 'PATH="$HOME/bin:$PATH"\n');
+  writeFileSync(join(home, "bin", "greet"), "#!/bin/sh\nprintf '[%s]' \"$@\"\n", { mode: 0o755 });
+  const a = runArgs({ parent: null, outlive: false, machine: "wsl", folder: "/srv/w", space: "wsl/sp1", tab: "tb1", argv: ["greet"], task: "it's $(x) \"two\" words" });
+  assert.deepEqual(a.slice(0, a.indexOf("--")), ["run", "--bg", "--keep", "--json", "--no-parent", "--on", "wsl", "--cwd", "/srv/w", "--label", "herdr.space=sp1", "--label", "herdr.tab=tb1"]);
+  const argv = a.slice(a.indexOf("--") + 1);
+  const where = (shell) => execFileSync("sh", ["-c", `command -v ${shell}`], { encoding: "utf8" }).trim();
+  // A shell the wrapper doesn't know, and one that isn't installed, still start it through sh's login.
+  writeFileSync(join(home, "nu"), "#!/bin/sh\nexit 99\n", { mode: 0o755 });
+  const shells = [...["sh", "bash"].filter(has).map(where), "/no/such/shell", join(home, "nu").replace(/\\/g, "/")];
+  for (const shell of shells) {
+    const out = execFileSync(argv[0], argv.slice(1), { encoding: "utf8", cwd: home, env: { ...process.env, HOME: home, SHELL: shell } });
+    assert.ok(out.endsWith("[it's $(x) \"two\" words]"), `${shell} found greet and passed the task exactly: ${JSON.stringify(out)}`);
+  }
+});
+
+test("hc run on this computer runs the program's argv as it is", () => {
+  const a = runArgs({ parent: null, outlive: false, machine: null, folder: null, space: "sp1", tab: "tb1", argv: ["claude"], task: "go" });
+  assert.deepEqual(a.slice(a.indexOf("--") + 1), ["claude", "go"]);
 });
