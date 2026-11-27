@@ -90,3 +90,11 @@ test("with no statusline, a sub-agent takes its session's window once that sessi
   const ctx = await subCtx({ model: "claude-opus-5-5", used: 300000, sidecar: null, subagents: [{ id: "a1", model: "claude-opus-5-5", used: 50000 }] });
   assert.equal(ctx.total, 1000000);
 });
+
+test("a sub-agent under a 200K session shows 200K, and 1M only once its own context is past 200K", async () => {
+  const side = { context: { used: 100000, total: 200000, pct: 50 } };
+  const under = await subCtx({ model: "claude-opus-5-5", used: 100000, sidecar: side, subagents: [{ id: "a1", model: "claude-opus-5-5", used: 50000 }] });
+  assert.equal(under.total, 200000);
+  const past = await subCtx({ model: "claude-opus-5-5", used: 100000, sidecar: side, subagents: [{ id: "a1", model: "claude-opus-5-5", used: 300000 }] });
+  assert.equal(past.total, 1000000);
+});

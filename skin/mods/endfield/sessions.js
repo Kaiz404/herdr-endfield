@@ -51,7 +51,8 @@ function modelName(id, display = null) {
 }
 
 // A sidecar's context (the statusline's own numbers) wins over the transcript's last usage. `floor` is a
-// window known otherwise: a sub-agent runs with its session's, which only the session's statusline records.
+// window known otherwise. Only a session's statusline records its window, so a sub-agent takes its session's,
+// assuming the same window on its own model (true of every model seen so far).
 function contextOf(id, used, side = null, floor = 0) {
   used = side?.used ?? used ?? null;
   if (used == null) return null;

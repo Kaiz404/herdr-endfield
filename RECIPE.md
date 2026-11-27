@@ -60,8 +60,8 @@ rendered at 4x. It is a schematic, not a screenshot.
     yellow "Needs input" pill, "✓ Finished" or "× Error". The second line is the task
     (13px medium) with, at its right, an 8-block context gauge (5x6px blocks
     2px apart; lit share = used / window, red from 75%; its tooltip reads
-    `157K / 1M, 16%`; a sub-agent's window is its session's; an unknown
-    window is 1M for a `[1m]` model or a context past 200K, else 200K). The status and elapsed never shrink; the
+    `157K / 1M, 16%`; a sub-agent's window is at least its session's; an
+    unknown window is 1M for a `[1m]` model or a context past 200K, else 200K). The status and elapsed never shrink; the
     model and effort give way first, then the label truncates. The label line
     and the task sit 2px apart (1px compact) and the row centres the pair, so
     the row's spare height falls above and below it, between one agent and
