@@ -90,13 +90,18 @@ export class Dispatch {
     const on = this.machine();
     if (this.progsOn === on) return;
     this.progsOn = on;
-    this.progs = [SHELL(on)];
-    let known = [];
+    // Until the list for this machine is in, Dispatch waits: the chosen program may not be there.
+    this.progsReady = false;
+    cx.notify();
+    let known = null;
     try { known = await knownAgents({ on }); } catch {}
     if (this.progsOn !== on) return;
     // Installed programs first, then the shell, then the rest (dimmed): six tiles show.
-    this.progs = [...known.filter((g) => g.installed), SHELL(on), ...known.filter((g) => !g.installed)];
-    if (!this.progs.some((g) => g.key === this.prog && g.installed)) this.prog = this.progs.find((g) => g.installed && !g.shell)?.key ?? "shell";
+    this.progs = [...(known ?? []).filter((g) => g.installed), SHELL(on), ...(known ?? []).filter((g) => !g.installed)];
+    // A machine that couldn't be asked keeps the choice, so a task never runs as a shell command unasked; it is asked again next time.
+    if (known && !this.progs.some((g) => g.key === this.prog && g.installed)) this.prog = this.progs.find((g) => g.installed && !g.shell)?.key ?? "shell";
+    if (!known) this.progsOn = undefined;
+    this.progsReady = true;
     cx.notify();
   }
 
@@ -187,7 +192,7 @@ export class Dispatch {
     const held = send && plan?.enabled === false;
     const problem = taskProblem({ mode: this.mode, shell: Boolean(prog?.shell), task });
     const done = this.state.phase === "sent" || this.state.phase === "uncertain";
-    const ready = Boolean(task) && !held && !problem && (this.state.phase === "edit" || this.state.phase === "refused") && (send ? Boolean(this.target) : Boolean(this.space));
+    const ready = Boolean(task) && !held && !problem && (this.state.phase === "edit" || this.state.phase === "refused") && (send ? Boolean(this.target) : Boolean(this.space) && this.progsReady && this.progs.some((g) => g.key === this.prog));
     this.ready = ready;
     const banner = this.state.error ? { refused: ["hc said", C.error], uncertain: ["Check before sending again", C.error], sent: ["Sent", C.text] }[this.state.phase] ?? ["hc said", C.error] : problem ? ["Not sent", C.error] : null;
     const pair = (a, b, fg, dim, size) => h_flex().min_w(0).gap(6).items_center().child(wide(a, fg, size).flex_none()).child(wide(b, dim, size).min_w(0).truncate());

@@ -117,7 +117,17 @@ test("two agents in one folder on another machine each show their own session, f
 test("a registry file from another folder never names an agent's session", () => {
   const reg = path.join(remote, ".claude", "sessions");
   fs.mkdirSync(reg, { recursive: true });
-  fs.writeFileSync(path.join(reg, "990.json"), JSON.stringify({ pid: 990, sessionId: "session-remote", cwd: "/srv/elsewhere" }));
+  const project = path.join(remote, ".claude", "projects", "-srv-pair");
+  fs.writeFileSync(path.join(project, "session-other.jsonl"), LINES.map((l) => JSON.stringify(l)).join("\n") + "\n");
+  fs.writeFileSync(path.join(reg, "990.json"), JSON.stringify({ pid: 990, sessionId: "session-other", cwd: "/srv/elsewhere" }));
   const out = probe([{ terminal: "t5", cwd: "/srv/pair", pid: 990 }], { home: remote });
-  assert.notEqual(out.sessions.t5?.sessionId, "session-remote");
+  assert.equal(out.sessions.t5?.approx, true, "the registry file is not taken: the folder's newest transcript stands in, marked approx");
+});
+
+test("a registry file older than the agent's terminal is an earlier process on a reused pid, never its session", () => {
+  const reg = path.join(remote, ".claude", "sessions");
+  fs.writeFileSync(path.join(reg, "991.json"), JSON.stringify({ pid: 991, sessionId: "session-idle", cwd: "/srv/pair", startedAt: 1000 }));
+  const out = probe([{ terminal: "t6", cwd: "/srv/pair", pid: 991, since: 5000 }], { home: remote });
+  assert.notEqual(out.sessions.t6?.sessionId, "session-idle");
+  assert.equal(out.sessions.t6?.approx, true);
 });

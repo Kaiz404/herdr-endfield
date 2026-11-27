@@ -262,8 +262,9 @@ export class Sessions {
       try {
         const at = Date.now();
         // The Claude Code process behind each agent, which the probe looks up in that machine's ~/.claude/sessions.
-        const pids = await Promise.all(targets.map(async (t) => {
-          try { return JSON.parse((await exec("hc", ["get", t.terminal, "--json"], { timeout: 5000 })).stdout).foreground?.pid ?? null; } catch { return null; }
+        // With the terminal's start, so a registry file left by an earlier process on a reused pid is never taken.
+        const procs = await Promise.all(targets.map(async (t) => {
+          try { const g = JSON.parse((await exec("hc", ["get", t.terminal, "--json"], { timeout: 5000 })).stdout); return { pid: g.foreground?.pid, since: g.created_ms }; } catch { return {}; }
         }));
         const req = `${DATA()}/probe-${this.name}${suffix}.json`;
         await fs.mkdir(DATA(), { recursive: true });
@@ -273,7 +274,7 @@ export class Sessions {
           home: home ?? undefined,
           // Where that machine's statusline writes: its own Herdr home's data folder.
           sidecars: home ? `${home}/.config/herdr-app/data/endfield/sessions` : SIDECARS(),
-          targets: targets.map((t, i) => ({ terminal: local(t.terminal), cwd: t.cwd, pid: pids[i] ?? undefined })),
+          targets: targets.map((t, i) => ({ terminal: local(t.terminal), cwd: t.cwd, pid: procs[i].pid, since: procs[i].since })),
         }));
         const r = await exec("node", [PROBE(), req], { timeout: 20000 });
         const out = r.code === 0 ? JSON.parse(r.stdout) : {};

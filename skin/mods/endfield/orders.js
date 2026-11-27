@@ -72,10 +72,11 @@ export function relayRefusal({ phase, shown, now }) {
 // shell adds (a WSL machine's ~/.local/bin, where Claude Code installs). Herdr's own New tab starts
 // it through the person's login shell, and so does this.
 const LOGIN = `shell=\${SHELL:-/bin/sh}
+command -v "$shell" >/dev/null 2>&1 || shell=/bin/sh
 case "\${shell##*/}" in
   fish) exec "$shell" -lic 'exec $argv' "$@" ;;
   sh|bash|zsh|dash|ksh) exec "$shell" -lic 'exec "$@"' "$shell" "$@" ;;
-  *) exec "$@" ;;
+  *) exec /bin/sh -lc 'exec "$@"' sh "$@" ;;
 esac`;
 
 /** hc run: a new terminal in a space, its program's argv after `--`, the task as its last argument. */

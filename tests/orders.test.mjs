@@ -78,9 +78,12 @@ test("hc run on another machine starts the program through the login shell, so i
   const a = runArgs({ parent: null, outlive: false, machine: "wsl", folder: "/srv/w", space: "wsl/sp1", tab: "tb1", argv: ["greet"], task: "it's $(x) \"two\" words" });
   assert.deepEqual(a.slice(0, a.indexOf("--")), ["run", "--bg", "--keep", "--json", "--no-parent", "--on", "wsl", "--cwd", "/srv/w", "--label", "herdr.space=sp1", "--label", "herdr.tab=tb1"]);
   const argv = a.slice(a.indexOf("--") + 1);
-  for (const shell of ["sh", "bash"].filter(has)) {
-    const path = execFileSync("sh", ["-c", `command -v ${shell}`], { encoding: "utf8" }).trim();
-    const out = execFileSync(argv[0], argv.slice(1), { encoding: "utf8", cwd: home, env: { ...process.env, HOME: home, SHELL: path } });
+  const where = (shell) => execFileSync("sh", ["-c", `command -v ${shell}`], { encoding: "utf8" }).trim();
+  // A shell the wrapper doesn't know, and one that isn't installed, still start it through sh's login.
+  writeFileSync(join(home, "nu"), "#!/bin/sh\nexit 99\n", { mode: 0o755 });
+  const shells = [...["sh", "bash"].filter(has).map(where), "/no/such/shell", join(home, "nu").replace(/\\/g, "/")];
+  for (const shell of shells) {
+    const out = execFileSync(argv[0], argv.slice(1), { encoding: "utf8", cwd: home, env: { ...process.env, HOME: home, SHELL: shell } });
     assert.ok(out.endsWith("[it's $(x) \"two\" words]"), `${shell} found greet and passed the task exactly: ${JSON.stringify(out)}`);
   }
 });
