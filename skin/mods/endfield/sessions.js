@@ -6,9 +6,10 @@
 //      The statusline runs again right after /model or /effort; the transcript shows them only at the next turn.
 //   2. the transcript itself, ~/.claude/projects/<cwd slug>/<session>.jsonl, in the home of the agent's
 //      machine (wslpath gives a WSL machine's as a \\wsl.localhost path; an SSH machine's can't be read,
-//      so its agents get no session). Without a sidecar the terminal is matched to its folder's
-//      most recently written transcript: approximate, since two sessions in one folder can't be
-//      told apart (`approx`).
+//      so its agents get no session). Without a sidecar the terminal's Claude Code process (hc get's
+//      foreground pid) names its session in that machine's ~/.claude/sessions/<pid>.json. Failing
+//      that, it is matched to its folder's most recently written transcript: approximate, since two
+//      sessions in one folder can't be told apart (`approx`).
 // Transcripts run to tens of MB and readTextFile stops at 1 MiB, so tools/probe.mjs (node)
 // reads them, folding only the lines appended since its last run, and the sidecars too (it can
 // skip stale ones by mtime, which a mod can't see). The squad list owns the one poller; the
@@ -260,6 +261,10 @@ export class Sessions {
     cx.spawn(async (cx) => {
       try {
         const at = Date.now();
+        // The Claude Code process behind each agent, which the probe looks up in that machine's ~/.claude/sessions.
+        const pids = await Promise.all(targets.map(async (t) => {
+          try { return JSON.parse((await exec("hc", ["get", t.terminal, "--json"], { timeout: 5000 })).stdout).foreground?.pid ?? null; } catch { return null; }
+        }));
         const req = `${DATA()}/probe-${this.name}${suffix}.json`;
         await fs.mkdir(DATA(), { recursive: true });
         await fs.writeFile(req, JSON.stringify({
@@ -268,7 +273,7 @@ export class Sessions {
           home: home ?? undefined,
           // Where that machine's statusline writes: its own Herdr home's data folder.
           sidecars: home ? `${home}/.config/herdr-app/data/endfield/sessions` : SIDECARS(),
-          targets: targets.map((t) => ({ terminal: local(t.terminal), cwd: t.cwd })),
+          targets: targets.map((t, i) => ({ terminal: local(t.terminal), cwd: t.cwd, pid: pids[i] ?? undefined })),
         }));
         const r = await exec("node", [PROBE(), req], { timeout: 20000 });
         const out = r.code === 0 ? JSON.parse(r.stdout) : {};

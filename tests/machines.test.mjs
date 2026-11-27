@@ -93,3 +93,31 @@ test("a machine is read through its home only when Herdr reaches it through wsl.
 test("a machine that couldn't be asked is asked again later, less often each time, never more than five minutes apart", () => {
   assert.deepEqual([1, 2, 3, 4, 5, 6, 12].map((n) => askAgainAt(n, 0)), [15000, 30000, 60000, 120000, 240000, 300000, 300000]);
 });
+
+test("two agents in one folder on another machine each show their own session, found by their Claude Code process", () => {
+  const project = path.join(remote, ".claude", "projects", "-srv-pair");
+  const reg = path.join(remote, ".claude", "sessions");
+  fs.mkdirSync(project, { recursive: true });
+  fs.mkdirSync(reg, { recursive: true });
+  const text = LINES.map((l) => JSON.stringify(l)).join("\n") + "\n";
+  for (const id of ["session-idle", "session-busy", "session-newest"]) fs.writeFileSync(path.join(project, `${id}.jsonl`), text);
+  const old = new Date(Date.now() - 60000);
+  for (const id of ["session-idle", "session-busy"]) fs.utimesSync(path.join(project, `${id}.jsonl`), old, old);
+  fs.writeFileSync(path.join(reg, "872.json"), JSON.stringify({ pid: 872, sessionId: "session-idle", cwd: "/srv/pair" }));
+  fs.writeFileSync(path.join(reg, "6524.json"), JSON.stringify({ pid: 6524, sessionId: "session-busy", cwd: "/srv/pair" }));
+  const out = probe([{ terminal: "t5", cwd: "/srv/pair", pid: 872 }, { terminal: "t7", cwd: "/srv/pair", pid: 6524 }, { terminal: "t8", cwd: "/srv/pair" }], { home: remote });
+  assert.equal(out.sessions.t5?.sessionId, "session-idle");
+  assert.equal(out.sessions.t5.approx, false);
+  assert.equal(out.sessions.t7?.sessionId, "session-busy");
+  assert.equal(out.sessions.t7.approx, false);
+  assert.equal(out.sessions.t8?.sessionId, "session-newest", "with no process to look up, the folder's newest transcript, marked approx");
+  assert.equal(out.sessions.t8.approx, true);
+});
+
+test("a registry file from another folder never names an agent's session", () => {
+  const reg = path.join(remote, ".claude", "sessions");
+  fs.mkdirSync(reg, { recursive: true });
+  fs.writeFileSync(path.join(reg, "990.json"), JSON.stringify({ pid: 990, sessionId: "session-remote", cwd: "/srv/elsewhere" }));
+  const out = probe([{ terminal: "t5", cwd: "/srv/pair", pid: 990 }], { home: remote });
+  assert.notEqual(out.sessions.t5?.sessionId, "session-remote");
+});

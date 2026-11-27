@@ -1,7 +1,9 @@
 // Reads Claude Code transcripts for the endfield mods, which can't: readTextFile stops at
 // 1 MiB and transcripts run to tens of MB. Run as `node probe.mjs <request.json>`; prints JSON.
 //
-//   {cmd: "sessions", cache, sidecars, home?, registry?, budget?, targets: [{terminal, cwd}]}
+//   {cmd: "sessions", cache, sidecars, home?, registry?, budget?, targets: [{terminal, cwd, pid?}]}
+//     pid: the agent's Claude Code process on its machine; its ~/.claude/sessions/<pid>.json names the
+//     session when no sidecar does.
 //     One request reads one machine. home: that machine's home as a path this computer reads (a
 //     WSL distro's \\wsl.localhost share); absent for this computer. `sidecars` is the folder its
 //     statusline writes, and `terminal` the id that machine gives the agent.
@@ -412,6 +414,11 @@ function sessions(req) {
     const project = t.cwd ? path.join(home ?? os.homedir(), ".claude", "projects", slug(t.cwd)) : null;
     if (project) (stat(project) && !home ? watch : missing).add(project);
     if (transcript && !home) watch.add(path.dirname(transcript));
+    if (!transcript && project && t.pid) {
+      // Claude Code registers its process by pid on its own machine, so two agents in one folder each find theirs.
+      const own = readJson(path.join(home ?? os.homedir(), ".claude", "sessions", `${t.pid}.json`));
+      if (own?.sessionId && own.cwd === t.cwd && stat(path.join(project, `${own.sessionId}.jsonl`))) transcript = path.join(project, `${own.sessionId}.jsonl`);
+    }
     if (!transcript && project) {
       // No sidecar names the session: take the project's most recently written transcript.
       let best = null;
