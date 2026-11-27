@@ -67,3 +67,26 @@ test("a machine that couldn't be asked is asked again by the timer once its retr
   await cx.settle();
   assert.equal(asks, 2, "due: the tick polls and asks the machine again");
 });
+
+async function subCtx(raw) {
+  globalThis.herdrStub = { home: dir, exec: async (command) => (command === "node"
+    ? { code: 0, stdout: JSON.stringify({ sessions: { t1: raw }, watch: [], missing: [] }) }
+    : { code: 1, stdout: "" }) };
+  const s = new Sessions(`ctx-${Math.random().toString(36).slice(2)}`);
+  const cx = context();
+  s.start(cx, () => [{ terminal: "t1", cwd: "/a", status: "working" }]);
+  await cx.settle();
+  s.stop();
+  return s.get("t1").subagents[0].ctx;
+}
+
+test("a sub-agent's context window is its session's, from the statusline, not the 200K guess", async () => {
+  const ctx = await subCtx({ model: "claude-opus-5-5", used: 188766, sidecar: { context: { used: 188766, total: 1000000, pct: 19 } },
+    subagents: [{ id: "a1", model: "claude-opus-5-5", used: 50000 }] });
+  assert.deepEqual(ctx, { used: 50000, total: 1000000, pct: 5 });
+});
+
+test("with no statusline, a sub-agent takes its session's window once that session is known past 200K", async () => {
+  const ctx = await subCtx({ model: "claude-opus-5-5", used: 300000, sidecar: null, subagents: [{ id: "a1", model: "claude-opus-5-5", used: 50000 }] });
+  assert.equal(ctx.total, 1000000);
+});

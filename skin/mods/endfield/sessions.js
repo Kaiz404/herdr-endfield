@@ -50,11 +50,12 @@ function modelName(id, display = null) {
   return { id, display: display ?? (m ? `Claude ${short}` : id), short };
 }
 
-// A sidecar's context (the statusline's own numbers) wins over the transcript's last usage.
-function contextOf(id, used, side = null) {
+// A sidecar's context (the statusline's own numbers) wins over the transcript's last usage. `floor` is a
+// window known otherwise: a sub-agent runs with its session's, which only the session's statusline records.
+function contextOf(id, used, side = null, floor = 0) {
   used = side?.used ?? used ?? null;
   if (used == null) return null;
-  const total = side?.total ?? contextWindow(id, used);
+  const total = side?.total ?? Math.max(floor, contextWindow(id, used));
   return { used, total, pct: side?.pct ?? Math.round((used / total) * 100) };
 }
 
@@ -71,7 +72,7 @@ function shape(t, raw, parentStatus, at) {
     type: s.agentType ?? null,
     model: s.model ? modelName(s.model) : null,
     effort: s.effort ?? null,
-    ctx: s.used ? contextOf(s.model, s.used) : null,
+    ctx: s.used ? contextOf(s.model, s.used, null, ctx?.total ?? 0) : null,
     status: runStatus({ ...s, live: raw.live, now }, parentStatus),
     tools: s.tools ?? null,
     turns: s.turns ?? null,
