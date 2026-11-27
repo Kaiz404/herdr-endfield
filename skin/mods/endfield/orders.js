@@ -68,11 +68,22 @@ export function relayRefusal({ phase, shown, now }) {
     : "Not sent. The command changed after it was shown. Check it and send again.";
 }
 
+// hc run on another machine starts the program bare, on its core's PATH, which lacks what a login
+// shell adds (a WSL machine's ~/.local/bin, where Claude Code installs). Herdr's own New tab starts
+// it through the person's login shell, and so does this.
+const LOGIN = `shell=\${SHELL:-/bin/sh}
+case "\${shell##*/}" in
+  fish) exec "$shell" -lic 'exec $argv' "$@" ;;
+  sh|bash|zsh|dash|ksh) exec "$shell" -lic 'exec "$@"' "$shell" "$@" ;;
+  *) exec "$@" ;;
+esac`;
+
 /** hc run: a new terminal in a space, its program's argv after `--`, the task as its last argument. */
 export function runArgs({ parent, outlive, machine, folder, space, tab, argv, task }) {
+  const program = [...argv, ...(task ? [task] : [])];
   return ["run", "--bg", "--keep", "--json", ...(parent ? ["--parent", parent] : ["--no-parent"]), ...(parent && outlive ? ["--outlive-parent"] : []),
     ...(machine ? ["--on", machine] : []), ...(folder ? ["--cwd", folder] : []),
-    "--label", `herdr.space=${(space ?? "").replace(/^.*\//, "")}`, "--label", `herdr.tab=${tab}`, "--", ...argv, ...(task ? [task] : [])];
+    "--label", `herdr.space=${(space ?? "").replace(/^.*\//, "")}`, "--label", `herdr.tab=${tab}`, "--", ...(machine ? ["sh", "-c", LOGIN, "sh"] : []), ...program];
 }
 
 /** Why the text can't go as typed, or null. An agent program would read a leading "-" as its own flag. */

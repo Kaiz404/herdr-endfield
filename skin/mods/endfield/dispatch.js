@@ -35,8 +35,8 @@ const OPTS = {
   send: { title: "Delivery", list: [{ k: "idle", label: "Only if idle" }, { k: "now", label: "Now" }, { k: "wait", label: "Now, wait for reply" }] },
   new: { title: "Lifetime", list: [{ k: "keep", label: "Ends with parent" }, { k: "outlive", label: "Outlives parent" }, { k: "none", label: "No parent" }] },
 };
-// A plain command in a new terminal, for the machine's shell: the task is the command.
-const SHELL = () => (appWindow()?.platform === "windows"
+// A plain command in a new terminal, for the shell of the machine the space is on: the task is the command.
+const SHELL = (machine) => (!machine && appWindow()?.platform === "windows"
   ? { key: "shell", name: "Shell", run: ["powershell", "-NoProfile", "-Command"], installed: true, shell: true }
   : { key: "shell", name: "Shell", run: ["sh", "-c"], installed: true, shell: true });
 // Read-only: whether Claude Code already trusts a folder (tools/trust.mjs).
@@ -54,8 +54,10 @@ export class Dispatch {
     this.space = p.space ?? spaces().find((s) => s.active)?.id ?? null;
     this.parent = p.parent ?? (p.mode === "new" ? null : p.target ?? null);
     this.opt = { send: "now", new: this.parent ? "keep" : "none" };
-    this.progs = [SHELL()];
+    this.progs = [SHELL(this.machine())];
     this.prog = null;
+    // The machine this.progs were asked of (knownAgents on), so a space on another one asks again.
+    this.progsOn = undefined;
     // Saved logins (tools/account.mjs) and the one a new Claude Code agent starts on; null is the default login.
     this.accounts = [];
     this.account = null;
@@ -74,13 +76,28 @@ export class Dispatch {
     this.input.focus();
     cx.timer.after(600, () => this.input.focus());
     cx.spawn(async (cx) => {
-      // Installed programs first, then the shell, then the rest (dimmed): six tiles show.
-      try { const known = await knownAgents(); this.progs = [...known.filter((g) => g.installed), SHELL(), ...known.filter((g) => !g.installed)]; } catch {}
-      this.prog ??= this.progs.find((g) => g.installed && !g.shell)?.key ?? "shell";
+      await this.loadPrograms(cx);
       ({ names: this.accounts, def: this.def } = await listAccounts());
       cx.notify();
       await this.checkTrust(cx);
     });
+  }
+
+  machine() { return spaces().find((s) => s.id === this.space)?.machine ?? null; }
+
+  // What is installed where the new agent runs: a space on a WSL or SSH machine starts it there.
+  async loadPrograms(cx) {
+    const on = this.machine();
+    if (this.progsOn === on) return;
+    this.progsOn = on;
+    this.progs = [SHELL(on)];
+    let known = [];
+    try { known = await knownAgents({ on }); } catch {}
+    if (this.progsOn !== on) return;
+    // Installed programs first, then the shell, then the rest (dimmed): six tiles show.
+    this.progs = [...known.filter((g) => g.installed), SHELL(on), ...known.filter((g) => !g.installed)];
+    if (!this.progs.some((g) => g.key === this.prog && g.installed)) this.prog = this.progs.find((g) => g.installed && !g.shell)?.key ?? "shell";
+    cx.notify();
   }
 
   // Once per folder, and only for a space on this machine: ~/.claude.json lives where Claude Code runs.
@@ -109,10 +126,10 @@ export class Dispatch {
       const args = sendArgs({ target: this.target ?? "?", delivery: this.opt.send === "wait" ? "wait" : plan?.gate ?? this.opt.send, task });
       return { args, text: commandLine(args, platform), task, plan };
     }
-    const prog = this.progs.find((g) => g.key === this.prog) ?? SHELL();
     const space = spaces().find((s) => s.id === this.space);
+    const prog = this.progs.find((g) => g.key === this.prog) ?? SHELL(space?.machine);
     const parent = this.opt.new === "none" ? null : this.parent;
-    const args = runArgs({ parent, outlive: this.opt.new === "outlive", machine: space?.machine, folder: space?.folder, space: this.space, tab: this.tab ??= newTab(), argv: isClaude({ program: prog }) && this.accounts.length ? accountArgv({ tool: ACCOUNT_TOOL(), account: this.account, argv: prog.run }) : prog.run, task });
+    const args = runArgs({ parent, outlive: this.opt.new === "outlive", machine: space?.machine, folder: space?.folder, space: this.space, tab: this.tab ??= newTab(), argv: isClaude({ program: prog }) && this.accounts.length && !space?.machine ? accountArgv({ tool: ACCOUNT_TOOL(), account: this.account, argv: prog.run }) : prog.run, task });
     return { args, text: commandLine(args, platform), prog, task };
   }
 
@@ -211,10 +228,11 @@ export class Dispatch {
       this.space = ids[(ids.indexOf(this.space) + 1) % ids.length] ?? null;
       this.tab = null;
       cx.notify();
-      cx.spawn(async (cx) => this.checkTrust(cx));
+      cx.spawn(async (cx) => { await this.loadPrograms(cx); await this.checkTrust(cx); });
     };
     const optRow = OPTS[this.mode];
-    const onAccount = isClaude({ program: prog }) && this.accounts.length > 0;
+    // Saved logins and the account tool live on this computer: an agent on another machine uses that machine's login.
+    const onAccount = isClaude({ program: prog }) && this.accounts.length > 0 && !space?.machine;
     const untrusted = isClaude({ program: prog }) && this.trust?.folder === space?.folder && this.trust?.trusted === false;
     const cycleAccount = (_e, cx) => {
       const list = [null, ...this.accounts];
@@ -246,7 +264,7 @@ export class Dispatch {
             .when(Boolean(T), (el) => el.child(pair(T.label, T.address, C.text, C.muted, 9.5).flex_none()))
             .child(div().text_size(12).text_color(C.muted).child(warn[1])))))
         .when(!send, (el) => el.child(v_flex().px(22).pt(4).pb(14).gap(10)
-          .child(section("01", "Program", "Installed on this machine"))
+          .child(section("01", "Program", space?.machine ? `Installed on ${space.machine}` : "Installed on this machine"))
           .child(h_flex().gap(8).children(this.progs.slice(0, 6).map(progTile)))
           .child(h_flex().gap(8)
             .child(box(["Operator", model ? "by model" : "program default"], h_flex().gap(10).items_center()
